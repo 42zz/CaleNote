@@ -3,6 +3,8 @@ import SwiftUI
 
 struct TimelineView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var auth: GoogleAuthService
+    @StateObject private var calendarStore = CalendarEventStore()
 
     @Query(sort: \JournalEntry.eventDate, order: .reverse)
     private var entries: [JournalEntry]
@@ -67,18 +69,16 @@ struct TimelineView: View {
         return combined.isEmpty ? nil : "検索：\(combined)"
     }
 
-    private var groupedEntries: [(day: Date, items: [JournalEntry])] {
+    private var groupedItems: [(day: Date, items: [TimelineItem])] {
         let calendar = Calendar.current
 
-        // eventDate の「その日の0:00」に丸めて日付キーにする
-        let groups = Dictionary(grouping: filteredEntries) { entry in
-            calendar.startOfDay(for: entry.eventDate)
+        let groups = Dictionary(grouping: timelineItems) { item in
+            calendar.startOfDay(for: item.date)
         }
 
-        // 日付降順に並べて、各日の中は eventDate 降順に並べる
         return
             groups
-            .map { (day: $0.key, items: $0.value.sorted { $0.eventDate > $1.eventDate }) }
+            .map { (day: $0.key, items: $0.value.sorted { $0.date > $1.date }) }
             .sorted { $0.day > $1.day }
     }
 
@@ -114,6 +114,38 @@ struct TimelineView: View {
         try? modelContext.save()
     }
 
+    private func journalItems(from entries: [JournalEntry]) -> [TimelineItem] {
+        entries.map { entry in
+            TimelineItem(
+                id: "journal-\(entry.id.uuidString)",
+                kind: .journal,
+                title: entry.title?.isEmpty == false ? entry.title! : "（タイトルなし）",
+                body: entry.body,
+                date: entry.eventDate,
+                sourceId: entry.id.uuidString
+            )
+        }
+    }
+
+    private var timelineItems: [TimelineItem] {
+        let journals = journalItems(from: filteredEntries)
+        let calendars = calendarItems(from: calendarStore.events)
+        return (journals + calendars).sorted { $0.date > $1.date }
+    }
+
+    private func calendarItems(from events: [GoogleCalendarEvent]) -> [TimelineItem] {
+        events.map { e in
+            TimelineItem(
+                id: "calendar-\(e.id)",
+                kind: .calendar,
+                title: e.title,
+                body: e.description,  // タグをdescriptionに入れる方針なら、ここも後でTagExtractorに流用できる
+                date: e.start,
+                sourceId: e.id
+            )
+        }
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -123,6 +155,13 @@ struct TimelineView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .padding(.vertical, 4)
+                    }
+                }
+                if let msg = calendarStore.lastErrorMessage {
+                    Section {
+                        Text("カレンダー取得エラー: \(msg)")
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
                 }
 
@@ -156,39 +195,61 @@ struct TimelineView: View {
                         ContentUnavailableView("見つかりませんでした", systemImage: "magnifyingglass")
                     }
                 } else {
-                    ForEach(groupedEntries, id: \.day) { section in
+                    ForEach(groupedItems, id: \.day) { section in
                         Section(section.day.formatted(date: .abbreviated, time: .omitted)) {
-                            ForEach(section.items) { entry in
+                            ForEach(section.items) { item in
                                 NavigationLink {
-                                    JournalDetailView(entry: entry)
+                                    switch item.kind {
+                                    case .journal:
+                                        if let entry = entries.first(where: {
+                                            $0.id.uuidString == item.sourceId
+                                        }) {
+                                            JournalDetailView(entry: entry)
+                                        }
+                                    case .calendar:
+                                        Text("カレンダー予定（詳細は後で）")
+                                    }
                                 } label: {
                                     VStack(alignment: .leading, spacing: 6) {
-                                        Text(
-                                            entry.title?.isEmpty == false
-                                                ? entry.title! : "（タイトルなし）"
-                                        )
-                                        .font(.headline)
+                                        HStack {
+                                            Text(item.title)
+                                                .font(.headline)
 
-                                        Text(entry.body)
-                                            .font(.subheadline)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(2)
+                                            if item.kind == .calendar {
+                                                Spacer()
+                                                Image(systemName: "calendar")
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
 
-                                        // “日”でまとまっているので、ここは時刻だけの方が自然
-                                        Text(entry.eventDate, style: .time)
+                                        if let body = item.body {
+                                            Text(body)
+                                                .font(.subheadline)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(2)
+                                        }
+
+                                        Text(item.date, style: .time)
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
                                     .padding(.vertical, 6)
                                 }
-                                .swipeActions(edge: .trailing) {
-                                    Button(role: .destructive) {
-                                        deleteEntry(entry)
-                                    } label: {
-                                        Label("削除", systemImage: "trash")
+                                .swipeActions {
+                                    if item.kind == .journal,
+                                        let entry = entries.first(where: {
+                                            $0.id.uuidString == item.sourceId
+                                        })
+                                    {
+                                        Button(role: .destructive) {
+                                            deleteEntry(entry)
+                                        } label: {
+                                            Label("削除", systemImage: "trash")
+                                        }
                                     }
                                 }
                             }
+
                         }
                     }
                 }
@@ -211,6 +272,15 @@ struct TimelineView: View {
             .sheet(isPresented: $isPresentingEditor) {
                 JournalEditorView()
             }
+            .task {
+                // 例: 過去30日〜未来90日
+                let now = Date()
+                let timeMin = Calendar.current.date(byAdding: .day, value: -30, to: now) ?? now
+                let timeMax = Calendar.current.date(byAdding: .day, value: 90, to: now) ?? now
+
+                await calendarStore.load(auth: auth, timeMin: timeMin, timeMax: timeMax)
+            }
+
         }
     }
 }

@@ -1,22 +1,16 @@
-//
-//  CaleNoteApp.swift
-//  CaleNote
-//
-//  Created by Masaya Kawai on 2025/12/20.
-//
-
-import SwiftUI
+import GoogleSignIn
 import SwiftData
+import SwiftUI
 
 @main
 struct CaleNoteApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .onOpenURL { url in
+                    GIDSignIn.sharedInstance.handle(url)
+                }
         }
-        .modelContainer(for: [
-            JournalEntry.self
-        ])
+        .modelContainer(for: [JournalEntry.self])
     }
 }
-

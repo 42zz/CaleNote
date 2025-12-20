@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		713182732EF6A436000B99BB /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 713182722EF6A436000B99BB /* GoogleSignIn */; };
+		713182752EF6A436000B99BB /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 713182742EF6A436000B99BB /* GoogleSignInSwift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		713182212EF68343000B99BB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -29,9 +34,22 @@
 		7131822A2EF68343000B99BB /* CaleNoteUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CaleNoteUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		7131826E2EF6A314000B99BB /* Exceptions for "CaleNote" folder in "CaleNote" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 713182102EF68342000B99BB /* CaleNote */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		713182132EF68342000B99BB /* CaleNote */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				7131826E2EF6A314000B99BB /* Exceptions for "CaleNote" folder in "CaleNote" target */,
+			);
 			path = CaleNote;
 			sourceTree = "<group>";
 		};
@@ -52,6 +70,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				713182732EF6A436000B99BB /* GoogleSignIn in Frameworks */,
+				713182752EF6A436000B99BB /* GoogleSignInSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +98,7 @@
 				713182132EF68342000B99BB /* CaleNote */,
 				713182232EF68343000B99BB /* CaleNoteTests */,
 				7131822D2EF68343000B99BB /* CaleNoteUITests */,
+				713182712EF6A436000B99BB /* Frameworks */,
 				713182122EF68342000B99BB /* Products */,
 			);
 			sourceTree = "<group>";
@@ -90,6 +111,13 @@
 				7131822A2EF68343000B99BB /* CaleNoteUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		713182712EF6A436000B99BB /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -112,6 +140,8 @@
 			);
 			name = CaleNote;
 			packageProductDependencies = (
+				713182722EF6A436000B99BB /* GoogleSignIn */,
+				713182742EF6A436000B99BB /* GoogleSignInSwift */,
 			);
 			productName = CaleNote;
 			productReference = 713182112EF68342000B99BB /* CaleNote.app */;
@@ -187,14 +217,18 @@
 				};
 			};
 			buildConfigurationList = 7131820C2EF68342000B99BB /* Build configuration list for PBXProject "CaleNote" */;
-			developmentRegion = en;
+			developmentRegion = ja;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 				Base,
+				ja,
 			);
 			mainGroup = 713182082EF68342000B99BB;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7131826C2EF6A112000B99BB /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 713182122EF68342000B99BB /* Products */;
 			projectDirPath = "";
@@ -400,6 +434,7 @@
 				DEVELOPMENT_TEAM = 339KG8PDWQ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CaleNote/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -432,6 +467,7 @@
 				DEVELOPMENT_TEAM = 339KG8PDWQ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CaleNote/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -578,6 +614,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		7131826C2EF6A112000B99BB /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		713182722EF6A436000B99BB /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7131826C2EF6A112000B99BB /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		713182742EF6A436000B99BB /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7131826C2EF6A112000B99BB /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 713182092EF68342000B99BB /* Project object */;
 }
