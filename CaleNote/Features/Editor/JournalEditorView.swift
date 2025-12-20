@@ -29,9 +29,14 @@ struct JournalEditorView: View {
                 }
 
                 Section("本文（必須）") {
-                    TextEditor(text: $content)              // ← body → content
+                    Text("本文に #タグ を含めると、タグとして扱います。例: #振り返り #SwiftUI")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    TextEditor(text: $content)
                         .frame(minHeight: 180)
                 }
+
 
                 if let errorMessage {
                     Section {
