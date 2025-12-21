@@ -7,6 +7,9 @@ struct TimelineView: View {
 
     @Query(sort: \CachedCalendarEvent.start, order: .reverse)
     private var cachedCalendarEvents: [CachedCalendarEvent]
+
+    @Query private var cachedCalendars: [CachedCalendar]
+
     @Query(sort: \JournalEntry.eventDate, order: .reverse)
     private var entries: [JournalEntry]
 
@@ -133,7 +136,14 @@ struct TimelineView: View {
 
     private var timelineItems: [TimelineItem] {
         let journals = journalItems(from: filteredEntries)
-        let calendars = calendarItems(from: cachedCalendarEvents)
+
+        let enabledIds = Set(cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId })
+        let filteredCalendarEvents = cachedCalendarEvents.filter {
+            enabledIds.contains($0.calendarId)
+        }
+
+        let calendars = calendarItems(from: filteredCalendarEvents)
+
         return (journals + calendars).sorted { $0.date > $1.date }
     }
 
@@ -282,9 +292,10 @@ struct TimelineView: View {
                 let timeMax = Calendar.current.date(byAdding: .day, value: 90, to: now) ?? now
 
                 do {
-                    try await syncService.syncPrimaryCalendar(
+                    try await syncService.syncEnabledCalendars(
                         auth: auth,
                         modelContext: modelContext,
+                        calendars: cachedCalendars,
                         initialTimeMin: timeMin,
                         initialTimeMax: timeMax
                     )
@@ -293,7 +304,6 @@ struct TimelineView: View {
                     syncErrorMessage = error.localizedDescription
                 }
             }
-
         }
     }
 }

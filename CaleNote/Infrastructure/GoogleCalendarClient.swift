@@ -11,6 +11,13 @@ struct GoogleCalendarEvent: Identifiable {
   let updated: Date
 }
 
+struct GoogleCalendarListItem: Identifiable {
+  let id: String  // calendarId
+  let summary: String
+  let primary: Bool
+  let colorId: String?
+}
+
 enum GoogleCalendarClient {
 
   struct ListResult {
@@ -31,8 +38,9 @@ enum GoogleCalendarClient {
     var newestSyncToken: String? = nil
 
     repeat {
+      let encodedId = encodedCalendarId(calendarId)
       var components = URLComponents(
-        string: "https://www.googleapis.com/calendar/v3/calendars/\(calendarId)/events")!
+        string: "https://www.googleapis.com/calendar/v3/calendars/\(encodedId)/events")!
       let iso = ISO8601DateFormatter()
 
       var queryItems: [URLQueryItem] = [
@@ -99,6 +107,14 @@ enum GoogleCalendarClient {
   }
 }
 
+private func encodedCalendarId(_ calendarId: String) -> String {
+  // calendarId は URL の「パス」に入るので urlPathAllowed を使う
+  // ただし "/" はパス区切りになるので除外しておく（念のため）
+  var allowed = CharacterSet.urlPathAllowed
+  allowed.remove(charactersIn: "/")
+  return calendarId.addingPercentEncoding(withAllowedCharacters: allowed) ?? calendarId
+}
+
 enum CalendarSyncError: Error {
   case syncTokenExpired
 }
@@ -156,4 +172,53 @@ extension ISO8601DateFormatter {
     f.dateFormat = "yyyy-MM-dd"
     return f
   }
+}
+
+extension GoogleCalendarClient {
+  static func listCalendars(accessToken: String) async throws -> [GoogleCalendarListItem] {
+    var components = URLComponents(
+      string: "https://www.googleapis.com/calendar/v3/users/me/calendarList")!
+    components.queryItems = [
+      URLQueryItem(name: "maxResults", value: "250"),
+      URLQueryItem(name: "fields", value: "items(id,summary,primary,colorId)"),
+    ]
+
+    var request = URLRequest(url: components.url!)
+    request.httpMethod = "GET"
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+    let (data, response) = try await URLSession.shared.data(for: request)
+    guard let http = response as? HTTPURLResponse else {
+      throw NSError(
+        domain: "GoogleCalendarClient", code: 20,
+        userInfo: [NSLocalizedDescriptionKey: "不正なレスポンスです"])
+    }
+    guard (200..<300).contains(http.statusCode) else {
+      let body = String(data: data, encoding: .utf8) ?? ""
+      throw NSError(
+        domain: "GoogleCalendarClient", code: http.statusCode,
+        userInfo: [NSLocalizedDescriptionKey: "HTTP \(http.statusCode): \(body)"])
+    }
+
+    let decoded = try JSONDecoder().decode(CalendarListResponse.self, from: data)
+    return decoded.items.map {
+      GoogleCalendarListItem(
+        id: $0.id,
+        summary: $0.summary ?? "（無題）",
+        primary: $0.primary ?? false,
+        colorId: $0.colorId
+      )
+    }
+  }
+}
+
+private struct CalendarListResponse: Decodable {
+  let items: [CalendarListItem]
+}
+
+private struct CalendarListItem: Decodable {
+  let id: String
+  let summary: String?
+  let primary: Bool?
+  let colorId: String?
 }

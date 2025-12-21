@@ -3,6 +3,78 @@ import SwiftData
 
 @MainActor
 final class CalendarSyncService {
+  func syncEnabledCalendars(
+    auth: GoogleAuthService,
+    modelContext: ModelContext,
+    calendars: [CachedCalendar],
+    initialTimeMin: Date,
+    initialTimeMax: Date
+  ) async throws {
+
+    let enabled = calendars.filter { $0.isEnabled }
+    if enabled.isEmpty { return }
+
+    for cal in enabled {
+      try await syncOneCalendar(
+        auth: auth,
+        modelContext: modelContext,
+        calendarId: cal.calendarId,
+        initialTimeMin: initialTimeMin,
+        initialTimeMax: initialTimeMax
+      )
+    }
+  }
+
+  func syncOneCalendar(
+    auth: GoogleAuthService,
+    modelContext: ModelContext,
+    calendarId: String,
+    initialTimeMin: Date,
+    initialTimeMax: Date
+  ) async throws {
+
+    try await auth.ensureCalendarScopeGranted()
+    let token = try await auth.validAccessToken()
+
+    let existingSyncToken = CalendarSyncState.loadSyncToken(calendarId: calendarId)
+
+    do {
+      let result = try await GoogleCalendarClient.listEvents(
+        accessToken: token,
+        calendarId: calendarId,
+        timeMin: existingSyncToken == nil ? initialTimeMin : nil,
+        timeMax: existingSyncToken == nil ? initialTimeMax : nil,
+        syncToken: existingSyncToken
+      )
+
+      applyToCache(events: result.events, calendarId: calendarId, modelContext: modelContext)
+
+      if let next = result.nextSyncToken {
+        CalendarSyncState.saveSyncToken(next, calendarId: calendarId)
+      }
+      try modelContext.save()
+
+    } catch CalendarSyncError.syncTokenExpired {
+      clearCache(calendarId: calendarId, modelContext: modelContext)
+      CalendarSyncState.saveSyncToken(nil, calendarId: calendarId)
+      try modelContext.save()
+
+      let result = try await GoogleCalendarClient.listEvents(
+        accessToken: token,
+        calendarId: calendarId,
+        timeMin: initialTimeMin,
+        timeMax: initialTimeMax,
+        syncToken: nil
+      )
+
+      applyToCache(events: result.events, calendarId: calendarId, modelContext: modelContext)
+
+      if let next = result.nextSyncToken {
+        CalendarSyncState.saveSyncToken(next, calendarId: calendarId)
+      }
+      try modelContext.save()
+    }
+  }
 
   func syncPrimaryCalendar(
     auth: GoogleAuthService,
