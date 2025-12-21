@@ -11,6 +11,10 @@ struct CaleNoteApp: App {
                     GIDSignIn.sharedInstance.handle(url)
                 }
         }
-        .modelContainer(for: [JournalEntry.self])
+        .modelContainer(for: [
+            JournalEntry.self,
+            CachedCalendarEvent.self,
+        ])
+
     }
 }

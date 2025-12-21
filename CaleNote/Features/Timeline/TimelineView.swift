@@ -4,14 +4,18 @@ import SwiftUI
 struct TimelineView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var auth: GoogleAuthService
-    @StateObject private var calendarStore = CalendarEventStore()
 
+    @Query(sort: \CachedCalendarEvent.start, order: .reverse)
+    private var cachedCalendarEvents: [CachedCalendarEvent]
     @Query(sort: \JournalEntry.eventDate, order: .reverse)
     private var entries: [JournalEntry]
 
     @State private var isPresentingEditor = false
     @State private var searchText: String = ""
-    @State private var selectedTag: String? = nil  // ← 追加
+    @State private var selectedTag: String? = nil
+
+    @State private var syncErrorMessage: String?
+    private let syncService = CalendarSyncService()
 
     // ← 追加：ローカルキャッシュから作る「最近使ったタグ（上位）」。
     // とりあえず頻度順。必要なら「直近30日」などに絞れる
@@ -129,19 +133,19 @@ struct TimelineView: View {
 
     private var timelineItems: [TimelineItem] {
         let journals = journalItems(from: filteredEntries)
-        let calendars = calendarItems(from: calendarStore.events)
+        let calendars = calendarItems(from: cachedCalendarEvents)
         return (journals + calendars).sorted { $0.date > $1.date }
     }
 
-    private func calendarItems(from events: [GoogleCalendarEvent]) -> [TimelineItem] {
-        events.map { e in
+    private func calendarItems(from cached: [CachedCalendarEvent]) -> [TimelineItem] {
+        cached.map { e in
             TimelineItem(
-                id: "calendar-\(e.id)",
+                id: "calendar-\(e.uid)",
                 kind: .calendar,
                 title: e.title,
-                body: e.description,  // タグをdescriptionに入れる方針なら、ここも後でTagExtractorに流用できる
+                body: e.desc,
                 date: e.start,
-                sourceId: e.id
+                sourceId: e.uid
             )
         }
     }
@@ -157,9 +161,9 @@ struct TimelineView: View {
                             .padding(.vertical, 4)
                     }
                 }
-                if let msg = calendarStore.lastErrorMessage {
+                if let msg = syncErrorMessage {
                     Section {
-                        Text("カレンダー取得エラー: \(msg)")
+                        Text("同期エラー: \(msg)")
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
@@ -188,7 +192,7 @@ struct TimelineView: View {
                     }
                 }
 
-                if filteredEntries.isEmpty {
+                if timelineItems.isEmpty {
                     if searchText.isEmpty && selectedTag == nil {
                         ContentUnavailableView("まだ何もありません", systemImage: "square.and.pencil")
                     } else {
@@ -273,12 +277,21 @@ struct TimelineView: View {
                 JournalEditorView()
             }
             .task {
-                // 例: 過去30日〜未来90日
                 let now = Date()
                 let timeMin = Calendar.current.date(byAdding: .day, value: -30, to: now) ?? now
                 let timeMax = Calendar.current.date(byAdding: .day, value: 90, to: now) ?? now
 
-                await calendarStore.load(auth: auth, timeMin: timeMin, timeMax: timeMax)
+                do {
+                    try await syncService.syncPrimaryCalendar(
+                        auth: auth,
+                        modelContext: modelContext,
+                        initialTimeMin: timeMin,
+                        initialTimeMax: timeMax
+                    )
+                    syncErrorMessage = nil
+                } catch {
+                    syncErrorMessage = error.localizedDescription
+                }
             }
 
         }
