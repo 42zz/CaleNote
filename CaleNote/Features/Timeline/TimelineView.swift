@@ -365,12 +365,20 @@ struct TimelineView: View {
         isSyncing = true
         defer { isSyncing = false }
 
+        let now = Date()
+        if !SyncRateLimiter.canSync(now: now) {
+            let remain = SyncRateLimiter.remainingSeconds(now: now)
+            syncStatusMessage = "同期は少し待ってください（あと \(remain) 秒）"
+            return
+        }
+
+        SyncRateLimiter.markSynced(at: Date())
+        lastSyncAt = Date()
+
         syncErrorMessage = nil
         syncStatusMessage = isManual ? "手動同期中…" : "同期中…"
 
-        let now = Date()
-        let timeMin = Calendar.current.date(byAdding: .day, value: -30, to: now) ?? now
-        let timeMax = Calendar.current.date(byAdding: .day, value: 90, to: now) ?? now
+        let (timeMin, timeMax) = SyncSettings.windowDates()
 
         do {
             try await syncService.syncEnabledCalendars(
@@ -382,9 +390,11 @@ struct TimelineView: View {
             )
 
             let apply = try calendarToJournal.applyFromCachedEvents(modelContext: modelContext)
-            lastSyncAt = Date()
+            let cleaner = CalendarCacheCleaner()
+            let removed = try cleaner.cleanupEventsOutsideWindow(modelContext: modelContext, timeMin: timeMin, timeMax: timeMax)
+
             syncStatusMessage =
-                "同期完了（更新\(apply.updatedCount) / 削除\(apply.unlinkedCount) / スキップ\(apply.skippedCount)）"
+                "同期完了（更新\(apply.updatedCount) / 削除\(apply.unlinkedCount) / スキップ\(apply.skippedCount) / 掃除\(removed)）"
         } catch {
             syncErrorMessage = error.localizedDescription
             syncStatusMessage = nil

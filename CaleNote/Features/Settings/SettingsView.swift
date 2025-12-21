@@ -20,6 +20,8 @@ struct SettingsView: View {
     private var pendingEntries: [JournalEntry]
 
     private let journalSync = JournalCalendarSyncService()
+    @State private var pastDays: Int = SyncSettings.pastDays()
+    @State private var futureDays: Int = SyncSettings.futureDays()
 
     private var calendarsPrimaryFirst: [CachedCalendar] {
         calendars.sorted { a, b in
@@ -104,6 +106,22 @@ struct SettingsView: View {
                             }
                         }
                     }
+                }
+
+                Section("同期対象期間") {
+                    Stepper("過去 \(pastDays) 日", value: $pastDays, in: 1...365, step: 1)
+                        .onChange(of: pastDays) { _, newValue in
+                            SyncSettings.save(pastDays: newValue, futureDays: futureDays)
+                        }
+
+                    Stepper("未来 \(futureDays) 日", value: $futureDays, in: 1...365, step: 1)
+                        .onChange(of: futureDays) { _, newValue in
+                            SyncSettings.save(pastDays: pastDays, futureDays: newValue)
+                        }
+
+                    Text("デフォルトは過去30日〜未来30日です。範囲を広げるほど同期とキャッシュが重くなります。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("カレンダーの色") {
