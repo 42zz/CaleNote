@@ -23,6 +23,12 @@ final class JournalCalendarSyncService {
     let title = (entry.title?.isEmpty == false) ? entry.title! : "ジャーナル"
     let description = entry.body
 
+    let appPrivateProperties: [String: String] = [
+      "app": "calenote",
+      "schema": "1",
+      "journalId": entry.id.uuidString,
+    ]
+
     if let calendarId = entry.linkedCalendarId,
       let eventId = entry.linkedEventId,
       calendarId == targetCalendarId
@@ -35,7 +41,8 @@ final class JournalCalendarSyncService {
         title: title,
         description: description,
         start: start,
-        end: end
+        end: end,
+        appPrivateProperties: appPrivateProperties
       )
 
       // ローカル側の紐付けは維持、失敗フラグを落とす
@@ -52,7 +59,8 @@ final class JournalCalendarSyncService {
         title: title,
         description: description,
         start: start,
-        end: end
+        end: end,
+        appPrivateProperties: appPrivateProperties
       )
 
       entry.linkedCalendarId = targetCalendarId
@@ -83,11 +91,13 @@ final class JournalCalendarSyncService {
       cached.status = event.status
       cached.updatedAt = event.updated
       cached.cachedAt = Date()
+      cached.linkedJournalId = event.privateProps?["journalId"]
     } else {
       let cached = CachedCalendarEvent(
         uid: uid,
         calendarId: calendarId,
         eventId: event.id,
+        linkedJournalId: event.privateProps?["journalId"],
         title: event.title,
         desc: event.description,
         start: event.start,
@@ -98,5 +108,35 @@ final class JournalCalendarSyncService {
       )
       modelContext.insert(cached)
     }
+  }
+  func deleteRemoteIfLinked(
+    entry: JournalEntry,
+    auth: GoogleAuthService,
+    modelContext: ModelContext
+  ) async throws {
+    guard let calendarId = entry.linkedCalendarId,
+      let eventId = entry.linkedEventId
+    else {
+      return
+    }
+
+    try await auth.ensureCalendarScopeGranted()
+    let token = try await auth.validAccessToken()
+
+    try await GoogleCalendarClient.deleteEvent(
+      accessToken: token,
+      calendarId: calendarId,
+      eventId: eventId
+    )
+
+    // ローカルのカレンダーキャッシュも即時に消す（次の同期を待たない）
+    let uid = "\(calendarId):\(eventId)"
+    let p = #Predicate<CachedCalendarEvent> { $0.uid == uid }
+    let d = FetchDescriptor(predicate: p)
+    if let cached = try? modelContext.fetch(d).first {
+      modelContext.delete(cached)
+    }
+
+    try modelContext.save()
   }
 }

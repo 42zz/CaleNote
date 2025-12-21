@@ -14,6 +14,8 @@ struct JournalEditorView: View {
     @State private var content: String  // ← ここを body から改名
     @State private var eventDate: Date
 
+    @State private var isSaving = false
+    @State private var saveErrorMessage: String?
     @State private var errorMessage: String?
 
     init(entry: JournalEntry? = nil) {
@@ -46,6 +48,12 @@ struct JournalEditorView: View {
                             .foregroundStyle(.red)
                     }
                 }
+                if let msg = saveErrorMessage {
+                    Section {
+                        Text(msg)
+                            .foregroundStyle(.red)
+                    }
+                }
             }
             .navigationTitle(entry == nil ? "新規作成" : "編集")
             .toolbar {
@@ -53,42 +61,40 @@ struct JournalEditorView: View {
                     Button("キャンセル") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }
+                    Button("保存") {
+                        save()
+                    }
+                    .disabled(isSaving)
                 }
             }
         }
     }
 
     private func save() {
-        let trimmedBody = content.trimmingCharacters(in: .whitespacesAndNewlines)  // ← body → content
+        if isSaving { return }
+
+        isSaving = true
+        saveErrorMessage = nil
+        errorMessage = nil
+
+        let trimmedBody = content.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedBody.isEmpty {
             errorMessage = "本文は必須です。"
+            isSaving = false
             return
         }
 
         let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let finalTitle = normalizedTitle.isEmpty ? nil : normalizedTitle
 
-        if let entry {
-            entry.title = finalTitle
-            entry.body = trimmedBody
-            entry.eventDate = eventDate
-            entry.updatedAt = Date()
-        } else {
-            let newEntry = JournalEntry(
-                title: finalTitle,
-                body: trimmedBody,
-                eventDate: eventDate,
-                createdAt: Date(),
-                updatedAt: Date()
-            )
-            modelContext.insert(newEntry)
-        }
-
+        // ここで必ず「保存対象」を1つに決める
         let targetEntry: JournalEntry
         if let entry {
             targetEntry = entry
-            // entryを書き換える…
+            targetEntry.title = finalTitle
+            targetEntry.body = trimmedBody
+            targetEntry.eventDate = eventDate
+            targetEntry.updatedAt = Date()
         } else {
             let newEntry = JournalEntry(
                 title: finalTitle,
@@ -107,9 +113,10 @@ struct JournalEditorView: View {
 
             Task {
                 do {
+                    let targetCalendarId = JournalWriteSettings.loadWriteCalendarId() ?? "primary"
                     try await syncService.syncOne(
                         entry: targetEntry,
-                        targetCalendarId: "primary",
+                        targetCalendarId: targetCalendarId,
                         auth: auth,
                         modelContext: modelContext
                     )
@@ -119,9 +126,15 @@ struct JournalEditorView: View {
                         try? modelContext.save()
                     }
                 }
+
+                await MainActor.run {
+                    isSaving = false
+                }
             }
         } catch {
             errorMessage = "保存に失敗しました: \(error.localizedDescription)"
+            isSaving = false
         }
     }
+
 }

@@ -12,12 +12,30 @@ struct SettingsView: View {
 
     @State private var errorMessage: String?
     private let listSync = CalendarListSyncService()
+    @State private var writeCalendarId: String? = JournalWriteSettings.loadWriteCalendarId()
+
+    @Query(
+        filter: #Predicate<JournalEntry> { $0.needsCalendarSync == true },
+        sort: \JournalEntry.updatedAt, order: .reverse)
+    private var pendingEntries: [JournalEntry]
+
+    private let journalSync = JournalCalendarSyncService()
 
     private var calendarsPrimaryFirst: [CachedCalendar] {
         calendars.sorted { a, b in
             if a.isPrimary != b.isPrimary { return a.isPrimary && !b.isPrimary }
             return a.summary < b.summary
         }
+    }
+
+    private func defaultWriteCalendarId(from enabled: [CachedCalendar]) -> String {
+        if let saved = writeCalendarId, enabled.contains(where: { $0.calendarId == saved }) {
+            return saved
+        }
+        if let primary = enabled.first(where: { $0.isPrimary }) {
+            return primary.calendarId
+        }
+        return enabled.first!.calendarId
     }
 
     var body: some View {
@@ -61,6 +79,33 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("ジャーナルの書き込み先") {
+                    let enabledCalendars = calendars.filter { $0.isEnabled }
+
+                    if enabledCalendars.isEmpty {
+                        Text("先に表示するカレンダーを1つ以上ONにしてください。")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker(
+                            "書き込み先",
+                            selection: Binding(
+                                get: {
+                                    writeCalendarId
+                                        ?? defaultWriteCalendarId(from: enabledCalendars)
+                                },
+                                set: { newValue in
+                                    writeCalendarId = newValue
+                                    JournalWriteSettings.saveWriteCalendarId(newValue)
+                                }
+                            )
+                        ) {
+                            ForEach(enabledCalendars) { cal in
+                                Text(cal.summary).tag(cal.calendarId)
+                            }
+                        }
+                    }
+                }
+
                 Section("カレンダーの色") {
                     if calendarsPrimaryFirst.isEmpty {
                         Text("まず一覧を同期してください。")
@@ -78,6 +123,21 @@ struct SettingsView: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
+                        }
+                    }
+                }
+
+                Section("同期待ち") {
+                    if pendingEntries.isEmpty {
+                        Text("同期待ちはありません。")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("\(pendingEntries.count)件の同期待ちがあります。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Button("まとめて再送") {
+                            Task { await resendAll() }
                         }
                     }
                 }
@@ -110,4 +170,23 @@ struct SettingsView: View {
             errorMessage = error.localizedDescription
         }
     }
+
+    private func resendAll() async {
+        do {
+            let targetCalendarId = JournalWriteSettings.loadWriteCalendarId() ?? "primary"
+
+            for entry in pendingEntries {
+                try await journalSync.syncOne(
+                    entry: entry,
+                    targetCalendarId: entry.linkedCalendarId ?? targetCalendarId,
+                    auth: auth,
+                    modelContext: modelContext
+                )
+            }
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
 }

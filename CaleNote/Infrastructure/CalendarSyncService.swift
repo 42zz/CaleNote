@@ -137,12 +137,19 @@ final class CalendarSyncService {
     for e in events {
       let uid = "\(calendarId):\(e.id)"
 
-      // 削除（cancelled）はローカルから消す（増分同期では削除も返る）:contentReference[oaicite:5]{index=5}
       if e.status == "cancelled" {
+        // 1) まずジャーナルを削除（アプリが作ったイベントなら journalId が入っている）
+        if let journalId = e.privateProps?["journalId"] {
+          deleteJournalIfExists(journalId: journalId, modelContext: modelContext)
+        }
+
+        // 2) キャッシュも消す（残す必要なし）
         deleteCached(uid: uid, modelContext: modelContext)
+        print("cancelled: \(uid) journalId=\(e.privateProps?["journalId"] ?? "nil")")
         continue
       }
 
+      let journalId = e.privateProps?["journalId"]
       if let cached = fetchCached(uid: uid, modelContext: modelContext) {
         cached.title = e.title
         cached.desc = e.description
@@ -152,18 +159,20 @@ final class CalendarSyncService {
         cached.status = e.status
         cached.updatedAt = e.updated
         cached.cachedAt = Date()
+        cached.linkedJournalId = journalId
       } else {
         let cached = CachedCalendarEvent(
           uid: uid,
           calendarId: calendarId,
           eventId: e.id,
+          linkedJournalId: journalId,
           title: e.title,
           desc: e.description,
           start: e.start,
           end: e.end,
           isAllDay: e.isAllDay,
           status: e.status,
-          updatedAt: e.updated
+          updatedAt: e.updated,
         )
         modelContext.insert(cached)
       }
@@ -191,4 +200,15 @@ final class CalendarSyncService {
       for e in all { modelContext.delete(e) }
     }
   }
+  private func deleteJournalIfExists(journalId: String, modelContext: ModelContext) {
+    guard let uuid = UUID(uuidString: journalId) else { return }
+
+    let p = #Predicate<JournalEntry> { $0.id == uuid }
+    let d = FetchDescriptor(predicate: p)
+
+    if let entry = try? modelContext.fetch(d).first {
+      modelContext.delete(entry)
+    }
+  }
+
 }

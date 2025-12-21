@@ -9,6 +9,7 @@ struct GoogleCalendarEvent: Identifiable {
   let description: String?
   let status: String
   let updated: Date
+  let privateProps: [String: String]?
 }
 
 struct GoogleCalendarListItem: Identifiable {
@@ -45,15 +46,16 @@ enum GoogleCalendarClient {
 
       var queryItems: [URLQueryItem] = [
         URLQueryItem(name: "singleEvents", value: "true"),
+        URLQueryItem(name: "showDeleted", value: "true"),
         URLQueryItem(name: "maxResults", value: "2500"),
         URLQueryItem(
           name: "fields",
           value:
-            "items(id,summary,description,start(dateTime,date),end(dateTime,date),status,updated),nextSyncToken,nextPageToken"
+            "items(id,summary,description,start(dateTime,date),end(dateTime,date),status,updated,extendedProperties(private,shared)),nextSyncToken,nextPageToken"
         ),
       ]
 
-      // 初回同期（timeMin/timeMaxあり）か、増分同期（syncTokenあり）か
+      // syncToken があるなら増分同期、無ければ期間指定
       if let syncToken {
         queryItems.append(URLQueryItem(name: "syncToken", value: syncToken))
       } else {
@@ -132,10 +134,30 @@ private struct EventWriteRequest: Encodable {
     let timeZone: String?
   }
 
+  struct ExtendedProperties: Encodable {
+    let `private`: [String: String]?
+    let shared: [String: String]?
+  }
+
   let summary: String?
   let description: String?
   let start: EventDateTime
   let end: EventDateTime
+  let extendedProperties: ExtendedProperties?
+
+  init(
+    summary: String?,
+    description: String?,
+    start: EventDateTime,
+    end: EventDateTime,
+    extendedProperties: ExtendedProperties? = nil
+  ) {
+    self.summary = summary
+    self.description = description
+    self.start = start
+    self.end = end
+    self.extendedProperties = extendedProperties
+  }
 }
 
 private struct EventItem: Decodable {
@@ -146,27 +168,53 @@ private struct EventItem: Decodable {
   let end: EventDateTime?
   let status: String?
   let updated: String?
+  let extendedProperties: ExtendedProperties?
+
+  struct ExtendedProperties: Decodable {
+    let `private`: [String: String]?
+    let shared: [String: String]?
+  }
 
   func toDomain() -> GoogleCalendarEvent? {
     let title = summary ?? "（予定）"
     let status = status ?? "confirmed"
-    let updatedDate = updated.flatMap { ISO8601DateFormatter().date(from: $0) } ?? Date()
+    let updatedDate = updated.flatMap { GoogleRFC3339.parse($0) } ?? Date()
 
     if let d = start.date {
       guard let startDate = ISO8601DateFormatter.dateOnly.date(from: d) else { return nil }
       let endDate: Date? = end?.date.flatMap { ISO8601DateFormatter.dateOnly.date(from: $0) }
+
       return GoogleCalendarEvent(
-        id: id, title: title, start: startDate, end: endDate, isAllDay: true,
-        description: description, status: status, updated: updatedDate)
-    } else if let dt = start.dateTime {
-      guard let startDate = ISO8601DateFormatter().date(from: dt) else { return nil }
-      let endDate = end?.dateTime.flatMap { ISO8601DateFormatter().date(from: $0) }
-      return GoogleCalendarEvent(
-        id: id, title: title, start: startDate, end: endDate, isAllDay: false,
-        description: description, status: status, updated: updatedDate)
-    } else {
-      return nil
+        id: id,
+        title: title,
+        start: startDate,
+        end: endDate,
+        isAllDay: true,
+        description: description,
+        status: status,
+        updated: updatedDate,
+        privateProps: extendedProperties?.private
+      )
     }
+
+    if let dt = start.dateTime {
+      guard let startDate = GoogleRFC3339.parse(dt) else { return nil }
+      let endDate = end?.dateTime.flatMap { GoogleRFC3339.parse($0) }
+
+      return GoogleCalendarEvent(
+        id: id,
+        title: title,
+        start: startDate,
+        end: endDate,
+        isAllDay: false,
+        description: description,
+        status: status,
+        updated: updatedDate,
+        privateProps: extendedProperties?.private
+      )
+    }
+
+    return nil
   }
 }
 
@@ -215,6 +263,26 @@ extension ISO8601DateFormatter {
   }
 }
 
+private enum GoogleRFC3339 {
+  static let withFractional: ISO8601DateFormatter = {
+    let f = ISO8601DateFormatter()
+    f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return f
+  }()
+
+  static let withoutFractional: ISO8601DateFormatter = {
+    let f = ISO8601DateFormatter()
+    f.formatOptions = [.withInternetDateTime]
+    return f
+  }()
+
+  static func parse(_ s: String) -> Date? {
+    if let d = withFractional.date(from: s) { return d }
+    if let d = withoutFractional.date(from: s) { return d }
+    return nil
+  }
+}
+
 extension GoogleCalendarClient {
   static func insertEvent(
     accessToken: String,
@@ -222,18 +290,27 @@ extension GoogleCalendarClient {
     title: String,
     description: String,
     start: Date,
-    end: Date
+    end: Date,
+    appPrivateProperties: [String: String]
   ) async throws -> GoogleCalendarEvent {
 
     let reqBody = EventWriteRequest(
       summary: title,
       description: description,
-      start: .init(
-        dateTime: DateFormatters.isoDateTime.string(from: start), date: nil,
-        timeZone: TimeZone.current.identifier),
-      end: .init(
-        dateTime: DateFormatters.isoDateTime.string(from: end), date: nil,
-        timeZone: TimeZone.current.identifier)
+      start: EventWriteRequest.EventDateTime(
+        dateTime: DateFormatters.isoDateTime.string(from: start),
+        date: nil,
+        timeZone: TimeZone.current.identifier
+      ),
+      end: EventWriteRequest.EventDateTime(
+        dateTime: DateFormatters.isoDateTime.string(from: end),
+        date: nil,
+        timeZone: TimeZone.current.identifier
+      ),
+      extendedProperties: EventWriteRequest.ExtendedProperties(
+        private: appPrivateProperties,
+        shared: nil
+      )
     )
 
     let encodedId = encodedCalendarId(calendarId)
@@ -242,7 +319,9 @@ extension GoogleCalendarClient {
     components.queryItems = [
       URLQueryItem(
         name: "fields",
-        value: "id,summary,description,start(dateTime,date),end(dateTime,date),status,updated")
+        value:
+          "id,summary,description,start(dateTime,date),end(dateTime,date),status,updated,extendedProperties(private)"
+      )
     ]
 
     var request = URLRequest(url: components.url!)
@@ -270,18 +349,27 @@ extension GoogleCalendarClient {
     title: String,
     description: String,
     start: Date,
-    end: Date
+    end: Date,
+    appPrivateProperties: [String: String]
   ) async throws -> GoogleCalendarEvent {
 
     let reqBody = EventWriteRequest(
       summary: title,
       description: description,
-      start: .init(
-        dateTime: DateFormatters.isoDateTime.string(from: start), date: nil,
-        timeZone: TimeZone.current.identifier),
-      end: .init(
-        dateTime: DateFormatters.isoDateTime.string(from: end), date: nil,
-        timeZone: TimeZone.current.identifier)
+      start: EventWriteRequest.EventDateTime(
+        dateTime: DateFormatters.isoDateTime.string(from: start),
+        date: nil,
+        timeZone: TimeZone.current.identifier
+      ),
+      end: EventWriteRequest.EventDateTime(
+        dateTime: DateFormatters.isoDateTime.string(from: end),
+        date: nil,
+        timeZone: TimeZone.current.identifier
+      ),
+      extendedProperties: EventWriteRequest.ExtendedProperties(
+        private: appPrivateProperties,
+        shared: nil
+      )
     )
 
     let encodedId = encodedCalendarId(calendarId)
@@ -290,7 +378,9 @@ extension GoogleCalendarClient {
     components.queryItems = [
       URLQueryItem(
         name: "fields",
-        value: "id,summary,description,start(dateTime,date),end(dateTime,date),status,updated")
+        value:
+          "id,summary,description,start(dateTime,date),end(dateTime,date),status,updated,extendedProperties(private)"
+      )
     ]
 
     var request = URLRequest(url: components.url!)
@@ -357,6 +447,34 @@ extension GoogleCalendarClient {
         primary: $0.primary ?? false,
         colorId: $0.colorId
       )
+    }
+  }
+  static func deleteEvent(
+    accessToken: String,
+    calendarId: String,
+    eventId: String
+  ) async throws {
+    let encodedId = encodedCalendarId(calendarId)
+    let url = URL(
+      string: "https://www.googleapis.com/calendar/v3/calendars/\(encodedId)/events/\(eventId)")!
+
+    var request = URLRequest(url: url)
+    request.httpMethod = "DELETE"
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+    let (_, response) = try await URLSession.shared.data(for: request)
+    guard let http = response as? HTTPURLResponse else {
+      throw NSError(
+        domain: "GoogleCalendarClient", code: 3001,
+        userInfo: [NSLocalizedDescriptionKey: "不正なレスポンスです"])
+    }
+
+    // 204 No Content が典型。404でも「すでに無い」なら成功扱いにして良い
+    if http.statusCode == 404 { return }
+    guard (200..<300).contains(http.statusCode) else {
+      throw NSError(
+        domain: "GoogleCalendarClient", code: http.statusCode,
+        userInfo: [NSLocalizedDescriptionKey: "HTTP \(http.statusCode)"])
     }
   }
 }

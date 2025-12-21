@@ -20,6 +20,12 @@ struct TimelineView: View {
     @State private var syncErrorMessage: String?
     private let syncService = CalendarSyncService()
 
+    private let calendarToJournal = CalendarToJournalSyncService()
+    @State private var lastApplyMessage: String?
+
+    private let journalSync = JournalCalendarSyncService()
+    @State private var deleteErrorMessage: String?
+
     // ← 追加：ローカルキャッシュから作る「最近使ったタグ（上位）」。
     // とりあえず頻度順。必要なら「直近30日」などに絞れる
     private var recentTagStats: [TagStat] {
@@ -78,15 +84,22 @@ struct TimelineView: View {
 
     private var groupedItems: [(day: Date, items: [TimelineItem])] {
         let calendar = Calendar.current
+        let items = timelineItems
 
-        let groups = Dictionary(grouping: timelineItems) { item in
+        let groups: [Date: [TimelineItem]] = Dictionary(grouping: items) { item in
             calendar.startOfDay(for: item.date)
         }
 
-        return
-            groups
-            .map { (day: $0.key, items: $0.value.sorted { $0.date > $1.date }) }
-            .sorted { $0.day > $1.day }
+        var result: [(day: Date, items: [TimelineItem])] = []
+        result.reserveCapacity(groups.count)
+
+        for (day, list) in groups {
+            let sortedList = list.sorted { $0.date > $1.date }
+            result.append((day: day, items: sortedList))
+        }
+
+        result.sort { $0.day > $1.day }
+        return result
     }
 
     private func buildTagStats(from entries: [JournalEntry]) -> [TagStat] {
@@ -135,16 +148,60 @@ struct TimelineView: View {
     }
 
     private var timelineItems: [TimelineItem] {
-        let journals = journalItems(from: filteredEntries)
+        // 1) ジャーナル
+        let journalEntries: [JournalEntry] = filteredEntries
+        let journalItemsLocal: [TimelineItem] = journalItems(from: journalEntries)
 
-        let enabledIds = Set(cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId })
-        let filteredCalendarEvents = cachedCalendarEvents.filter {
-            enabledIds.contains($0.calendarId)
+        // 2) ジャーナルID集合（重複除外用）
+        let journalIdSet: Set<String> = Set(journalEntries.map { $0.id.uuidString })
+
+        // 3) 有効カレンダーID集合
+        let enabledCalendarIds: Set<String> = Set(
+            cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId })
+
+        // 4) 表示対象のカレンダーイベント（有効カレンダーのみ）
+        let enabledCalendarEvents: [CachedCalendarEvent] = cachedCalendarEvents.filter { ev in
+            enabledCalendarIds.contains(ev.calendarId)
         }
 
-        let calendars = calendarItems(from: filteredCalendarEvents)
+        // 5) 重複除外（linkedJournalIdがローカルに存在するならカレンダー側は表示しない）
+        let dedupedCalendarEvents: [CachedCalendarEvent] = enabledCalendarEvents.filter { ev in
+            guard let jid = ev.linkedJournalId else { return true }
+            return !journalIdSet.contains(jid)
+        }
 
-        return (journals + calendars).sorted { $0.date > $1.date }
+        // 6) カレンダーイベント→TimelineItem
+        let calendarItemsLocal: [TimelineItem] = calendarItems(from: dedupedCalendarEvents)
+
+        // 7) 合成してソート
+        var merged: [TimelineItem] = []
+        merged.reserveCapacity(journalItemsLocal.count + calendarItemsLocal.count)
+        merged.append(contentsOf: journalItemsLocal)
+        merged.append(contentsOf: calendarItemsLocal)
+
+        merged.sort { $0.date > $1.date }
+        return merged
+    }
+
+    private func deleteJournalEntry(_ entry: JournalEntry) {
+        Task {
+            do {
+                // 先にリモート削除（成功でも失敗でも、ローカルだけ消すかは好み）
+                try await journalSync.deleteRemoteIfLinked(
+                    entry: entry, auth: auth, modelContext: modelContext)
+
+                // ローカルのJournal自体を消す
+                modelContext.delete(entry)
+                try modelContext.save()
+
+                deleteErrorMessage = nil
+            } catch {
+                // ここは方針が分かれる
+                // 「ローカルだけ消してneedsCalendarSync的に後で整理」でもいいし
+                // 「失敗したら消さない」でもいい
+                deleteErrorMessage = error.localizedDescription
+            }
+        }
     }
 
     private func calendarItems(from cached: [CachedCalendarEvent]) -> [TimelineItem] {
@@ -163,6 +220,14 @@ struct TimelineView: View {
     var body: some View {
         NavigationStack {
             List {
+                if let msg = deleteErrorMessage {
+                    Section {
+                        Text("削除エラー: \(msg)")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+
                 if let summary = filterSummaryText {
                     Section {
                         Text(summary)
@@ -171,6 +236,14 @@ struct TimelineView: View {
                             .padding(.vertical, 4)
                     }
                 }
+                if let msg = lastApplyMessage {
+                    Section {
+                        Text(msg)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
                 if let msg = syncErrorMessage {
                     Section {
                         Text("同期エラー: \(msg)")
@@ -212,55 +285,27 @@ struct TimelineView: View {
                     ForEach(groupedItems, id: \.day) { section in
                         Section(section.day.formatted(date: .abbreviated, time: .omitted)) {
                             ForEach(section.items) { item in
+                                let entry: JournalEntry? = {
+                                    if item.kind != .journal { return nil }
+                                    return entries.first(where: {
+                                        $0.id.uuidString == item.sourceId
+                                    })
+                                }()
+
                                 NavigationLink {
-                                    switch item.kind {
-                                    case .journal:
-                                        if let entry = entries.first(where: {
-                                            $0.id.uuidString == item.sourceId
-                                        }) {
-                                            JournalDetailView(entry: entry)
-                                        }
-                                    case .calendar:
-                                        Text("カレンダー予定（詳細は後で）")
+                                    if let entry {
+                                        JournalDetailView(entry: entry)
+                                    } else {
+                                        Text("詳細を表示できません")
                                     }
                                 } label: {
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        HStack {
-                                            Text(item.title)
-                                                .font(.headline)
-
-                                            if item.kind == .calendar {
-                                                Spacer()
-                                                Image(systemName: "calendar")
-                                                    .foregroundStyle(.secondary)
-                                            }
+                                    TimelineRowView(
+                                        item: item,
+                                        journalEntry: entry,
+                                        onDeleteJournal: entry.map { e in
+                                            { deleteJournalEntry(e) }
                                         }
-
-                                        if let body = item.body {
-                                            Text(body)
-                                                .font(.subheadline)
-                                                .foregroundStyle(.secondary)
-                                                .lineLimit(2)
-                                        }
-
-                                        Text(item.date, style: .time)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .padding(.vertical, 6)
-                                }
-                                .swipeActions {
-                                    if item.kind == .journal,
-                                        let entry = entries.first(where: {
-                                            $0.id.uuidString == item.sourceId
-                                        })
-                                    {
-                                        Button(role: .destructive) {
-                                            deleteEntry(entry)
-                                        } label: {
-                                            Label("削除", systemImage: "trash")
-                                        }
-                                    }
+                                    )
                                 }
                             }
 
@@ -299,6 +344,11 @@ struct TimelineView: View {
                         initialTimeMin: timeMin,
                         initialTimeMax: timeMax
                     )
+                    let apply = try calendarToJournal.applyFromCachedEvents(
+                        modelContext: modelContext)
+                    lastApplyMessage =
+                        "反映: 更新\(apply.updatedCount) / 解除\(apply.unlinkedCount) / スキップ\(apply.skippedCount)"
+
                     syncErrorMessage = nil
                 } catch {
                     syncErrorMessage = error.localizedDescription

@@ -6,6 +6,7 @@ final class CachedCalendarEvent {
   @Attribute(.unique) var uid: String  // "calendarId:eventId" みたいにユニークにする
   var calendarId: String  // まずは "primary" 固定でOK
   var eventId: String
+  var linkedJournalId: String?
 
   var title: String
   var desc: String?
@@ -21,6 +22,7 @@ final class CachedCalendarEvent {
     uid: String,
     calendarId: String,
     eventId: String,
+    linkedJournalId: String?,
     title: String,
     desc: String?,
     start: Date,
@@ -33,6 +35,7 @@ final class CachedCalendarEvent {
     self.uid = uid
     self.calendarId = calendarId
     self.eventId = eventId
+    self.linkedJournalId = linkedJournalId
     self.title = title
     self.desc = desc
     self.start = start
