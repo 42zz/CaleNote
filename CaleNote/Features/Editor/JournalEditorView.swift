@@ -1,14 +1,17 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct JournalEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
+    @EnvironmentObject private var auth: GoogleAuthService
+    private let syncService = JournalCalendarSyncService()
+
     private let entry: JournalEntry?
 
     @State private var title: String
-    @State private var content: String   // ← ここを body から改名
+    @State private var content: String  // ← ここを body から改名
     @State private var eventDate: Date
 
     @State private var errorMessage: String?
@@ -16,7 +19,7 @@ struct JournalEditorView: View {
     init(entry: JournalEntry? = nil) {
         self.entry = entry
         _title = State(initialValue: entry?.title ?? "")
-        _content = State(initialValue: entry?.body ?? "")   // ← body → content
+        _content = State(initialValue: entry?.body ?? "")  // ← body → content
         _eventDate = State(initialValue: entry?.eventDate ?? Date())
     }
 
@@ -36,7 +39,6 @@ struct JournalEditorView: View {
                     TextEditor(text: $content)
                         .frame(minHeight: 180)
                 }
-
 
                 if let errorMessage {
                     Section {
@@ -58,7 +60,7 @@ struct JournalEditorView: View {
     }
 
     private func save() {
-        let trimmedBody = content.trimmingCharacters(in: .whitespacesAndNewlines) // ← body → content
+        let trimmedBody = content.trimmingCharacters(in: .whitespacesAndNewlines)  // ← body → content
         if trimmedBody.isEmpty {
             errorMessage = "本文は必須です。"
             return
@@ -83,9 +85,41 @@ struct JournalEditorView: View {
             modelContext.insert(newEntry)
         }
 
+        let targetEntry: JournalEntry
+        if let entry {
+            targetEntry = entry
+            // entryを書き換える…
+        } else {
+            let newEntry = JournalEntry(
+                title: finalTitle,
+                body: trimmedBody,
+                eventDate: eventDate,
+                createdAt: Date(),
+                updatedAt: Date()
+            )
+            modelContext.insert(newEntry)
+            targetEntry = newEntry
+        }
+
         do {
             try modelContext.save()
             dismiss()
+
+            Task {
+                do {
+                    try await syncService.syncOne(
+                        entry: targetEntry,
+                        targetCalendarId: "primary",
+                        auth: auth,
+                        modelContext: modelContext
+                    )
+                } catch {
+                    await MainActor.run {
+                        targetEntry.needsCalendarSync = true
+                        try? modelContext.save()
+                    }
+                }
+            }
         } catch {
             errorMessage = "保存に失敗しました: \(error.localizedDescription)"
         }

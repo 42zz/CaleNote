@@ -24,6 +24,10 @@ final class JournalEntry {
     var colorHex: String
     var iconName: String
 
+    var linkedCalendarId: String?  // 書き込んだカレンダーID（例: "primary"）
+    var linkedEventId: String?  // Google側のeventId
+    var needsCalendarSync: Bool  // 同期失敗したらtrue（後で再送用）
+
     init(
         id: UUID = UUID(),
         title: String? = nil,
@@ -31,8 +35,11 @@ final class JournalEntry {
         eventDate: Date = Date(),
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
-        colorHex: String = "#3B82F6", // とりあえず青。色設計は後で
-        iconName: String = "note.text"
+        colorHex: String = "#3B82F6",  // とりあえず青。色設計は後で
+        iconName: String = "note.text",
+        linkedCalendarId: String? = nil,
+        linkedEventId: String? = nil,
+        needsCalendarSync: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -42,5 +49,8 @@ final class JournalEntry {
         self.updatedAt = updatedAt
         self.colorHex = colorHex
         self.iconName = iconName
+        self.linkedCalendarId = linkedCalendarId
+        self.linkedEventId = linkedEventId
+        self.needsCalendarSync = needsCalendarSync
     }
 }

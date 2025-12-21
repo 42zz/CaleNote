@@ -125,6 +125,19 @@ private struct EventsListResponse: Decodable {
   let nextPageToken: String?
 }
 
+private struct EventWriteRequest: Encodable {
+  struct EventDateTime: Encodable {
+    let dateTime: String?
+    let date: String?
+    let timeZone: String?
+  }
+
+  let summary: String?
+  let description: String?
+  let start: EventDateTime
+  let end: EventDateTime
+}
+
 private struct EventItem: Decodable {
   let id: String
   let summary: String?
@@ -162,6 +175,34 @@ private struct EventDateTime: Decodable {
   let date: String?
 }
 
+private enum DateFormatters {
+  static let isoDateTime: ISO8601DateFormatter = {
+    let f = ISO8601DateFormatter()
+    f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return f
+  }()
+
+  static let dateOnly: DateFormatter = {
+    let f = DateFormatter()
+    f.calendar = Calendar(identifier: .gregorian)
+    f.locale = Locale(identifier: "en_US_POSIX")
+    f.timeZone = TimeZone(secondsFromGMT: 0)
+    f.dateFormat = "yyyy-MM-dd"
+    return f
+  }()
+}
+
+private struct CalendarListResponse: Decodable {
+  let items: [CalendarListItem]
+}
+
+private struct CalendarListItem: Decodable {
+  let id: String
+  let summary: String?
+  let primary: Bool?
+  let colorId: String?
+}
+
 // Date-only をパースするための小技
 extension ISO8601DateFormatter {
   fileprivate static var dateOnly: DateFormatter {
@@ -175,6 +216,114 @@ extension ISO8601DateFormatter {
 }
 
 extension GoogleCalendarClient {
+  static func insertEvent(
+    accessToken: String,
+    calendarId: String,
+    title: String,
+    description: String,
+    start: Date,
+    end: Date
+  ) async throws -> GoogleCalendarEvent {
+
+    let reqBody = EventWriteRequest(
+      summary: title,
+      description: description,
+      start: .init(
+        dateTime: DateFormatters.isoDateTime.string(from: start), date: nil,
+        timeZone: TimeZone.current.identifier),
+      end: .init(
+        dateTime: DateFormatters.isoDateTime.string(from: end), date: nil,
+        timeZone: TimeZone.current.identifier)
+    )
+
+    let encodedId = encodedCalendarId(calendarId)
+    var components = URLComponents(
+      string: "https://www.googleapis.com/calendar/v3/calendars/\(encodedId)/events")!
+    components.queryItems = [
+      URLQueryItem(
+        name: "fields",
+        value: "id,summary,description,start(dateTime,date),end(dateTime,date),status,updated")
+    ]
+
+    var request = URLRequest(url: components.url!)
+    request.httpMethod = "POST"
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+    request.httpBody = try JSONEncoder().encode(reqBody)
+
+    let (data, response) = try await URLSession.shared.data(for: request)
+    try ensure2xx(response: response, data: data)
+
+    let decoded = try JSONDecoder().decode(EventItem.self, from: data)
+    guard let event = decoded.toDomain() else {
+      throw NSError(
+        domain: "GoogleCalendarClient", code: 2001,
+        userInfo: [NSLocalizedDescriptionKey: "insertのレスポンスが解釈できません"])
+    }
+    return event
+  }
+
+  static func updateEvent(
+    accessToken: String,
+    calendarId: String,
+    eventId: String,
+    title: String,
+    description: String,
+    start: Date,
+    end: Date
+  ) async throws -> GoogleCalendarEvent {
+
+    let reqBody = EventWriteRequest(
+      summary: title,
+      description: description,
+      start: .init(
+        dateTime: DateFormatters.isoDateTime.string(from: start), date: nil,
+        timeZone: TimeZone.current.identifier),
+      end: .init(
+        dateTime: DateFormatters.isoDateTime.string(from: end), date: nil,
+        timeZone: TimeZone.current.identifier)
+    )
+
+    let encodedId = encodedCalendarId(calendarId)
+    var components = URLComponents(
+      string: "https://www.googleapis.com/calendar/v3/calendars/\(encodedId)/events/\(eventId)")!
+    components.queryItems = [
+      URLQueryItem(
+        name: "fields",
+        value: "id,summary,description,start(dateTime,date),end(dateTime,date),status,updated")
+    ]
+
+    var request = URLRequest(url: components.url!)
+    request.httpMethod = "PUT"  // updateは全量更新 :contentReference[oaicite:1]{index=1}
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+    request.httpBody = try JSONEncoder().encode(reqBody)
+
+    let (data, response) = try await URLSession.shared.data(for: request)
+    try ensure2xx(response: response, data: data)
+
+    let decoded = try JSONDecoder().decode(EventItem.self, from: data)
+    guard let event = decoded.toDomain() else {
+      throw NSError(
+        domain: "GoogleCalendarClient", code: 2002,
+        userInfo: [NSLocalizedDescriptionKey: "updateのレスポンスが解釈できません"])
+    }
+    return event
+  }
+
+  private static func ensure2xx(response: URLResponse, data: Data) throws {
+    guard let http = response as? HTTPURLResponse else {
+      throw NSError(
+        domain: "GoogleCalendarClient", code: 9998,
+        userInfo: [NSLocalizedDescriptionKey: "不正なレスポンスです"])
+    }
+    guard (200..<300).contains(http.statusCode) else {
+      let body = String(data: data, encoding: .utf8) ?? ""
+      throw NSError(
+        domain: "GoogleCalendarClient", code: http.statusCode,
+        userInfo: [NSLocalizedDescriptionKey: "HTTP \(http.statusCode): \(body)"])
+    }
+  }
   static func listCalendars(accessToken: String) async throws -> [GoogleCalendarListItem] {
     var components = URLComponents(
       string: "https://www.googleapis.com/calendar/v3/users/me/calendarList")!
@@ -210,15 +359,4 @@ extension GoogleCalendarClient {
       )
     }
   }
-}
-
-private struct CalendarListResponse: Decodable {
-  let items: [CalendarListItem]
-}
-
-private struct CalendarListItem: Decodable {
-  let id: String
-  let summary: String?
-  let primary: Bool?
-  let colorId: String?
 }
