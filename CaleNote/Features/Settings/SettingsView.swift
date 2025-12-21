@@ -151,23 +151,6 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("設定")
-            .toolbar {
-                Button("同期") {
-                    Task { await syncCalendarList() }
-                }
-            }
-            .task {
-                await syncCalendarList()
-            }
-        }
-    }
-
-    private func syncCalendarList() async {
-        do {
-            try await listSync.syncCalendarList(auth: auth, modelContext: modelContext)
-            errorMessage = nil
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
 

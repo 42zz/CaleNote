@@ -17,22 +17,25 @@ struct TimelineView: View {
     @State private var searchText: String = ""
     @State private var selectedTag: String? = nil
 
-    @State private var syncErrorMessage: String?
-    private let syncService = CalendarSyncService()
-
-    private let calendarToJournal = CalendarToJournalSyncService()
+    // 同期・反映・削除の表示
     @State private var lastApplyMessage: String?
-
-    private let journalSync = JournalCalendarSyncService()
     @State private var deleteErrorMessage: String?
 
-    // ← 追加：ローカルキャッシュから作る「最近使ったタグ（上位）」。
-    // とりあえず頻度順。必要なら「直近30日」などに絞れる
+    // 手動同期用
+    @State private var isSyncing: Bool = false
+    @State private var lastSyncAt: Date?
+    @State private var syncStatusMessage: String?
+    @State private var syncErrorMessage: String?
+
+    // Services（このView内で使えるように用意）
+    private let syncService = CalendarSyncService()
+    private let calendarToJournal = CalendarToJournalSyncService()
+    private let journalSync = JournalCalendarSyncService()
+
+    // 最近使ったタグ（上位）
     private var recentTagStats: [TagStat] {
         let stats = buildTagStats(from: entries)
 
-        // スコア: 最終使用が新しいほど優先、同じなら頻度が多いほど優先
-        // 逆でもいいけど、“最近”を強くしたいので lastUsedAt を主にする
         let sorted = stats.sorted { a, b in
             if a.lastUsedAt != b.lastUsedAt { return a.lastUsedAt > b.lastUsedAt }
             if a.count != b.count { return a.count > b.count }
@@ -46,7 +49,6 @@ struct TimelineView: View {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         let selected = selectedTag
 
-        // 先に判定関数に逃がすとコンパイラが楽できる
         func matchesText(_ entry: JournalEntry) -> Bool {
             if query.isEmpty { return true }
             let title = entry.title ?? ""
@@ -69,10 +71,6 @@ struct TimelineView: View {
         let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         let tagToken = selectedTag.map { "#\($0)" } ?? ""
 
-        // 表示は「検索：」に一本化する
-        // - タグだけ → "検索：#tag"
-        // - テキストだけ → "検索：keyword"
-        // - 両方 → "検索：#tag keyword"
         let combined: String = {
             if q.isEmpty { return tagToken }
             if tagToken.isEmpty { return q }
@@ -110,7 +108,6 @@ struct TimelineView: View {
             for tag in tags {
                 if var stat = dict[tag] {
                     stat.count += 1
-                    // 最終使用日時は eventDate を採用（updatedAt でもいい）
                     if e.eventDate > stat.lastUsedAt {
                         stat.lastUsedAt = e.eventDate
                     }
@@ -129,11 +126,6 @@ struct TimelineView: View {
         return Array(dict.values)
     }
 
-    private func deleteEntry(_ entry: JournalEntry) {
-        modelContext.delete(entry)
-        try? modelContext.save()
-    }
-
     private func journalItems(from entries: [JournalEntry]) -> [TimelineItem] {
         entries.map { entry in
             TimelineItem(
@@ -144,63 +136,6 @@ struct TimelineView: View {
                 date: entry.eventDate,
                 sourceId: entry.id.uuidString
             )
-        }
-    }
-
-    private var timelineItems: [TimelineItem] {
-        // 1) ジャーナル
-        let journalEntries: [JournalEntry] = filteredEntries
-        let journalItemsLocal: [TimelineItem] = journalItems(from: journalEntries)
-
-        // 2) ジャーナルID集合（重複除外用）
-        let journalIdSet: Set<String> = Set(journalEntries.map { $0.id.uuidString })
-
-        // 3) 有効カレンダーID集合
-        let enabledCalendarIds: Set<String> = Set(
-            cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId })
-
-        // 4) 表示対象のカレンダーイベント（有効カレンダーのみ）
-        let enabledCalendarEvents: [CachedCalendarEvent] = cachedCalendarEvents.filter { ev in
-            enabledCalendarIds.contains(ev.calendarId)
-        }
-
-        // 5) 重複除外（linkedJournalIdがローカルに存在するならカレンダー側は表示しない）
-        let dedupedCalendarEvents: [CachedCalendarEvent] = enabledCalendarEvents.filter { ev in
-            guard let jid = ev.linkedJournalId else { return true }
-            return !journalIdSet.contains(jid)
-        }
-
-        // 6) カレンダーイベント→TimelineItem
-        let calendarItemsLocal: [TimelineItem] = calendarItems(from: dedupedCalendarEvents)
-
-        // 7) 合成してソート
-        var merged: [TimelineItem] = []
-        merged.reserveCapacity(journalItemsLocal.count + calendarItemsLocal.count)
-        merged.append(contentsOf: journalItemsLocal)
-        merged.append(contentsOf: calendarItemsLocal)
-
-        merged.sort { $0.date > $1.date }
-        return merged
-    }
-
-    private func deleteJournalEntry(_ entry: JournalEntry) {
-        Task {
-            do {
-                // 先にリモート削除（成功でも失敗でも、ローカルだけ消すかは好み）
-                try await journalSync.deleteRemoteIfLinked(
-                    entry: entry, auth: auth, modelContext: modelContext)
-
-                // ローカルのJournal自体を消す
-                modelContext.delete(entry)
-                try modelContext.save()
-
-                deleteErrorMessage = nil
-            } catch {
-                // ここは方針が分かれる
-                // 「ローカルだけ消してneedsCalendarSync的に後で整理」でもいいし
-                // 「失敗したら消さない」でもいい
-                deleteErrorMessage = error.localizedDescription
-            }
         }
     }
 
@@ -217,9 +152,94 @@ struct TimelineView: View {
         }
     }
 
+    private var timelineItems: [TimelineItem] {
+        // 1) 表示対象のジャーナル（検索・タグフィルタ後）
+        let visibleJournals: [JournalEntry] = filteredEntries
+        let journalItemsLocal: [TimelineItem] = journalItems(from: visibleJournals)
+
+        // 2) 重複排除用の「全ジャーナルID集合」（フィルタに影響されないよう全件）
+        let allJournalIdSet: Set<String> = Set(entries.map { $0.id.uuidString })
+
+        // 3) 有効カレンダーID集合
+        let enabledCalendarIds: Set<String> = Set(
+            cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId })
+
+        // 4) 有効カレンダーのイベント
+        let enabledCalendarEvents: [CachedCalendarEvent] = cachedCalendarEvents.filter { ev in
+            enabledCalendarIds.contains(ev.calendarId)
+        }
+
+        // 5) ジャーナルに紐づくイベントはカレンダー側で表示しない（重複排除）
+        let dedupedCalendarEvents: [CachedCalendarEvent] = enabledCalendarEvents.filter { ev in
+            guard let jid = ev.linkedJournalId else { return true }
+            return !allJournalIdSet.contains(jid)
+        }
+
+        // 6) 変換
+        let calendarItemsLocal: [TimelineItem] = calendarItems(from: dedupedCalendarEvents)
+
+        // 7) 合成
+        var merged: [TimelineItem] = []
+        merged.reserveCapacity(journalItemsLocal.count + calendarItemsLocal.count)
+        merged.append(contentsOf: journalItemsLocal)
+        merged.append(contentsOf: calendarItemsLocal)
+
+        merged.sort { $0.date > $1.date }
+        return merged
+    }
+
+    private func deleteJournalEntry(_ entry: JournalEntry) {
+        Task {
+            do {
+                // リモート削除（紐付いている場合のみ）
+                try await journalSync.deleteRemoteIfLinked(
+                    entry: entry, auth: auth, modelContext: modelContext)
+
+                // ローカル削除
+                modelContext.delete(entry)
+                try modelContext.save()
+
+                deleteErrorMessage = nil
+            } catch {
+                deleteErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             List {
+                // 同期状態
+                if isSyncing {
+                    Section {
+                        Text(syncStatusMessage ?? "同期中…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if let status = syncStatusMessage {
+                    Section {
+                        Text(status)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let lastSyncAt {
+                    Section {
+                        Text("最終同期: \(lastSyncAt.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let msg = syncErrorMessage {
+                    Section {
+                        Text("同期エラー: \(msg)")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+
                 if let msg = deleteErrorMessage {
                     Section {
                         Text("削除エラー: \(msg)")
@@ -236,6 +256,7 @@ struct TimelineView: View {
                             .padding(.vertical, 4)
                     }
                 }
+
                 if let msg = lastApplyMessage {
                     Section {
                         Text(msg)
@@ -244,15 +265,7 @@ struct TimelineView: View {
                     }
                 }
 
-                if let msg = syncErrorMessage {
-                    Section {
-                        Text("同期エラー: \(msg)")
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                }
-
-                // タグクラウド（検索中でも出してOKだが、邪魔なら条件で隠せる）
+                // タグクラウド
                 if !recentTagStats.isEmpty {
                     Section {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -275,6 +288,7 @@ struct TimelineView: View {
                     }
                 }
 
+                // 本体
                 if timelineItems.isEmpty {
                     if searchText.isEmpty && selectedTag == nil {
                         ContentUnavailableView("まだ何もありません", systemImage: "square.and.pencil")
@@ -283,7 +297,10 @@ struct TimelineView: View {
                     }
                 } else {
                     ForEach(groupedItems, id: \.day) { section in
-                        Section(section.day.formatted(date: .abbreviated, time: .omitted)) {
+                        let headerTitle: String = section.day.formatted(
+                            date: .abbreviated, time: .omitted)
+
+                        Section(headerTitle) {
                             ForEach(section.items) { item in
                                 let entry: JournalEntry? = {
                                     if item.kind != .journal { return nil }
@@ -308,15 +325,14 @@ struct TimelineView: View {
                                     )
                                 }
                             }
-
                         }
                     }
                 }
-
             }
             .navigationTitle("ジャーナル")
             .searchable(
-                text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic),
+                text: $searchText,
+                placement: .navigationBarDrawer(displayMode: .automatic),
                 prompt: "検索"
             )
             .toolbar {
@@ -326,34 +342,52 @@ struct TimelineView: View {
                     } label: {
                         Image(systemName: "plus")
                     }
+                    .disabled(isSyncing)  // 同期中に新規作成を止めたいなら（不要なら消してOK）
                 }
             }
             .sheet(isPresented: $isPresentingEditor) {
                 JournalEditorView()
             }
             .task {
-                let now = Date()
-                let timeMin = Calendar.current.date(byAdding: .day, value: -30, to: now) ?? now
-                let timeMax = Calendar.current.date(byAdding: .day, value: 90, to: now) ?? now
-
-                do {
-                    try await syncService.syncEnabledCalendars(
-                        auth: auth,
-                        modelContext: modelContext,
-                        calendars: cachedCalendars,
-                        initialTimeMin: timeMin,
-                        initialTimeMax: timeMax
-                    )
-                    let apply = try calendarToJournal.applyFromCachedEvents(
-                        modelContext: modelContext)
-                    lastApplyMessage =
-                        "反映: 更新\(apply.updatedCount) / 解除\(apply.unlinkedCount) / スキップ\(apply.skippedCount)"
-
-                    syncErrorMessage = nil
-                } catch {
-                    syncErrorMessage = error.localizedDescription
-                }
+                // 起動時同期（runSyncに統一）
+                await runSync(isManual: false)
             }
+            .refreshable {
+                // pull-to-refresh
+                await runSync(isManual: true)
+            }
+        }
+    }
+
+    @MainActor
+    private func runSync(isManual: Bool) async {
+        if isSyncing { return }
+        isSyncing = true
+        defer { isSyncing = false }
+
+        syncErrorMessage = nil
+        syncStatusMessage = isManual ? "手動同期中…" : "同期中…"
+
+        let now = Date()
+        let timeMin = Calendar.current.date(byAdding: .day, value: -30, to: now) ?? now
+        let timeMax = Calendar.current.date(byAdding: .day, value: 90, to: now) ?? now
+
+        do {
+            try await syncService.syncEnabledCalendars(
+                auth: auth,
+                modelContext: modelContext,
+                calendars: cachedCalendars,
+                initialTimeMin: timeMin,
+                initialTimeMax: timeMax
+            )
+
+            let apply = try calendarToJournal.applyFromCachedEvents(modelContext: modelContext)
+            lastSyncAt = Date()
+            syncStatusMessage =
+                "同期完了（更新\(apply.updatedCount) / 削除\(apply.unlinkedCount) / スキップ\(apply.skippedCount)）"
+        } catch {
+            syncErrorMessage = error.localizedDescription
+            syncStatusMessage = nil
         }
     }
 }
