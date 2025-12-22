@@ -13,7 +13,8 @@ struct CaleNoteApp: App {
         }
         .modelContainer(for: [
             JournalEntry.self,
-            CachedCalendarEvent.self,
+            CachedCalendarEvent.self,   // 短期
+            ArchivedCalendarEvent.self, // 長期
             CachedCalendar.self
         ])
 

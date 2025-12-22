@@ -13,6 +13,10 @@ struct SettingsView: View {
     @State private var errorMessage: String?
     private let listSync = CalendarListSyncService()
     @State private var writeCalendarId: String? = JournalWriteSettings.loadWriteCalendarId()
+    
+    @State private var isImportingArchive = false
+    @State private var archiveProgressText: String?
+    private let archiveSync = ArchiveSyncService()
 
     @Query(
         filter: #Predicate<JournalEntry> { $0.needsCalendarSync == true },
@@ -49,6 +53,18 @@ struct SettingsView: View {
                         Button("ログアウト") { auth.signOut() }
                     } else {
                         Text("未ログイン")
+                        Button("Googleでログイン") {
+                            Task {
+                                do {
+                                    try await auth.signIn()
+                                    errorMessage = nil
+                                    // ログイン成功後、自動的にカレンダー一覧を同期
+                                    await syncCalendarList()
+                                } catch {
+                                    errorMessage = "ログイン失敗: \(error.localizedDescription)"
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -56,6 +72,11 @@ struct SettingsView: View {
                     if calendarsPrimaryFirst.isEmpty {
                         Text("カレンダー一覧がありません。")
                             .foregroundStyle(.secondary)
+                        if auth.user != nil {
+                            Button("カレンダー一覧を同期") {
+                                Task { await syncCalendarList() }
+                            }
+                        }
                     } else {
                         ForEach(calendarsPrimaryFirst) { cal in
                             Toggle(
@@ -78,6 +99,10 @@ struct SettingsView: View {
                                 }
                             }
                         }
+                        Button("カレンダー一覧を再同期") {
+                            Task { await syncCalendarList() }
+                        }
+                        .font(.caption)
                     }
                 }
 
@@ -159,6 +184,25 @@ struct SettingsView: View {
                         }
                     }
                 }
+                
+                Section("長期キャッシュ") {
+                    Button {
+                        Task { await importArchive() }
+                    } label: {
+                        Text(isImportingArchive ? "取り込み中…" : "長期キャッシュを取り込む（全期間）")
+                    }
+                    .disabled(isImportingArchive)
+
+                    if let archiveProgressText {
+                        Text(archiveProgressText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text("過去の振り返り用にカレンダーイベントを端末に保存します。件数が多いと時間がかかります。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 if let errorMessage {
                     Section {
@@ -187,6 +231,58 @@ struct SettingsView: View {
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+    
+    @MainActor
+    private func syncCalendarList() async {
+        guard auth.user != nil else {
+            errorMessage = "ログインしてください"
+            return
+        }
+        
+        do {
+            try await listSync.syncCalendarList(
+                auth: auth,
+                modelContext: modelContext
+            )
+            errorMessage = nil
+        } catch {
+            errorMessage = "カレンダー一覧の同期失敗: \(error.localizedDescription)"
+        }
+    }
+    
+    @MainActor
+    private func importArchive() async {
+        if isImportingArchive { return }
+        isImportingArchive = true
+        defer { isImportingArchive = false }
+
+        do {
+            // 対象は「表示ONのカレンダーだけ」でもいいし、「全カレンダー」でもいい
+            // まずは isEnabled のみで十分
+            let targets = calendars.filter { $0.isEnabled }
+            if targets.isEmpty {
+                archiveProgressText = "取り込み対象のカレンダーがありません（表示カレンダーをONにしてください）"
+                return
+            }
+
+            try await archiveSync.importAllEventsToArchive(
+                auth: auth,
+                modelContext: modelContext,
+                calendars: targets
+            ) { p in
+                Task { @MainActor in
+                    archiveProgressText =
+                        "カレンダー: \(p.calendarId)\n" +
+                        "進捗: \(p.fetchedRanges)/\(p.totalRanges)\n" +
+                        "反映: \(p.upserted) / 削除: \(p.deleted)"
+                }
+            }
+
+            archiveProgressText = "長期キャッシュ取り込み完了"
+        } catch {
+            archiveProgressText = "取り込み失敗: \(error.localizedDescription)"
         }
     }
 
