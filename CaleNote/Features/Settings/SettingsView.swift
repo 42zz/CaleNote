@@ -13,7 +13,7 @@ struct SettingsView: View {
     @State private var errorMessage: String?
     private let listSync = CalendarListSyncService()
     @State private var writeCalendarId: String? = JournalWriteSettings.loadWriteCalendarId()
-    
+
     @State private var isImportingArchive = false
     @State private var archiveProgressText: String?
     private let archiveSync = ArchiveSyncService()
@@ -83,9 +83,45 @@ struct SettingsView: View {
                                 isOn: Binding(
                                     get: { cal.isEnabled },
                                     set: { newValue in
+                                        // 変更後の有効カレンダー数をチェック
+                                        let currentEnabledCount = calendars.filter { $0.isEnabled }
+                                            .count
+                                        // calが現在有効でnewValueがfalseの場合、1減る
+                                        // calが現在無効でnewValueがtrueの場合、1増える
+                                        let willBeEnabledCount = currentEnabledCount + (newValue ? (cal.isEnabled ? 0 : 1) : (cal.isEnabled ? -1 : 0))
+
+                                        // 最後の一つをOFFにしようとした場合は拒否
+                                        if willBeEnabledCount == 0 {
+                                            errorMessage = "表示するカレンダーは最低1つ必要です"
+                                            return
+                                        }
+
+                                        // 変更前の書き込みカレンダーIDを保存
+                                        let previousWriteCalendarId =
+                                            writeCalendarId
+                                            ?? defaultWriteCalendarId(
+                                                from: calendars.filter { $0.isEnabled })
+
+                                        // カレンダーの状態を更新
                                         cal.isEnabled = newValue
                                         cal.updatedAt = Date()
                                         try? modelContext.save()
+
+                                        // 書き込みカレンダーが非表示になった場合は自動変更
+                                        let updatedEnabledCalendars = calendars.filter {
+                                            $0.isEnabled
+                                        }
+                                        if !updatedEnabledCalendars.contains(where: {
+                                            $0.calendarId == previousWriteCalendarId
+                                        }) {
+                                            let newWriteCalendarId = defaultWriteCalendarId(
+                                                from: updatedEnabledCalendars)
+                                            writeCalendarId = newWriteCalendarId
+                                            JournalWriteSettings.saveWriteCalendarId(
+                                                newWriteCalendarId)
+                                        }
+
+                                        errorMessage = nil
                                     }
                                 )
                             ) {
@@ -154,21 +190,6 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("同期待ち") {
-                    if pendingEntries.isEmpty {
-                        Text("同期待ちはありません。")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("\(pendingEntries.count)件の同期待ちがあります。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        Button("まとめて再送") {
-                            Task { await resendAll() }
-                        }
-                    }
-                }
-                
                 Section("長期キャッシュ") {
                     Button {
                         Task { await importArchive() }
@@ -217,14 +238,14 @@ struct SettingsView: View {
             errorMessage = error.localizedDescription
         }
     }
-    
+
     @MainActor
     private func syncCalendarList() async {
         guard auth.user != nil else {
             errorMessage = "ログインしてください"
             return
         }
-        
+
         do {
             try await listSync.syncCalendarList(
                 auth: auth,
@@ -235,7 +256,7 @@ struct SettingsView: View {
             errorMessage = "カレンダー一覧の同期失敗: \(error.localizedDescription)"
         }
     }
-    
+
     @MainActor
     private func importArchive() async {
         if isImportingArchive { return }
@@ -258,9 +279,8 @@ struct SettingsView: View {
             ) { p in
                 Task { @MainActor in
                     archiveProgressText =
-                        "カレンダー: \(p.calendarId)\n" +
-                        "進捗: \(p.fetchedRanges)/\(p.totalRanges)\n" +
-                        "反映: \(p.upserted) / 削除: \(p.deleted)"
+                        "カレンダー: \(p.calendarId)\n" + "進捗: \(p.fetchedRanges)/\(p.totalRanges)\n"
+                        + "反映: \(p.upserted) / 削除: \(p.deleted)"
                 }
             }
 
