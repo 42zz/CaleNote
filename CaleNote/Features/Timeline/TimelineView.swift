@@ -8,6 +8,9 @@ struct TimelineView: View {
     @Query(sort: \CachedCalendarEvent.start, order: .reverse)
     private var cachedCalendarEvents: [CachedCalendarEvent]
 
+    @Query(sort: \ArchivedCalendarEvent.start, order: .reverse)
+    private var archivedCalendarEvents: [ArchivedCalendarEvent]
+
     @Query private var cachedCalendars: [CachedCalendar]
 
     @Query(sort: \JournalEntry.eventDate, order: .reverse)
@@ -152,6 +155,19 @@ struct TimelineView: View {
         }
     }
 
+    private func archivedItems(from archived: [ArchivedCalendarEvent]) -> [TimelineItem] {
+        archived.map { e in
+            TimelineItem(
+                id: "archived-\(e.uid)",
+                kind: .calendar,
+                title: e.title,
+                body: e.desc,
+                date: e.start,
+                sourceId: e.uid
+            )
+        }
+    }
+
     private var timelineItems: [TimelineItem] {
         // 1) 表示対象のジャーナル（検索・タグフィルタ後）
         let visibleJournals: [JournalEntry] = filteredEntries
@@ -175,14 +191,49 @@ struct TimelineView: View {
             return !allJournalIdSet.contains(jid)
         }
 
-        // 6) 変換
-        let calendarItemsLocal: [TimelineItem] = calendarItems(from: dedupedCalendarEvents)
+        // 6) カレンダーイベントにも検索フィルタを適用
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let filteredCalendarEvents: [CachedCalendarEvent] = dedupedCalendarEvents.filter { event in
+            if query.isEmpty { return true }
+            return event.title.localizedCaseInsensitiveContains(query)
+                || (event.desc?.localizedCaseInsensitiveContains(query) ?? false)
+        }
 
-        // 7) 合成
+        // 7) 長期キャッシュ（ArchivedCalendarEvent）の処理
+        // 有効カレンダーのアーカイブイベントを取得
+        let enabledArchivedEvents: [ArchivedCalendarEvent] = archivedCalendarEvents.filter { ev in
+            enabledCalendarIds.contains(ev.calendarId)
+        }
+
+        // ジャーナルに紐づくイベントは除外
+        let dedupedArchivedEvents: [ArchivedCalendarEvent] = enabledArchivedEvents.filter { ev in
+            guard let jid = ev.linkedJournalId else { return true }
+            return !allJournalIdSet.contains(jid)
+        }
+
+        // CachedCalendarEventと重複する場合はCachedCalendarEventを優先（重複排除）
+        let cachedUidSet: Set<String> = Set(filteredCalendarEvents.map { $0.uid })
+        let uniqueArchivedEvents: [ArchivedCalendarEvent] = dedupedArchivedEvents.filter { ev in
+            !cachedUidSet.contains(ev.uid)
+        }
+
+        // アーカイブイベントにも検索フィルタを適用
+        let filteredArchivedEvents: [ArchivedCalendarEvent] = uniqueArchivedEvents.filter { event in
+            if query.isEmpty { return true }
+            return event.title.localizedCaseInsensitiveContains(query)
+                || (event.desc?.localizedCaseInsensitiveContains(query) ?? false)
+        }
+
+        // 8) 変換
+        let calendarItemsLocal: [TimelineItem] = calendarItems(from: filteredCalendarEvents)
+        let archivedItemsLocal: [TimelineItem] = archivedItems(from: filteredArchivedEvents)
+
+        // 9) 合成
         var merged: [TimelineItem] = []
-        merged.reserveCapacity(journalItemsLocal.count + calendarItemsLocal.count)
+        merged.reserveCapacity(journalItemsLocal.count + calendarItemsLocal.count + archivedItemsLocal.count)
         merged.append(contentsOf: journalItemsLocal)
         merged.append(contentsOf: calendarItemsLocal)
+        merged.append(contentsOf: archivedItemsLocal)
 
         merged.sort { $0.date > $1.date }
         return merged
@@ -342,16 +393,31 @@ struct TimelineView: View {
 
                                 let calendarEvent: CachedCalendarEvent? = {
                                     if item.kind != .calendar { return nil }
+                                    if item.id.hasPrefix("archived-") { return nil }
                                     return cachedCalendarEvents.first(where: {
                                         $0.uid == item.sourceId
                                     })
                                 }()
 
-                                let calendar: CachedCalendar? = {
-                                    guard let event = calendarEvent else { return nil }
-                                    return cachedCalendars.first(where: {
-                                        $0.calendarId == event.calendarId
+                                let archivedEvent: ArchivedCalendarEvent? = {
+                                    if item.kind != .calendar { return nil }
+                                    if !item.id.hasPrefix("archived-") { return nil }
+                                    return archivedCalendarEvents.first(where: {
+                                        $0.uid == item.sourceId
                                     })
+                                }()
+
+                                let calendar: CachedCalendar? = {
+                                    if let event = calendarEvent {
+                                        return cachedCalendars.first(where: {
+                                            $0.calendarId == event.calendarId
+                                        })
+                                    } else if let event = archivedEvent {
+                                        return cachedCalendars.first(where: {
+                                            $0.calendarId == event.calendarId
+                                        })
+                                    }
+                                    return nil
                                 }()
 
                                 NavigationLink {
@@ -359,6 +425,9 @@ struct TimelineView: View {
                                         JournalDetailView(entry: entry)
                                     } else if let calendarEvent {
                                         CalendarEventDetailView(event: calendarEvent, calendar: calendar)
+                                    } else if let archivedEvent {
+                                        // アーカイブイベントの詳細表示（簡易版）
+                                        ArchivedCalendarEventDetailView(event: archivedEvent, calendar: calendar)
                                     } else {
                                         Text("詳細を表示できません")
                                     }
@@ -383,6 +452,7 @@ struct TimelineView: View {
                                             Label("削除", systemImage: "trash")
                                         }
                                     }
+                                    // アーカイブイベントは削除不可（読み取り専用）
                                 }
                             }
                         }
@@ -454,7 +524,7 @@ struct TimelineView: View {
             let removed = try cleaner.cleanupEventsOutsideWindow(modelContext: modelContext, timeMin: timeMin, timeMax: timeMax)
 
             syncStatusMessage =
-                "同期完了（更新\(apply.updatedCount) / 削除\(apply.unlinkedCount) / スキップ\(apply.skippedCount) / 掃除\(removed)）"
+                "同期完了（更新\(apply.updatedCount) / 削除\(apply.unlinkedCount) / スキップ\(apply.skippedCount) / 競合\(apply.conflictCount) / 掃除\(removed)）"
         } catch {
             syncErrorMessage = error.localizedDescription
             syncStatusMessage = nil

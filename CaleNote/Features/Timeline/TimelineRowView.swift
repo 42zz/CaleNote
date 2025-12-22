@@ -16,6 +16,13 @@ struct TimelineRowView: View {
         Text(item.title)
           .font(.headline)
 
+        // 競合バッジ
+        if item.kind == .journal, let entry = journalEntry, entry.hasConflict {
+          Image(systemName: "exclamationmark.triangle.fill")
+            .foregroundStyle(.orange)
+            .font(.caption)
+        }
+
         if item.kind == .calendar {
           Spacer()
           Image(systemName: "calendar")

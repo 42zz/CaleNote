@@ -3,6 +3,7 @@ import SwiftUI
 struct JournalDetailView: View {
     let entry: JournalEntry
     @State private var isPresentingEditor = false
+    @State private var isPresentingConflictResolution = false
 
     private var tags: [String] {
         TagExtractor.extract(from: entry.body)
@@ -81,22 +82,6 @@ struct JournalDetailView: View {
                         .textSelection(.enabled)
                 }
 
-                // 編集ボタン
-                Button {
-                    isPresentingEditor = true
-                } label: {
-                    HStack {
-                        Image(systemName: "pencil")
-                        Text("編集")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(displayColor.opacity(0.15))
-                    .foregroundStyle(displayColor)
-                    .cornerRadius(12)
-                }
-                .buttonStyle(.plain)
-
                 Divider()
 
                 // メタデータセクション
@@ -141,6 +126,27 @@ struct JournalDetailView: View {
                             )
                         }
 
+                        if entry.hasConflict {
+                            MetadataRow(
+                                icon: "exclamationmark.triangle.fill",
+                                label: "競合状態",
+                                value: "解決が必要",
+                                valueColor: .orange
+                            )
+
+                            Button {
+                                isPresentingConflictResolution = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "wrench.and.screwdriver.fill")
+                                    Text("競合を解決")
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.orange)
+                        }
+
                         if let calendarId = entry.linkedCalendarId {
                             MetadataRow(
                                 icon: "calendar",
@@ -166,6 +172,9 @@ struct JournalDetailView: View {
         }
         .sheet(isPresented: $isPresentingEditor) {
             JournalEditorView(entry: entry)
+        }
+        .sheet(isPresented: $isPresentingConflictResolution) {
+            ConflictResolutionView(entry: entry)
         }
     }
 

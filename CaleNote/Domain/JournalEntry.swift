@@ -31,6 +31,14 @@ final class JournalEntry {
 
     var needsCalendarSync: Bool  // 同期失敗したらtrue（後で再送用）
 
+    // 競合検知用フィールド
+    var hasConflict: Bool = false
+    var conflictDetectedAt: Date?
+    var conflictRemoteTitle: String?
+    var conflictRemoteBody: String?
+    var conflictRemoteUpdatedAt: Date?
+    var conflictRemoteEventDate: Date?
+
     init(
         id: UUID = UUID(),
         journalId: UUID = UUID(),
@@ -44,7 +52,13 @@ final class JournalEntry {
         linkedCalendarId: String? = nil,
         linkedEventId: String? = nil,
         linkedEventUpdatedAt: Date? = nil,
-        needsCalendarSync: Bool = false
+        needsCalendarSync: Bool = false,
+        hasConflict: Bool = false,
+        conflictDetectedAt: Date? = nil,
+        conflictRemoteTitle: String? = nil,
+        conflictRemoteBody: String? = nil,
+        conflictRemoteUpdatedAt: Date? = nil,
+        conflictRemoteEventDate: Date? = nil
     ) {
         self.id = id
         self.journalId = journalId
@@ -59,5 +73,11 @@ final class JournalEntry {
         self.linkedEventId = linkedEventId
         self.linkedEventUpdatedAt = linkedEventUpdatedAt
         self.needsCalendarSync = needsCalendarSync
+        self.hasConflict = hasConflict
+        self.conflictDetectedAt = conflictDetectedAt
+        self.conflictRemoteTitle = conflictRemoteTitle
+        self.conflictRemoteBody = conflictRemoteBody
+        self.conflictRemoteUpdatedAt = conflictRemoteUpdatedAt
+        self.conflictRemoteEventDate = conflictRemoteEventDate
     }
 }
