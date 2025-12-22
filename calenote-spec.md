@@ -1,12 +1,25 @@
 # CaleNote - アプリ仕様書
 
+## この仕様書について
+
+**重要**: この仕様書は**実装準拠**です。つまり、現在動作しているコードを「仕様」として明文化したものです。理想や将来の計画ではなく、**今動いている実装が唯一の真実**です。
+
+- 実装済みの機能は確定仕様として記載
+- 未実装の機能は「未実装」または「制限」として明記
+- Google Calendarは**唯一の永続データストア**であり、アプリ内のSwiftDataはキャッシュにすぎない
+- 実装の詳細（`extendedProperties.private`の構造など）は仕様として固定
+
+この方針により、次の担当者が「なぜこうなっているのか」を理解しやすくし、事故を防ぎます。
+
+---
+
 ## 1. 概要
 
 ### 1.1 アプリ名
 **CaleNote**（Calendar + Note）
 
 ### 1.2 コンセプト
-Googleカレンダーを唯一のハブとして利用し、日々の出来事や内省を「書く」のではなく「存在させる」ジャーナルアプリ。ユーザーデータは端末内を主とし、Googleカレンダーを唯一の外部永続先とする。カレンダーの予定と一緒に1日単位で振り返ることができ、過去の同じ日を振り返る機能で、自分の歩みを実感できる。
+Googleカレンダーを**唯一の真実のソース（Single Source of Truth）**として利用し、日々の出来事や内省を「書く」のではなく「存在させる」ジャーナルアプリ。**Googleカレンダーが唯一の永続データストア**であり、アプリ内のSwiftDataはキャッシュおよび編集補助にすぎない。カレンダーの予定と一緒に1日単位で振り返ることができ、過去の同じ日を振り返る機能で、自分の歩みを実感できる。
 
 ### 1.3 ターゲットユーザー
 - 日々の出来事や思考を手軽に記録したい人
@@ -21,14 +34,34 @@ Googleカレンダーを唯一のハブとして利用し、日々の出来事�
 
 ## 1.5 データ保存方針
 
+**重要**: Google Calendarは「外部保存」ではなく、**唯一の永続データストア**である。アプリ内のSwiftDataはキャッシュおよび編集補助にすぎない。
+
 | データ種別 | 保存先 | 備考 |
 |-----------|--------|------|
-| ジャーナル本文・メタ情報 | 端末内（SwiftData） | ローカル保存 |
-| 写真 | 端末内ファイル保存 + SwiftData参照 | ローカル保存 |
+| ジャーナル本文・メタ情報 | 端末内（SwiftData） | **キャッシュ**。Google Calendarが正 |
+| 写真 | 端末内ファイル保存 + SwiftData参照 | ローカル保存（Google Calendarには保存しない） |
 | 設定情報 | UserDefaults | ローカル保存 |
 | 認証トークン | Keychain | セキュア保存 |
-| 外部保存 | Google Calendar（イベント） | 唯一の外部永続先 |
+| **永続データストア** | **Google Calendar（イベント）** | **唯一の真実のソース** |
 | クラッシュレポート等 | Firebase（Crashlytics / App Distribution / Remote Config） | ユーザーデータ保存は行わない |
+
+### 1.5.1 キャッシュの2層構造
+
+アプリは2種類のキャッシュを管理する：
+
+**短期キャッシュ（CachedCalendarEvent）**
+- 同期対象期間内のイベントを保持
+- Timeline描画用
+- 同期範囲外のデータは定期的に削除される（`CalendarCacheCleaner`）
+
+**長期キャッシュ（ArchivedCalendarEvent）**
+- 全期間のイベントを保持（2000年1月1日〜未来1年）
+- 振り返り・検索用
+- 設定画面から明示的に取り込む必要がある（`ArchiveSyncService`）
+- 半年単位でAPI取得、レート制限対策として0.2秒のsleep挿入
+- キャンセル機能は未実装（既知の制限）
+
+**注意**: CloudKitやその他のクラウド同期は**当面実装しない**。Google Calendarが唯一の外部永続先である。
 
 ---
 
@@ -102,23 +135,72 @@ Googleカレンダーを唯一のハブとして利用し、日々の出来事�
 
 #### 2.4.1 認証
 - Google Sign-In SDK使用
-- Calendar API読み取り権限
+- Calendar API読み取り・書き込み権限
 
 #### 2.4.2 カレンダー選択
 - 複数カレンダーから表示対象を選択
-- カレンダーごとの表示ON/OFF
+- カレンダーごとの表示ON/OFF（`CachedCalendar.isEnabled`）
 
 #### 2.4.3 予定の表示
 - タイムライン上に予定を表示（参照のみ）
 - 予定のカード背景色は、設定でカレンダーごとに選択したカラーパレットから適用
 - 予定のカードアイコンは、設定でカレンダーごとに選択したアイコンパレットから適用
 
-#### 2.4.4 同期範囲
-- デフォルト: 過去6か月〜未来3か月
-- 同期対象はイベントの必要最小限フィールド（title / description / start / end / updated 等）
+#### 2.4.4 同期範囲（実装準拠）
+- **デフォルト: 過去30日〜未来30日**（`SyncSettings`）
+- ユーザーが設定画面で変更可能（UserDefaults管理）
+- 同期対象はイベントの必要最小限フィールド（title / description / start / end / updated / status / extendedProperties 等）
 - タグ抽出は同期対象期間内のイベント description から行う
 - タグ一覧・頻出度はこの範囲のみで構築
 - 全期間のタグ網羅は行わない（古いタグを探したい場合は、手入力検索で対応）
+
+#### 2.4.5 Google Calendarを正とする設計
+
+**ジャーナルとイベントの1:1対応**
+- 1つの`JournalEntry`は1つのGoogle Calendar Eventと対応する
+- 対応関係は`extendedProperties.private`によって保証される
+- このJSON構造は**確定仕様**である：
+
+```json
+extendedProperties.private = {
+  "app": "calenote",
+  "schema": "1",
+  "journalId": "<UUID文字列>"
+}
+```
+
+**双方向同期の仕組み**
+- ジャーナル → カレンダー: `JournalCalendarSyncService`が`insertEvent`/`updateEvent`を実行
+- カレンダー → ジャーナル: `CalendarToJournalSyncService`が`CachedCalendarEvent`の変更を`JournalEntry`に反映
+- `description`の編集有無に依存せず、`extendedProperties.private`の`journalId`で紐付けを判定
+- サーバーを介さず双方向同期が成立する理由は、この実装依存仕様による
+
+**競合処理（実装準拠）**
+- Googleカレンダー側の`updated`が新しければアプリを更新
+- ローカルが新しくても競合時は**安全側にスキップ**（将来: 競合検知UIを実装予定）
+- イベントが`status == "cancelled"`の場合は、ジャーナルのリンクを解除（`linkedEventId = nil`）
+
+#### 2.4.6 同期仕様（実装準拠）
+
+**同期トリガー**
+- アプリ起動時（推測、実装確認要）
+- メイン画面 pull-to-refresh（手動同期）
+- 設定画面からの明示的操作
+
+**差分同期**
+- `events.list` + `syncToken`を使用
+- `showDeleted=true`必須
+- `status == "cancelled"`は削除扱い
+- `syncToken`が期限切れ（HTTP 410 GONE）の場合はフル同期にフォールバック
+- 同期状態はカレンダーごとに`CalendarSyncState`で管理（UserDefaults）
+
+**レート制限**
+- `SyncRateLimiter`により、5秒間隔で同期を制限
+- 手動同期時は残り秒数を表示
+
+**更新優先度**
+- Googleカレンダー側の`updated`が新しければアプリを更新
+- ローカルが新しくても競合時は**安全側にスキップ**（`CalendarToJournalSyncService`）
 
 ### 2.5 過去の同じ日を振り返り機能
 
@@ -269,42 +351,113 @@ Googleカレンダーを唯一のハブとして利用し、日々の出来事�
 - 写真追加ボタン
 - 日時表示/変更
 
-#### 3.2.4 設定画面
+#### 3.2.4 設定画面（実装準拠）
 
 ```
 ┌─────────────────────────────────┐
 │           設定                  │
 ├─────────────────────────────────┤
-│  アカウント                     │
+│  Google連携                     │
 │  ┌─────────────────────────┐   │
-│  │ Google連携    user@gmail│   │
+│  │ ログイン中: user@gmail  │   │
+│  │ [ログアウト]            │   │
 │  └─────────────────────────┘   │
 ├─────────────────────────────────┤
-│  カレンダー                     │
+│  表示するカレンダー             │
 │  ┌─────────────────────────┐   │
-│  │ 表示するカレンダー    ＞ │   │
-│  │ カレンダーの色・アイコン ＞ │   │
+│  │ ☑ カレンダー1          │   │
+│  │ ☐ カレンダー2          │   │
+│  │ [カレンダー一覧を再同期] │   │
 │  └─────────────────────────┘   │
 ├─────────────────────────────────┤
-│  ジャーナル                     │
+│  ジャーナルの書き込み先          │
 │  ┌─────────────────────────┐   │
-│  │ 現在地を自動取得   [ON] │   │
+│  │ カレンダー1        ▼    │   │
 │  └─────────────────────────┘   │
 ├─────────────────────────────────┤
-│  表示                           │
+│  同期対象期間                   │
 │  ┌─────────────────────────┐   │
-│  │ テーマ          システム│   │
+│  │ 過去 30 日        [-][+] │   │
+│  │ 未来 30 日        [-][+] │   │
+│  │ （説明文）               │   │
 │  └─────────────────────────┘   │
 ├─────────────────────────────────┤
-│  データ                         │
+│  カレンダーの色                 │
 │  ┌─────────────────────────┐   │
-│  │ エクスポート          ＞ │   │
-│  │ バックアップ          ＞ │   │
+│  │ カレンダー1          ＞ │   │
+│  │ カレンダー2          ＞ │   │
+│  └─────────────────────────┘   │
+├─────────────────────────────────┤
+│  同期待ち                       │
+│  ┌─────────────────────────┐   │
+│  │ 3件の同期待ちがあります  │   │
+│  │ [まとめて再送]          │   │
+│  └─────────────────────────┘   │
+├─────────────────────────────────┤
+│  長期キャッシュ                 │
+│  ┌─────────────────────────┐   │
+│  │ [長期キャッシュを取り込む]│   │
+│  │ （進捗表示）            │   │
+│  │ （説明文）               │   │
 │  └─────────────────────────┘   │
 ├─────────────────────────────────┤
 │    [メイン]      [設定]         │
 └─────────────────────────────────┘
 ```
+
+**構成要素（実装準拠）**:
+- Google連携: ログイン/ログアウト、ログイン成功後は自動的にカレンダー一覧を同期
+- 表示するカレンダー: カレンダーごとのON/OFF切り替え、カレンダー一覧の再同期ボタン
+- ジャーナルの書き込み先: 新規ジャーナルを書き込むカレンダーを選択（`JournalWriteSettings`）
+- 同期対象期間: 過去/未来の日数を設定（1〜365日、デフォルト: 30日、`SyncSettings`）
+- カレンダーの色: カレンダーごとにカラーパレットから選択（`CalendarColorPickerView`）
+- 同期待ち: `needsCalendarSync == true`のジャーナルを一覧表示、まとめて再送ボタン
+- 長期キャッシュ: 全期間のイベントを取り込む（`ArchiveSyncService`）、進捗表示あり
+
+**未実装項目**:
+- 位置情報デフォルト設定
+- テーマ設定（ダークモード）
+- エクスポート/バックアップ機能
+
+---
+
+## 3.5 キャッシュとデータ寿命
+
+### 3.5.1 短期キャッシュ（CachedCalendarEvent）
+
+**目的**: Timeline描画用の高速アクセス
+
+**範囲**: 同期対象期間内（デフォルト: 過去30日〜未来30日）
+
+**管理**:
+- `CalendarSyncService`が差分同期で更新
+- `CalendarCacheCleaner`が同期範囲外のデータを定期的に削除
+- カレンダーごとに`syncToken`を保持（`CalendarSyncState`）
+
+**データ構造**:
+- `uid`: `"calendarId:eventId"`形式のユニークID
+- `linkedJournalId`: `extendedProperties.private.journalId`から取得
+- `status`: `"confirmed"` / `"cancelled"` など
+
+### 3.5.2 長期キャッシュ（ArchivedCalendarEvent）
+
+**目的**: 振り返り・検索用の全期間データ
+
+**範囲**: 2000年1月1日〜未来1年
+
+**管理**:
+- `ArchiveSyncService`が設定画面から明示的に取り込み
+- 半年単位でAPI取得（`splitIntoHalfYearRanges`）
+- レート制限対策として各バッチ間に0.2秒のsleep挿入
+- 進捗表示あり（`Progress`構造体）
+- **キャンセル機能は未実装**（既知の制限）
+
+**データ構造**:
+- `uid`: `"calendarId:eventId"`形式のユニークID
+- `startDayKey`: `YYYYMMDD`形式の日付インデックス（検索高速化用）
+- `linkedJournalId`: `extendedProperties.private.journalId`から取得
+
+**注意**: 長期キャッシュの取り込みは時間がかかるため、ユーザーに明示的に操作させる必要がある。
 
 ---
 
@@ -312,35 +465,43 @@ Googleカレンダーを唯一のハブとして利用し、日々の出来事�
 
 ### 4.1 JournalEntry（SwiftData）
 
+**実装準拠のモデル定義**:
+
 ```swift
 @Model
-class JournalEntry {
-    var id: UUID
+final class JournalEntry {
+    @Attribute(.unique) var id: UUID
+    var journalId: UUID  // extendedProperties.private.journalId に保存される値
+    
     var title: String?
-    var content: String
+    var body: String  // Google Calendar の description に保存
+    
+    var eventDate: Date  // 出来事の日時（作成日時とは別）
     var createdAt: Date
     var updatedAt: Date
-    var location: Location?
-    var photos: [PhotoData]
-    var selectedColorId: String?  // カラーパレットから選択した色のID
     
-    // ハッシュタグは本文から都度抽出
-    var extractedTags: [String] {
-        // #で始まる単語を抽出するcomputed property
-    }
+    var colorHex: String  // UI用カラー（HEX形式）
+    var iconName: String  // UI用アイコン名
     
-    // Google Calendar への保存用: description に本文 + 改行 + タグを保存
-    var calendarDescription: String {
-        // content + "\n" + extractedTags.joined(separator: " ")
-    }
+    // Google Calendar 連携用
+    var linkedCalendarId: String?  // 書き込んだカレンダーID（例: "primary"）
+    var linkedEventId: String?  // Google側のeventId
+    var linkedEventUpdatedAt: Date?  // カレンダー側のupdated（競合判定用）
+    var needsCalendarSync: Bool  // 同期失敗したらtrue（再送用）
 }
 ```
 
 **タグの扱い**
 - タグは独立したデータ構造として持たない
-- 本文からパースしてインデックス化（エントリとの関連のみ保持）
+- 本文（`body`）から`#tag`形式をパース（`TagExtractor`）
+- Google Calendarの`description`には本文そのままを保存（タグは本文内に含まれる）
 - 全期間のタグ一覧は作成しない
-- 最近使われたタグのみ表示（同期対象期間内での使用頻度・直近使用日時）
+- 最近使われたタグのみ表示（同期対象期間内での使用頻度・直近使用日時、`TagStats`）
+
+**Google Calendar連携**
+- `extendedProperties.private`に`journalId`を保存（UUID文字列）
+- `description`に`body`をそのまま保存
+- `summary`（タイトル）は`title`が空なら`"ジャーナル"`を設定
 
 ### 4.2 Location
 
@@ -364,20 +525,89 @@ class PhotoData {
 }
 ```
 
-### 4.4 GoogleCalendarEvent（APIレスポンス）
+### 4.4 CachedCalendarEvent（SwiftData）
+
+**短期キャッシュ用モデル**:
 
 ```swift
-struct GoogleCalendarEvent: Identifiable {
-    var id: String
-    var title: String
-    var startTime: Date
-    var endTime: Date
+@Model
+final class CachedCalendarEvent {
+    @Attribute(.unique) var uid: String  // "calendarId:eventId"
     var calendarId: String
-    var calendarColor: String
+    var eventId: String
+    var linkedJournalId: String?  // extendedProperties.private.journalId
+    
+    var title: String
+    var desc: String?
+    var start: Date
+    var end: Date?
+    var isAllDay: Bool
+    var status: String  // "confirmed" / "cancelled"
+    
+    var updatedAt: Date  // APIのupdated
+    var cachedAt: Date  // 端末に保存した時刻
 }
 ```
 
-### 4.5 AppSettings（UserDefaults）
+### 4.5 ArchivedCalendarEvent（SwiftData）
+
+**長期キャッシュ用モデル**:
+
+```swift
+@Model
+final class ArchivedCalendarEvent {
+    @Attribute(.unique) var uid: String  // "calendarId:eventId"
+    var calendarId: String
+    var eventId: String
+    
+    var title: String
+    var desc: String?
+    var start: Date
+    var end: Date?
+    var isAllDay: Bool
+    var status: String
+    
+    var updatedAt: Date
+    var startDayKey: Int  // YYYYMMDD形式（検索高速化用）
+    var linkedJournalId: String?
+    var cachedAt: Date
+}
+```
+
+### 4.6 GoogleCalendarEvent（APIレスポンス）
+
+**APIクライアント内部で使用するドメインモデル**:
+
+```swift
+struct GoogleCalendarEvent {
+    var id: String
+    var title: String
+    var description: String?
+    var start: Date
+    var end: Date?
+    var isAllDay: Bool
+    var status: String  // "confirmed" / "cancelled"
+    var updated: Date
+    var privateProps: [String: String]?  // extendedProperties.private
+}
+```
+
+### 4.7 CachedCalendar（SwiftData）
+
+**カレンダーメタデータ**:
+
+```swift
+@Model
+final class CachedCalendar {
+    @Attribute(.unique) var calendarId: String
+    var summary: String
+    var isEnabled: Bool  // 表示ON/OFF
+    var colorHex: String?  // カラーパレットID
+    var iconName: String?  // アイコンパレットID
+}
+```
+
+### 4.8 AppSettings（UserDefaults）
 
 ```swift
 struct AppSettings {
@@ -402,54 +632,49 @@ struct AppSettings {
 | カレンダーAPI | Google Calendar API (REST) |
 | 位置情報 | CoreLocation |
 | 写真 | PhotosUI (PhotosPicker) |
-| 将来: 同期 | CloudKit |
+| キャッシュ管理 | SwiftData（CachedCalendarEvent / ArchivedCalendarEvent） |
 
 ---
 
-## 6. 開発フェーズ
+## 6. 開発フェーズ（実装状況）
 
-### Phase 1: MVP（4-6週間）
+### Phase 1: MVP ✅ 完了
 **目標**: 基本的なジャーナル機能が動作する
 
-- [ ] プロジェクトセットアップ
-- [ ] SwiftDataモデル定義
-- [ ] メイン画面（タイムライン表示）
-- [ ] ジャーナル作成/編集画面
-- [ ] カレンダーシート（日付選択、記録日ドット表示）
-- [ ] 基本的な検索機能
-- [ ] ハッシュタグ抽出（本文から `#tag` をパース）
-- [ ] 手入力検索（`#tag` 形式でタグ検索）
-- [ ] 最近使ったタグのローカル表示（最大10件程度）
-- [ ] 設定画面（基本項目）
+- [x] プロジェクトセットアップ
+- [x] SwiftDataモデル定義
+- [x] メイン画面（タイムライン表示）
+- [x] ジャーナル作成/編集画面
+- [ ] カレンダーシート（日付選択、記録日ドット表示） - **未実装**
+- [x] 基本的な検索機能
+- [x] ハッシュタグ抽出（本文から `#tag` をパース）
+- [x] 手入力検索（`#tag` 形式でタグ検索）
+- [x] 最近使ったタグのローカル表示（`TagStats`）
+- [x] 設定画面（基本項目）
 
-### Phase 2: Googleカレンダー連携（2-3週間）
+### Phase 2: Googleカレンダー連携 ✅ 完了
 **目標**: カレンダーの予定を表示できる
 
-- [ ] Google Sign-In実装
-- [ ] Calendar API連携
-- [ ] 予定の取得・表示（同期範囲: 過去6か月〜未来3か月）
-- [ ] 差分同期の実装
-- [ ] 予定とジャーナルの統合タイムライン
-- [ ] 同期範囲内イベントからのタグ抽出
-- [ ] Google Calendar への保存（description に本文 + 改行 + タグ）
+- [x] Google Sign-In実装（`GoogleAuthService`）
+- [x] Calendar API連携（`GoogleCalendarClient`）
+- [x] 予定の取得・表示（同期範囲: 過去30日〜未来30日、設定可能）
+- [x] 差分同期の実装（`syncToken`使用、`CalendarSyncService`）
+- [x] 予定とジャーナルの統合タイムライン（`TimelineItem`）
+- [x] 同期範囲内イベントからのタグ抽出（`TagExtractor`）
+- [x] Google Calendar への保存（`JournalCalendarSyncService`、`extendedProperties.private`使用）
+- [x] 双方向同期（`CalendarToJournalSyncService`）
+- [x] 長期キャッシュ取り込み（`ArchiveSyncService`）
 
-### Phase 3: 拡張機能（2-3週間）
+### Phase 3: 拡張機能 🔄 一部実装済み
 **目標**: 使いやすさ向上
 
-- [ ] カラー・アイコン選択機能（カラーパレット・アイコンパレット実装）
-- [ ] 場所情報の追加（デフォルト設定含む）
-- [ ] 写真添付機能
-- [ ] **過去の同じ日を振り返り機能**
-- [ ] ダークモード対応
+- [x] カラー・アイコン選択機能（カラーパレット・アイコンパレット実装）
+- [ ] 場所情報の追加（デフォルト設定含む） - **未実装**
+- [ ] 写真添付機能 - **未実装**
+- [ ] **過去の同じ日を振り返り機能** - **未実装**
+- [ ] ダークモード対応 - **未実装**（初期リリースでは非対応）
 
-### Phase 3（任意）: 高度な同期機能
-**目標**: 同期範囲の拡張とパフォーマンス向上
-
-- [ ] 同期範囲の拡張（Remote Config による制御）
-- [ ] バックグラウンドでの段階的タグインデックス構築
-- [ ] Remote Config による同期範囲・タグ上限の制御
-
-### Phase 4: 公開準備（2週間）
+### Phase 4: 公開準備 🔄 進行中
 **目標**: App Store申請
 
 - [ ] アプリアイコン・スクリーンショット
@@ -460,8 +685,14 @@ struct AppSettings {
 
 ### Phase 5: 将来の拡張（公開後）
 - [ ] ウィジェット対応
-- [ ] CloudKit同期
+- [ ] カレンダーシート（日付選択、記録日ドット表示）
+- [ ] 過去の同じ日を振り返り機能
+- [ ] 競合検知UI（現在は安全側にスキップ）
+- [ ] 長期キャッシュ取り込みのキャンセル機能
+- [ ] ダークモード対応
 - [ ] iPad対応
+
+**注意**: CloudKit同期は**実装予定なし**。Google Calendarが唯一の外部永続先である。
 
 ---
 
@@ -470,8 +701,10 @@ struct AppSettings {
 ### 6.5.1 基本方針
 - タグは管理するものではなく「思考の痕跡」
 - 完全性よりも即時性・軽さを優先
-- Google Calendar を真実のソース（Single Source of Truth）とする
-- ユーザーデータは端末内を主とし、Googleカレンダーを唯一の外部永続先とする
+- **Google Calendar を唯一の真実のソース（Single Source of Truth）とする**
+- **アプリ内のSwiftDataはキャッシュおよび編集補助にすぎない**
+- **サーバー同期やクラウド保存を「将来やるかも」前提で書かない** → Firebase は Auth / Crashlytics 専用で確定
+- **「双方向同期」は抽象概念ではなく、`journalId` + `extendedProperties.private` による実装依存仕様である**
 
 ### 6.5.2 タグ設計の思想
 - タグは本文中に自然に記述されるもの
@@ -494,7 +727,7 @@ struct AppSettings {
 ### 7.2 カラースキーマ（更新）
 
 本アプリは **初期リリースではライトモードのみをサポート** する。
-ダークモード対応は将来フェーズで検討する。
+**ダークモード対応は未実装**（将来フェーズで検討予定）。
 
 #### 7.2.1 ベースカラー（ライトモード）
 
@@ -648,10 +881,26 @@ Googleカレンダーごとに、ユーザーが表示色を選択できる機�
 
 ## 9. 制約・前提条件
 
+### 9.1 技術的制約
+
 - iOS 17以上必須（SwiftData使用のため）
 - Googleアカウント必須（カレンダー連携時）
 - ネットワーク必須（カレンダー同期時）
-- オフライン時はジャーナル機能のみ利用可
+- オフライン時はジャーナル機能のみ利用可（ローカルキャッシュの表示・編集）
+
+### 9.2 設計上の制約
+
+- **CloudKit同期は実装しない**: Google Calendarが唯一の外部永続先である
+- **サーバー同期は実装しない**: 双方向同期はGoogle Calendar API経由で直接実現
+- **ダークモードは未実装**: 初期リリースではライトモードのみサポート
+- **長期キャッシュ取り込みのキャンセル機能は未実装**: 開始後の中断は不可（既知の制限）
+
+### 9.3 同期に関する制約
+
+- 同期レート制限: 5秒間隔（`SyncRateLimiter`）
+- 同期範囲: デフォルト過去30日〜未来30日（設定可能、最大365日）
+- `syncToken`の有効期限: Google Calendar APIの仕様に依存（期限切れ時はフル同期にフォールバック）
+- 競合処理: 現在は安全側にスキップ（将来: 競合検知UIを実装予定）
 
 ---
 
@@ -659,10 +908,15 @@ Googleカレンダーごとに、ユーザーが表示色を選択できる機�
 
 | 用語 | 説明 |
 |------|------|
-| エントリ | 1つのジャーナル記録 |
+| エントリ | 1つのジャーナル記録（`JournalEntry`） |
 | タイムライン | 逆時系列で並んだエントリと予定の一覧 |
 | タグ | ハッシュタグ形式のラベル（#仕事、#アイデア等） |
 | 過去の同じ日 | 今日と同じ月日の過去年のエントリ |
+| 短期キャッシュ | `CachedCalendarEvent`。同期対象期間内のイベントを保持 |
+| 長期キャッシュ | `ArchivedCalendarEvent`。全期間のイベントを保持（振り返り用） |
+| syncToken | Google Calendar APIの差分同期用トークン |
+| extendedProperties.private | Google Calendar Eventの拡張プロパティ。`journalId`を保存 |
+| Single Source of Truth | Google Calendarが唯一の真実のソースである設計原則 |
 
 ---
 
@@ -670,9 +924,10 @@ Googleカレンダーごとに、ユーザーが表示色を選択できる機�
 
 | 日付 | バージョン | 内容 |
 |------|-----------|------|
-| 2024-12-20 | 0.1 | 初版作成 |
-| 2024-12-20 | 0.2 | アプリ名変更、各種機能調整 |
-| 2024-12-20 | 0.3 | 2タブ構成に簡素化、タイムラインベースのメイン画面に変更 |
-| 2024-12-20 | 0.4 | ジャーナルカードと予定カードを統一、フォント設定追加（Noto Sans JP / Inter） |
-| 2024-12-20 | 0.5 | カードのカラーとアイコン選択機能を追加、予定・ジャーナルの完全統一を明確化 |
-| 2024-12-20 | 0.6 | タグ設計を更新（Google Calendar連携、最近使ったタグのみ表示、同期範囲の明確化）、データ保存方針と設計上の思想を追加 |
+| 2025-12-20 | 0.1 | 初版作成 |
+| 2025-12-20 | 0.2 | アプリ名変更、各種機能調整 |
+| 2025-12-20 | 0.3 | 2タブ構成に簡素化、タイムラインベースのメイン画面に変更 |
+| 2025-12-20 | 0.4 | ジャーナルカードと予定カードを統一、フォント設定追加（Noto Sans JP / Inter） |
+| 2025-12-21 | 0.5 | カードのカラーとアイコン選択機能を追加、予定・ジャーナルの完全統一を明確化 |
+| 2025-12-21 | 0.6 | タグ設計を更新（Google Calendar連携、最近使ったタグのみ表示、同期範囲の明確化）、データ保存方針と設計上の思想を追加 |
+| 2025-12-22 | 0.7 | 実装準拠に全面見直し。Google Calendarを唯一の永続データストアとして明記、extendedProperties仕様を確定、キャッシュ2層構造を追加、同期仕様を実装準拠に更新、開発フェーズを実装状況に合わせて更新 |

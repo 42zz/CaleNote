@@ -206,6 +206,37 @@ struct TimelineView: View {
         }
     }
 
+    private func deleteCalendarEvent(_ event: CachedCalendarEvent) {
+        Task {
+            do {
+                // アクセストークンを取得
+                let token = try await auth.validAccessToken()
+
+                // リモート削除（Google Calendar API）
+                try await GoogleCalendarClient.deleteEvent(
+                    accessToken: token,
+                    calendarId: event.calendarId,
+                    eventId: event.eventId
+                )
+
+                // 紐付いているジャーナルがあれば、そちらのlinkedEventIdをクリア
+                if let journalId = event.linkedJournalId,
+                   let linkedEntry = entries.first(where: { $0.id.uuidString == journalId }) {
+                    linkedEntry.linkedEventId = nil
+                    linkedEntry.linkedCalendarId = nil
+                }
+
+                // ローカルキャッシュから削除
+                modelContext.delete(event)
+                try modelContext.save()
+
+                deleteErrorMessage = nil
+            } catch {
+                deleteErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -309,9 +340,25 @@ struct TimelineView: View {
                                     })
                                 }()
 
+                                let calendarEvent: CachedCalendarEvent? = {
+                                    if item.kind != .calendar { return nil }
+                                    return cachedCalendarEvents.first(where: {
+                                        $0.uid == item.sourceId
+                                    })
+                                }()
+
+                                let calendar: CachedCalendar? = {
+                                    guard let event = calendarEvent else { return nil }
+                                    return cachedCalendars.first(where: {
+                                        $0.calendarId == event.calendarId
+                                    })
+                                }()
+
                                 NavigationLink {
                                     if let entry {
                                         JournalDetailView(entry: entry)
+                                    } else if let calendarEvent {
+                                        CalendarEventDetailView(event: calendarEvent, calendar: calendar)
                                     } else {
                                         Text("詳細を表示できません")
                                     }
@@ -319,10 +366,23 @@ struct TimelineView: View {
                                     TimelineRowView(
                                         item: item,
                                         journalEntry: entry,
-                                        onDeleteJournal: entry.map { e in
-                                            { deleteJournalEntry(e) }
-                                        }
+                                        onDeleteJournal: nil
                                     )
+                                }
+                                .swipeActions(edge: .trailing) {
+                                    if item.kind == .journal, let entry {
+                                        Button(role: .destructive) {
+                                            deleteJournalEntry(entry)
+                                        } label: {
+                                            Label("削除", systemImage: "trash")
+                                        }
+                                    } else if item.kind == .calendar, let calendarEvent {
+                                        Button(role: .destructive) {
+                                            deleteCalendarEvent(calendarEvent)
+                                        } label: {
+                                            Label("削除", systemImage: "trash")
+                                        }
+                                    }
                                 }
                             }
                         }
