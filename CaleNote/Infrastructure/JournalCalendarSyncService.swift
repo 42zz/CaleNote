@@ -39,11 +39,56 @@ final class JournalCalendarSyncService {
 
       var retryResult = RetryResult()
 
+      // 古いカレンダーIDとイベントIDを保存（カレンダー変更検出用）
+      // 注意: entry.linkedCalendarIdは既に更新されている可能性があるため、
+      // 実際の変更検出はtargetCalendarIdとの比較で行う
+      let oldCalendarId = entry.linkedCalendarId
+      let oldEventId = entry.linkedEventId
+      
+      // カレンダーIDが変更された場合、古いカレンダーのイベントを削除
+      if let oldCalendarId = oldCalendarId,
+         let oldEventId = oldEventId,
+         oldCalendarId != targetCalendarId
+      {
+        // 古いカレンダーのイベントを削除（404でも成功扱い）
+        do {
+          _ = try await GoogleCalendarClient.deleteEvent(
+            accessToken: token,
+            calendarId: oldCalendarId,
+            eventId: oldEventId
+          )
+        } catch {
+          // 404エラーは「すでに削除済み」として無視
+          if let nsError = error as NSError?, nsError.code != 404 {
+            throw error
+          }
+        }
+
+        // 古いカレンダーのキャッシュも削除
+        let oldUid = "\(oldCalendarId):\(oldEventId)"
+        let oldPredicate = #Predicate<CachedCalendarEvent> { $0.uid == oldUid }
+        let oldDescriptor = FetchDescriptor(predicate: oldPredicate)
+        if let oldCached = try? modelContext.fetch(oldDescriptor).first {
+          modelContext.delete(oldCached)
+        }
+        
+        // 長期キャッシュも削除
+        let oldArchivedPredicate = #Predicate<ArchivedCalendarEvent> { $0.uid == oldUid }
+        let oldArchivedDescriptor = FetchDescriptor(predicate: oldArchivedPredicate)
+        if let oldArchived = try? modelContext.fetch(oldArchivedDescriptor).first {
+          modelContext.delete(oldArchived)
+        }
+      }
+
+      // 同じカレンダーで、既にイベントが存在する場合は更新
+      // カレンダーが変更された場合は、古いカレンダーのイベントは既に削除されているため、
+      // この条件は false になり、else ブロックで新規作成される
       if let calendarId = entry.linkedCalendarId,
         let eventId = entry.linkedEventId,
-        calendarId == targetCalendarId
+        calendarId == targetCalendarId,
+        oldCalendarId == targetCalendarId  // カレンダーが変更されていないことを確認
       {
-
+        // 同じカレンダーで更新
         let result = try await GoogleCalendarClient.updateEvent(
           accessToken: token,
           calendarId: calendarId,
@@ -65,6 +110,7 @@ final class JournalCalendarSyncService {
         upsertCachedEvent(from: result.event, calendarId: calendarId, modelContext: modelContext)
 
       } else {
+        // 新規作成またはカレンダー変更後の新規作成
         let result = try await GoogleCalendarClient.insertEvent(
           accessToken: token,
           calendarId: targetCalendarId,
@@ -81,6 +127,14 @@ final class JournalCalendarSyncService {
         entry.linkedEventId = result.event.id
         entry.needsCalendarSync = false
         entry.updatedAt = Date()
+
+        // 新しいカレンダーの色とアイコンをエントリに設定
+        let targetCalendarPredicate = #Predicate<CachedCalendar> { $0.calendarId == targetCalendarId }
+        let targetCalendarDescriptor = FetchDescriptor(predicate: targetCalendarPredicate)
+        if let targetCalendar = try? modelContext.fetch(targetCalendarDescriptor).first {
+          entry.colorHex = targetCalendar.userColorHex
+          entry.iconName = targetCalendar.iconName
+        }
 
         upsertCachedEvent(from: result.event, calendarId: targetCalendarId, modelContext: modelContext)
       }

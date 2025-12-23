@@ -29,7 +29,8 @@ struct SettingsView: View {
     @State private var futureDays: Int = SyncSettings.futureDays()
 
     @State private var developerTapCount: Int = 0
-    @State private var isDeveloperModeEnabled: Bool = UserDefaults.standard.bool(forKey: "isDeveloperModeEnabled")
+    @State private var isDeveloperModeEnabled: Bool = UserDefaults.standard.bool(
+        forKey: "isDeveloperModeEnabled")
 
     private var calendarsPrimaryFirst: [CachedCalendar] {
         calendars.sorted { a, b in
@@ -92,7 +93,11 @@ struct SettingsView: View {
                                             .count
                                         // calが現在有効でnewValueがfalseの場合、1減る
                                         // calが現在無効でnewValueがtrueの場合、1増える
-                                        let willBeEnabledCount = currentEnabledCount + (newValue ? (cal.isEnabled ? 0 : 1) : (cal.isEnabled ? -1 : 0))
+                                        let willBeEnabledCount =
+                                            currentEnabledCount
+                                            + (newValue
+                                                ? (cal.isEnabled ? 0 : 1)
+                                                : (cal.isEnabled ? -1 : 0))
 
                                         // 最後の一つをOFFにしようとした場合は拒否
                                         if willBeEnabledCount == 0 {
@@ -199,6 +204,36 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("長期キャッシュ") {
+                    if !isImportingArchive {
+                        Button {
+                            archiveTask = Task { await importArchive() }
+                        } label: {
+                            Text("長期キャッシュを取り込む（全期間）")
+                        }
+                    } else {
+                        HStack {
+                            Button("取り込み中…") {}
+                                .disabled(true)
+                            Spacer()
+                            Button("キャンセル") {
+                                cancelArchiveImport()
+                            }
+                            .foregroundStyle(.red)
+                        }
+                    }
+
+                    if let archiveProgressText {
+                        Text(archiveProgressText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text("過去の振り返り用にカレンダーイベントを端末に保存します。件数が多いと時間がかかります。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section("同期待ち") {
                     if pendingEntries.isEmpty {
                         Text("同期待ちのジャーナルはありません")
@@ -236,36 +271,6 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("長期キャッシュ") {
-                    if !isImportingArchive {
-                        Button {
-                            archiveTask = Task { await importArchive() }
-                        } label: {
-                            Text("長期キャッシュを取り込む（全期間）")
-                        }
-                    } else {
-                        HStack {
-                            Button("取り込み中…") {}
-                                .disabled(true)
-                            Spacer()
-                            Button("キャンセル") {
-                                cancelArchiveImport()
-                            }
-                            .foregroundStyle(.red)
-                        }
-                    }
-
-                    if let archiveProgressText {
-                        Text(archiveProgressText)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text("過去の振り返り用にカレンダーイベントを端末に保存します。件数が多いと時間がかかります。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
                 if let errorMessage {
                     Section {
                         Text(errorMessage)
@@ -293,15 +298,19 @@ struct SettingsView: View {
                     HStack {
                         Text("バージョン")
                         Spacer()
-                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.9")
-                            .foregroundStyle(.secondary)
+                        Text(
+                            Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+                                ?? "0.9"
+                        )
+                        .foregroundStyle(.secondary)
                     }
                     .contentShape(Rectangle())
                     .onTapGesture {
                         developerTapCount += 1
                         if developerTapCount >= 7 {
                             isDeveloperModeEnabled.toggle()
-                            UserDefaults.standard.set(isDeveloperModeEnabled, forKey: "isDeveloperModeEnabled")
+                            UserDefaults.standard.set(
+                                isDeveloperModeEnabled, forKey: "isDeveloperModeEnabled")
                             developerTapCount = 0
                         }
                         // 5秒後にカウントリセット

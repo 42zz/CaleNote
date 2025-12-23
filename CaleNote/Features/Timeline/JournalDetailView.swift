@@ -1,9 +1,12 @@
 import SwiftUI
+import SwiftData
 
 struct JournalDetailView: View {
     let entry: JournalEntry
     @State private var isPresentingEditor = false
     @State private var isPresentingConflictResolution = false
+    
+    @Query private var calendars: [CachedCalendar]
 
     private var tags: [String] {
         TagExtractor.extract(from: entry.body)
@@ -148,10 +151,11 @@ struct JournalDetailView: View {
                         }
 
                         if let calendarId = entry.linkedCalendarId {
+                            let calendar = calendars.first(where: { $0.calendarId == calendarId })
                             MetadataRow(
                                 icon: "calendar",
                                 label: "カレンダー",
-                                value: calendarId
+                                value: calendar?.summary ?? (calendarId == "primary" ? "プライマリ" : calendarId)
                             )
                         }
                     }
