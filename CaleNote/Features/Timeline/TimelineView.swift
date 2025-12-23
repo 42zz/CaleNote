@@ -19,6 +19,7 @@ struct TimelineView: View {
     @State private var isPresentingEditor = false
     @State private var searchText: String = ""
     @State private var selectedTag: String? = nil
+    @State private var isSearchPresented: Bool = false  // 検索バーの表示状態
 
     // 初期フォーカス管理
     @State private var hasAutoFocusedToday: Bool = false
@@ -573,27 +574,27 @@ struct TimelineView: View {
                     }
 
                     // タグクラウド
-                    if !recentTagStats.isEmpty {
-                        Section {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    TagChipView(text: "すべて", isSelected: selectedTag == nil) {
-                                        selectedTag = nil
-                                    }
+                    // if !recentTagStats.isEmpty {
+                    //     Section {
+                    //         ScrollView(.horizontal, showsIndicators: false) {
+                    //             HStack(spacing: 8) {
+                    //                 TagChipView(text: "すべて", isSelected: selectedTag == nil) {
+                    //                     selectedTag = nil
+                    //                 }
 
-                                    ForEach(recentTagStats) { stat in
-                                        let tag = stat.tag
-                                        TagChipView(text: "#\(tag)", isSelected: selectedTag == tag) {
-                                            selectedTag = (selectedTag == tag) ? nil : tag
-                                        }
-                                    }
-                                }
-                                .padding(.vertical, 4)
-                            }
-                        } header: {
-                            Text("最近のタグ")
-                        }
-                    }
+                    //                 ForEach(recentTagStats) { stat in
+                    //                     let tag = stat.tag
+                    //                     TagChipView(text: "#\(tag)", isSelected: selectedTag == tag) {
+                    //                         selectedTag = (selectedTag == tag) ? nil : tag
+                    //                     }
+                    //                 }
+                    //             }
+                    //             .padding(.vertical, 4)
+                    //         }
+                    //     } header: {
+                    //         Text("最近のタグ")
+                    //     }
+                    // }
 
                     // 本体
                     if timelineItems.isEmpty {
@@ -706,10 +707,18 @@ struct TimelineView: View {
                 .navigationTitle("ジャーナル")
                 .searchable(
                     text: $searchText,
+                    isPresented: $isSearchPresented,
                     placement: .navigationBarDrawer(displayMode: .automatic),
                     prompt: "検索"
                 )
                 .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            isSearchPresented = true
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                        }
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             isPresentingEditor = true
