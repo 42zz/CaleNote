@@ -107,6 +107,11 @@ SwiftUI views organized by feature:
    - Manual sync trigger with status/error display
    - Groups items by date (reverse chronological)
    - Tag statistics for quick filtering
+   - Initial focus on "today" section with automatic scroll
+   - Scroll up = future dates, scroll down = past dates
+   - Empty section generation for today when no items exist
+   - Auto-focus disabled during search
+   - Date jump integration (selectedDayKey priority)
 
 2. **SettingsView** (Settings Tab):
    - Google Sign-In/Out

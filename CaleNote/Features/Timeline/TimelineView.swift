@@ -20,6 +20,10 @@ struct TimelineView: View {
     @State private var searchText: String = ""
     @State private var selectedTag: String? = nil
 
+    // 初期フォーカス管理
+    @State private var hasAutoFocusedToday: Bool = false
+    @State private var selectedDayKey: String? = nil  // 日付ジャンプ用（将来の機能）
+
     // Toast表示用
     @State private var toastMessage: String?
     @State private var toastType: ToastView.ToastType = .info
@@ -104,6 +108,21 @@ struct TimelineView: View {
         return combined.isEmpty ? nil : "検索：\(combined)"
     }
 
+    /// 日付からYYYYMMDD形式のキーを生成
+    private func dayKey(from date: Date) -> String {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        if let year = components.year, let month = components.month, let day = components.day {
+            return String(format: "%04d%02d%02d", year, month, day)
+        }
+        return ""
+    }
+
+    /// 今日の日付キーを取得
+    private var todayKey: String {
+        dayKey(from: Date())
+    }
+
     private var groupedItems: [(day: Date, items: [TimelineItem])] {
         let calendar = Calendar.current
         let items = timelineItems
@@ -113,7 +132,7 @@ struct TimelineView: View {
         }
 
         var result: [(day: Date, items: [TimelineItem])] = []
-        result.reserveCapacity(groups.count)
+        result.reserveCapacity(groups.count + 1)  // 今日セクション追加の可能性を考慮
 
         for (day, list) in groups {
             let sortedList = list.sorted { $0.date > $1.date }
@@ -121,6 +140,16 @@ struct TimelineView: View {
         }
 
         result.sort { $0.day > $1.day }
+        
+        // 今日セクションが存在しない場合は空セクションを追加
+        let today = calendar.startOfDay(for: Date())
+        let hasTodaySection = result.contains { calendar.isDate($0.day, inSameDayAs: today) }
+        if !hasTodaySection {
+            result.append((day: today, items: []))
+            // 日付順を維持するため再ソート
+            result.sort { $0.day > $1.day }
+        }
+        
         return result
     }
 
@@ -532,177 +561,216 @@ struct TimelineView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                if let summary = filterSummaryText {
-                    Section {
-                        Text(summary)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.vertical, 4)
+            ScrollViewReader { proxy in
+                List {
+                    if let summary = filterSummaryText {
+                        Section {
+                            Text(summary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.vertical, 4)
+                        }
                     }
-                }
 
-                // タグクラウド
-                if !recentTagStats.isEmpty {
-                    Section {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                TagChipView(text: "すべて", isSelected: selectedTag == nil) {
-                                    selectedTag = nil
-                                }
+                    // タグクラウド
+                    if !recentTagStats.isEmpty {
+                        Section {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    TagChipView(text: "すべて", isSelected: selectedTag == nil) {
+                                        selectedTag = nil
+                                    }
 
-                                ForEach(recentTagStats) { stat in
-                                    let tag = stat.tag
-                                    TagChipView(text: "#\(tag)", isSelected: selectedTag == tag) {
-                                        selectedTag = (selectedTag == tag) ? nil : tag
+                                    ForEach(recentTagStats) { stat in
+                                        let tag = stat.tag
+                                        TagChipView(text: "#\(tag)", isSelected: selectedTag == tag) {
+                                            selectedTag = (selectedTag == tag) ? nil : tag
+                                        }
                                     }
                                 }
+                                .padding(.vertical, 4)
                             }
-                            .padding(.vertical, 4)
+                        } header: {
+                            Text("最近のタグ")
                         }
-                    } header: {
-                        Text("最近のタグ")
                     }
-                }
 
-                // 本体
-                if timelineItems.isEmpty {
-                    if searchText.isEmpty && selectedTag == nil {
-                        ContentUnavailableView("まだ何もありません", systemImage: "square.and.pencil")
+                    // 本体
+                    if timelineItems.isEmpty {
+                        if searchText.isEmpty && selectedTag == nil {
+                            ContentUnavailableView("まだ何もありません", systemImage: "square.and.pencil")
+                        } else {
+                            ContentUnavailableView("見つかりませんでした", systemImage: "magnifyingglass")
+                        }
                     } else {
-                        ContentUnavailableView("見つかりませんでした", systemImage: "magnifyingglass")
-                    }
-                } else {
-                    ForEach(groupedItems, id: \.day) { section in
-                        let headerTitle: String = section.day.formatted(
-                            date: .abbreviated, time: .omitted)
+                        ForEach(groupedItems, id: \.day) { section in
+                            let headerTitle: String = section.day.formatted(
+                                date: .abbreviated, time: .omitted)
+                            let sectionDayKey = dayKey(from: section.day)
 
-                        Section(headerTitle) {
-                            ForEach(section.items) { item in
-                                let entry: JournalEntry? = {
-                                    if item.kind != .journal { return nil }
-                                    return entries.first(where: {
-                                        $0.id.uuidString == item.sourceId
-                                    })
-                                }()
+                            Section {
+                                if section.items.isEmpty {
+                                    // 空セクション（今日にアイテムがない場合）のプレースホルダー
+                                    Text("記録がありません")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.vertical, 8)
+                                } else {
+                                    ForEach(section.items) { item in
+                                        let entry: JournalEntry? = {
+                                            if item.kind != .journal { return nil }
+                                            return entries.first(where: {
+                                                $0.id.uuidString == item.sourceId
+                                            })
+                                        }()
 
-                                let calendarEvent: CachedCalendarEvent? = {
-                                    if item.kind != .calendar { return nil }
-                                    if item.id.hasPrefix("archived-") { return nil }
-                                    return cachedCalendarEvents.first(where: {
-                                        $0.uid == item.sourceId
-                                    })
-                                }()
+                                        let calendarEvent: CachedCalendarEvent? = {
+                                            if item.kind != .calendar { return nil }
+                                            if item.id.hasPrefix("archived-") { return nil }
+                                            return cachedCalendarEvents.first(where: {
+                                                $0.uid == item.sourceId
+                                            })
+                                        }()
 
-                                let archivedEvent: ArchivedCalendarEvent? = {
-                                    if item.kind != .calendar { return nil }
-                                    if !item.id.hasPrefix("archived-") { return nil }
-                                    return archivedCalendarEvents.first(where: {
-                                        $0.uid == item.sourceId
-                                    })
-                                }()
+                                        let archivedEvent: ArchivedCalendarEvent? = {
+                                            if item.kind != .calendar { return nil }
+                                            if !item.id.hasPrefix("archived-") { return nil }
+                                            return archivedCalendarEvents.first(where: {
+                                                $0.uid == item.sourceId
+                                            })
+                                        }()
 
-                                let calendar: CachedCalendar? = {
-                                    if let event = calendarEvent {
-                                        return cachedCalendars.first(where: {
-                                            $0.calendarId == event.calendarId
-                                        })
-                                    } else if let event = archivedEvent {
-                                        return cachedCalendars.first(where: {
-                                            $0.calendarId == event.calendarId
-                                        })
-                                    }
-                                    return nil
-                                }()
+                                        let calendar: CachedCalendar? = {
+                                            if let event = calendarEvent {
+                                                return cachedCalendars.first(where: {
+                                                    $0.calendarId == event.calendarId
+                                                })
+                                            } else if let event = archivedEvent {
+                                                return cachedCalendars.first(where: {
+                                                    $0.calendarId == event.calendarId
+                                                })
+                                            }
+                                            return nil
+                                        }()
 
-                                NavigationLink {
-                                    if let entry {
-                                        JournalDetailView(entry: entry)
-                                    } else if let calendarEvent {
-                                        CalendarEventDetailView(
-                                            event: calendarEvent, calendar: calendar)
-                                    } else if let archivedEvent {
-                                        // アーカイブイベントの詳細表示（簡易版）
-                                        ArchivedCalendarEventDetailView(
-                                            event: archivedEvent, calendar: calendar)
-                                    } else {
-                                        Text("詳細を表示できません")
-                                    }
-                                } label: {
-                                    TimelineRowView(
-                                        item: item,
-                                        journalEntry: entry,
-                                        onDeleteJournal: nil,
-                                        onSyncBadgeTap: entry != nil
-                                            ? {
-                                                handleSyncBadgeTap(for: entry!)
-                                            } : nil,
-                                        syncingEntryId: isResendingIndividual ? entryToResend?.id.uuidString : nil
-                                    )
-                                }
-                                .swipeActions(edge: .trailing) {
-                                    if item.kind == .journal, let entry {
-                                        Button(role: .destructive) {
-                                            deleteJournalEntry(entry)
+                                        NavigationLink {
+                                            if let entry {
+                                                JournalDetailView(entry: entry)
+                                            } else if let calendarEvent {
+                                                CalendarEventDetailView(
+                                                    event: calendarEvent, calendar: calendar)
+                                            } else if let archivedEvent {
+                                                // アーカイブイベントの詳細表示（簡易版）
+                                                ArchivedCalendarEventDetailView(
+                                                    event: archivedEvent, calendar: calendar)
+                                            } else {
+                                                Text("詳細を表示できません")
+                                            }
                                         } label: {
-                                            Label("削除", systemImage: "trash")
+                                            TimelineRowView(
+                                                item: item,
+                                                journalEntry: entry,
+                                                onDeleteJournal: nil,
+                                                onSyncBadgeTap: entry != nil
+                                                    ? {
+                                                        handleSyncBadgeTap(for: entry!)
+                                                    } : nil,
+                                                syncingEntryId: isResendingIndividual ? entryToResend?.id.uuidString : nil
+                                            )
                                         }
-                                    } else if item.kind == .calendar, let calendarEvent {
-                                        Button(role: .destructive) {
-                                            deleteCalendarEvent(calendarEvent)
-                                        } label: {
-                                            Label("削除", systemImage: "trash")
+                                        .swipeActions(edge: .trailing) {
+                                            if item.kind == .journal, let entry {
+                                                Button(role: .destructive) {
+                                                    deleteJournalEntry(entry)
+                                                } label: {
+                                                    Label("削除", systemImage: "trash")
+                                                }
+                                            } else if item.kind == .calendar, let calendarEvent {
+                                                Button(role: .destructive) {
+                                                    deleteCalendarEvent(calendarEvent)
+                                                } label: {
+                                                    Label("削除", systemImage: "trash")
+                                                }
+                                            }
+                                            // アーカイブイベントは削除不可（読み取り専用）
                                         }
                                     }
-                                    // アーカイブイベントは削除不可（読み取り専用）
                                 }
+                            } header: {
+                                Text(headerTitle)
                             }
+                            .id(sectionDayKey)
                         }
                     }
                 }
-            }
-            .navigationTitle("ジャーナル")
-            .searchable(
-                text: $searchText,
-                placement: .navigationBarDrawer(displayMode: .automatic),
-                prompt: "検索"
-            )
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        isPresentingEditor = true
-                    } label: {
-                        Image(systemName: "plus")
+                .navigationTitle("ジャーナル")
+                .searchable(
+                    text: $searchText,
+                    placement: .navigationBarDrawer(displayMode: .automatic),
+                    prompt: "検索"
+                )
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            isPresentingEditor = true
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                        .disabled(isSyncing)  // 同期中に新規作成を止めたいなら（不要なら消してOK）
                     }
-                    .disabled(isSyncing)  // 同期中に新規作成を止めたいなら（不要なら消してOK）
                 }
-            }
-            .sheet(isPresented: $isPresentingEditor) {
-                JournalEditorView()
-            }
-            .alert("再送しますか？", isPresented: $showResendConfirmation) {
-                Button("キャンセル", role: .cancel) {
-                    entryToResend = nil
+                .sheet(isPresented: $isPresentingEditor) {
+                    JournalEditorView()
                 }
-                Button("再送") {
-                    resendIndividualEntry()
+                .alert("再送しますか？", isPresented: $showResendConfirmation) {
+                    Button("キャンセル", role: .cancel) {
+                        entryToResend = nil
+                    }
+                    Button("再送") {
+                        resendIndividualEntry()
+                    }
+                } message: {
+                    if let entry = entryToResend {
+                        Text("「\(entry.title ?? "無題")」をカレンダーに再送します。")
+                    } else {
+                        Text("ジャーナルをカレンダーに再送します。")
+                    }
                 }
-            } message: {
-                if let entry = entryToResend {
-                    Text("「\(entry.title ?? "無題")」をカレンダーに再送します。")
-                } else {
-                    Text("ジャーナルをカレンダーに再送します。")
+                .task {
+                    // 起動時同期（runSyncに統一）
+                    await runSync(isManual: false)
+                }
+                .refreshable {
+                    // pull-to-refresh
+                    await runSync(isManual: true)
+                }
+                .onAppear {
+                    // 初期フォーカス: 検索中でない場合のみ実行
+                    let isSearching = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedTag != nil
+                    if !hasAutoFocusedToday && !isSearching {
+                        // 日付ジャンプで選択された日がある場合はそれを優先、なければ今日
+                        let targetKey = selectedDayKey ?? todayKey
+                        // 少し遅延を入れてレイアウトが確定してからスクロール
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            withAnimation {
+                                proxy.scrollTo(targetKey, anchor: .top)
+                            }
+                            hasAutoFocusedToday = true
+                        }
+                    }
+                }
+                .onChange(of: selectedDayKey) { oldValue, newValue in
+                    // 日付ジャンプで選択された日が変更された場合、その日にスクロール
+                    if let newKey = newValue {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            withAnimation {
+                                proxy.scrollTo(newKey, anchor: .top)
+                            }
+                        }
+                    }
                 }
             }
             .toast(message: $toastMessage, type: $toastType, duration: 4.0)
-            .task {
-                // 起動時同期（runSyncに統一）
-                await runSync(isManual: false)
-            }
-            .refreshable {
-                // pull-to-refresh
-                await runSync(isManual: true)
-            }
         }
     }
  
