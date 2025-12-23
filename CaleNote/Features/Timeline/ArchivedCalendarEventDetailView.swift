@@ -20,35 +20,33 @@ struct ArchivedCalendarEventDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // ヘッダー部分
-                HStack(spacing: 12) {
-                    ZStack {
-                        Circle()
-                            .fill(displayColor.opacity(0.2))
-                            .frame(width: 60, height: 60)
+                // ヘッダー部分（カラーバー）
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 0) {
+                        // カラーバー（左側）
+                        Rectangle()
+                            .fill(displayColor)
+                            .frame(width: 4)
+                            .padding(.trailing, 12)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(event.title)
+                                .font(.title2)
+                                .bold()
 
-                        Image(systemName: "archivebox")
-                            .font(.title)
-                            .foregroundStyle(displayColor)
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(event.title)
-                            .font(.title2)
-                            .bold()
-
-                        if event.isAllDay {
-                            Text("終日")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text(event.start, style: .date)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                            if event.isAllDay {
+                                Text("終日")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text(event.start, style: .date)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
+                        
+                        Spacer()
                     }
-
-                    Spacer()
                 }
 
                 // アーカイブ表示のバッジ

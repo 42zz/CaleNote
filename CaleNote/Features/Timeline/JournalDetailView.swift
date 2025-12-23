@@ -13,35 +13,47 @@ struct JournalDetailView: View {
     }
 
     private var displayColor: Color {
-        Color(hex: entry.colorHex) ?? .blue
+        // colorHexはエントリ固有、ただし空文字列やデフォルト値の場合はカレンダーの色を使用
+        let colorHex: String
+        if entry.colorHex.isEmpty || entry.colorHex == "#3B82F6" {
+            // カレンダーの色を使用
+            if let linkedCalendarId = entry.linkedCalendarId,
+               let calendar = calendars.first(where: { $0.calendarId == linkedCalendarId }),
+               !calendar.userColorHex.isEmpty {
+                colorHex = calendar.userColorHex
+            } else {
+                colorHex = "#3B82F6"
+            }
+        } else {
+            colorHex = entry.colorHex
+        }
+        return Color(hex: colorHex) ?? .blue
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // ヘッダー部分（アイコンと色）
-                HStack(spacing: 12) {
-                    ZStack {
-                        Circle()
-                            .fill(displayColor.opacity(0.2))
-                            .frame(width: 60, height: 60)
+                // ヘッダー部分（カラーバー）
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 0) {
+                        // カラーバー（左側）
+                        Rectangle()
+                            .fill(displayColor)
+                            .frame(width: 4)
+                            .padding(.trailing, 12)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(entry.title?.isEmpty == false ? entry.title! : "（タイトルなし）")
+                                .font(.title2)
+                                .bold()
 
-                        Image(systemName: entry.iconName)
-                            .font(.title)
-                            .foregroundStyle(displayColor)
+                            Text(entry.eventDate, style: .date)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        Spacer()
                     }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(entry.title?.isEmpty == false ? entry.title! : "（タイトルなし）")
-                            .font(.title2)
-                            .bold()
-
-                        Text(entry.eventDate, style: .date)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
                 }
 
                 // タグセクション

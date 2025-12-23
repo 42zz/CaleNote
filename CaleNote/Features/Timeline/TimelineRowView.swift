@@ -26,17 +26,11 @@ struct TimelineRowView: View {
   }
 
   var body: some View {
-    HStack(spacing: 12) {
-      // アイコン（背景色とアイコン色で統一）
-      ZStack {
-        Circle()
-          .fill(displayColor.opacity(0.2))
-          .frame(width: 40, height: 40)
-
-        Image(systemName: item.iconName)
-          .font(.title3)
-          .foregroundStyle(displayColor)
-      }
+    HStack(spacing: 0) {
+      // カラーバー（左側）
+      Rectangle()
+        .fill(displayColor)
+        .frame(width: 4)
 
       // コンテンツ
       VStack(alignment: .leading, spacing: 6) {
@@ -64,6 +58,7 @@ struct TimelineRowView: View {
           .font(.caption)
           .foregroundStyle(.secondary)
       }
+      .padding(.horizontal, 12)
     }
     .padding(.vertical, 6)
     .swipeActions(edge: .trailing) {

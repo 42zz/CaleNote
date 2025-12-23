@@ -18,10 +18,25 @@ struct CalendarSettingsView: View {
     @State private var archiveTask: Task<Void, Never>?
     private let archiveSync = ArchiveSyncService()
 
-    // 固定パレット
+    // Googleカレンダーの標準色をベースにしたパレット（5x5 = 25色）
+    // 参考: Google Calendar API colors (https://developers.google.com/calendar/api/v3/reference/colors)
     private let palette: [String] = [
-        "#3B82F6", "#22C55E", "#F97316", "#EF4444", "#A855F7",
-        "#06B6D4", "#64748B", "#F59E0B", "#10B981", "#EC4899",
+        // 赤系
+        "#d06b64", "#f83a22", "#fa573c",
+        // オレンジ・黄色系
+        "#ff7537", "#ffad46", "#fbd75b", "#fbe983",
+        // 緑系
+        "#42d692", "#16a765", "#7bd148", "#b3dc6c", "#51b749",
+        // シアン・青系
+        "#46d6db", "#4a86e8", "#a4bdfc", "#5484ed",
+        // 紫系
+        "#755aca", "#af38eb", "#dbadff", "#b99aff",
+        // ピンク系
+        "#f691b2",
+        // 茶色・グレー系
+        "#ac725e", "#e1e1e1",
+        // ミントグリーン
+        "#7ae7bf",
     ]
 
     // アイコン一覧
@@ -139,80 +154,86 @@ struct CalendarSettingsView: View {
             }
 
             Section("色") {
-                ForEach(palette, id: \.self) { hex in
-                    HStack(spacing: 12) {
-                        // カラーチップ
-                        Circle()
-                            .fill(Color(hex: hex) ?? .blue)
-                            .frame(width: 32, height: 32)
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                            )
-
-                        // 色コード（参考用）
-                        Text(hex)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        Spacer()
-
-                        // 選択中のチェックマーク
-                        if calendar.userColorHex == hex {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(.blue)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        calendar.userColorHex = hex
-                        calendar.updatedAt = Date()
-                        try? modelContext.save()
-                    }
-                }
-            }
-
-            Section("アイコン") {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 16) {
-                        ForEach(iconNames, id: \.self) { iconName in
-                            Button {
-                                calendar.iconName = iconName
-                                calendar.updatedAt = Date()
-                                try? modelContext.save()
-                            } label: {
-                                VStack(spacing: 8) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(
-                                                Color(hex: calendar.userColorHex)?.opacity(0.2)
-                                                    ?? .blue.opacity(0.2)
-                                            )
-                                            .frame(width: 50, height: 50)
-
-                                        Image(systemName: iconName)
-                                            .font(.title3)
-                                            .foregroundStyle(
-                                                Color(hex: calendar.userColorHex) ?? .blue)
-                                    }
-
-                                    if calendar.iconName == iconName {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundStyle(.blue)
-                                            .font(.caption)
-                                    } else {
-                                        Circle()
-                                            .fill(Color.clear)
-                                            .frame(width: 16, height: 16)
-                                    }
-                                }
+                LazyVGrid(columns: [
+                    GridItem(.adaptive(minimum: 50), spacing: 12)
+                ], spacing: 16) {
+                    ForEach(palette, id: \.self) { hex in
+                        let isSelected = calendar.userColorHex == hex
+                        let color = Color(hex: hex) ?? .blue
+                        
+                        ZStack {
+                            // カラーチップ
+                            Circle()
+                                .fill(color)
+                                .frame(width: 44, height: 44)
+                                .overlay(
+                                    Circle()
+                                        .stroke(
+                                            isSelected ? Color.primary : Color.secondary.opacity(0.3),
+                                            lineWidth: isSelected ? 3 : 1
+                                        )
+                                )
+                            
+                            // 選択中のチェックマーク
+                            if isSelected {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .shadow(color: .black.opacity(0.3), radius: 1, x: 0, y: 1)
                             }
-                            .buttonStyle(.plain)
+                        }
+                        .contentShape(Circle())
+                        .onTapGesture {
+                            calendar.userColorHex = hex
+                            calendar.updatedAt = Date()
+                            try? modelContext.save()
                         }
                     }
-                    .padding(.horizontal, 4)
                 }
+                .padding(.vertical, 8)
             }
+
+            // Section("アイコン") {
+            //     ScrollView(.horizontal, showsIndicators: false) {
+            //         HStack(spacing: 16) {
+            //             ForEach(iconNames, id: \.self) { iconName in
+            //                 Button {
+            //                     calendar.iconName = iconName
+            //                     calendar.updatedAt = Date()
+            //                     try? modelContext.save()
+            //                 } label: {
+            //                     VStack(spacing: 8) {
+            //                         ZStack {
+            //                             Circle()
+            //                                 .fill(
+            //                                     Color(hex: calendar.userColorHex)?.opacity(0.2)
+            //                                         ?? .blue.opacity(0.2)
+            //                                 )
+            //                                 .frame(width: 50, height: 50)
+
+            //                             Image(systemName: iconName)
+            //                                 .font(.title3)
+            //                                 .foregroundStyle(
+            //                                     Color(hex: calendar.userColorHex) ?? .blue)
+            //                         }
+
+            //                         if calendar.iconName == iconName {
+            //                             Image(systemName: "checkmark.circle.fill")
+            //                                 .foregroundStyle(.blue)
+            //                                 .font(.caption)
+            //                         } else {
+            //                             Circle()
+            //                                 .fill(Color.clear)
+            //                                 .frame(width: 16, height: 16)
+            //                         }
+            //                     }
+            //                 }
+            //                 .buttonStyle(.plain)
+            //             }
+            //         }
+            //         .padding(.horizontal, 4)
+            //     }
+            // }
 
             Section("長期キャッシュ") {
                 if !isImportingArchive {
