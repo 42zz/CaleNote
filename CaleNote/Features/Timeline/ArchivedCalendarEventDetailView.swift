@@ -10,8 +10,13 @@ struct ArchivedCalendarEventDetailView: View {
     @State private var isPresentingEditor = false
     @State private var journalEntryForEdit: JournalEntry?
 
+    // event.calendarIdから正しいカレンダーを取得
+    private var correctCalendar: CachedCalendar? {
+        cachedCalendars.first { $0.calendarId == event.calendarId }
+    }
+
     private var displayColor: Color {
-        if let hex = calendar?.userColorHex {
+        if let hex = correctCalendar?.userColorHex {
             return Color(hex: hex) ?? .blue
         }
         return .blue
@@ -118,7 +123,7 @@ struct ArchivedCalendarEventDetailView: View {
                         MetadataRow(
                             icon: "calendar.badge.clock",
                             label: "カレンダー",
-                            value: calendar?.summary ?? event.calendarId
+                            value: correctCalendar?.summary ?? event.calendarId
                         )
 
                         MetadataRow(
@@ -194,8 +199,8 @@ struct ArchivedCalendarEventDetailView: View {
 
         // 紐づいているジャーナルがない場合は新規作成
         // カレンダーの色とアイコンを取得
-        let calendarColorHex = calendar?.userColorHex ?? "#3B82F6"
-        let calendarIconName = calendar?.iconName ?? "calendar"
+        let calendarColorHex = correctCalendar?.userColorHex ?? "#3B82F6"
+        let calendarIconName = correctCalendar?.iconName ?? "calendar"
         
         let newEntry = JournalEntry(
             title: event.title.isEmpty ? nil : event.title,
