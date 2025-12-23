@@ -10,6 +10,8 @@ struct JournalEditorView: View {
 
     private let entry: JournalEntry?
 
+    @Query private var calendars: [CachedCalendar]
+
     @State private var title: String
     @State private var content: String  // ← ここを body から改名
     @State private var eventDate: Date
@@ -25,12 +27,59 @@ struct JournalEditorView: View {
         _eventDate = State(initialValue: entry?.eventDate ?? Date())
     }
 
+    // 書き込み先カレンダーIDを決定（既存エントリはlinkedCalendarId、新規は設定値）
+    private var targetCalendarId: String? {
+        if let entry = entry, let linkedId = entry.linkedCalendarId {
+            return linkedId
+        }
+        return JournalWriteSettings.loadWriteCalendarId()
+    }
+
+    // 書き込み先カレンダーを取得
+    private var targetCalendar: CachedCalendar? {
+        guard let calendarId = targetCalendarId else { return nil }
+        return calendars.first { $0.calendarId == calendarId }
+    }
+
+    // カレンダーの表示色
+    private var calendarColor: Color {
+        if let hex = targetCalendar?.userColorHex {
+            return Color(hex: hex) ?? .blue
+        }
+        return .blue
+    }
+
     var body: some View {
         NavigationStack {
             Form {
-                Section("基本") {
+                Section {
                     TextField("タイトル（任意）", text: $title)
                     DatePicker("日時", selection: $eventDate)
+                } header: {
+                    HStack {
+                        Text("基本")
+                        Spacer()
+                        // 書き込み先カレンダー表示
+                        HStack(spacing: 4) {
+                            Image(systemName: "calendar")
+                                .font(.caption2)
+                                .foregroundStyle(calendarColor)
+                            
+                            if let calendar = targetCalendar {
+                                Text(calendar.summary)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            } else if let calendarId = targetCalendarId {
+                                Text(calendarId == "primary" ? "プライマリ" : calendarId)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(calendarColor.opacity(0.1))
+                        .cornerRadius(4)
+                    }
                 }
 
                 Section("本文（必須）") {
