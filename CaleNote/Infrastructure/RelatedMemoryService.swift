@@ -33,7 +33,8 @@ final class RelatedMemoryService {
     func findRelatedMemories(
         for date: Date,
         settings: RelatedMemorySettings,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        enabledCalendarIds: Set<String> = Set()  // 空の場合は全カレンダーを対象
     ) throws -> [RelatedMemoryItem] {
 
         guard settings.hasAnyEnabled else { return [] }
@@ -55,7 +56,8 @@ final class RelatedMemoryService {
             let sameDayEvents = try fetchEventsByMonthDay(
                 monthDayKey: monthDayKey,
                 currentYear: currentYear,
-                modelContext: modelContext
+                modelContext: modelContext,
+                enabledCalendarIds: enabledCalendarIds
             )
 
             for event in sameDayEvents {
@@ -73,7 +75,8 @@ final class RelatedMemoryService {
             let sameWeekdayEvents = try fetchEventsBySameWeekday(
                 date: date,
                 currentYear: currentYear,
-                modelContext: modelContext
+                modelContext: modelContext,
+                enabledCalendarIds: enabledCalendarIds
             )
 
             for event in sameWeekdayEvents {
@@ -93,7 +96,8 @@ final class RelatedMemoryService {
                 let sameHolidayEvents = try fetchEventsByHoliday(
                     holidayId: holidayInfo.holidayId,
                     currentYear: currentYear,
-                    modelContext: modelContext
+                    modelContext: modelContext,
+                    enabledCalendarIds: enabledCalendarIds
                 )
 
                 for event in sameHolidayEvents {
@@ -137,7 +141,8 @@ final class RelatedMemoryService {
     private func fetchEventsByMonthDay(
         monthDayKey: Int,
         currentYear: Int,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        enabledCalendarIds: Set<String>
     ) throws -> [ArchivedCalendarEvent] {
         // startMonthDayKeyがオプショナルになったため、nilの値も含めて検索
         // その後、computedMonthDayKeyでフィルタリング
@@ -147,6 +152,11 @@ final class RelatedMemoryService {
         // 同じ年月日を除外し、monthDayKeyに一致するものをフィルタ
         let calendar = Calendar.current
         return allEvents.filter { event in
+            // 有効なカレンダーのイベントのみを対象
+            if !enabledCalendarIds.isEmpty && !enabledCalendarIds.contains(event.calendarId) {
+                return false
+            }
+            
             // computedMonthDayKeyを使用して比較
             guard event.computedMonthDayKey == monthDayKey else { return false }
 
@@ -159,7 +169,8 @@ final class RelatedMemoryService {
     private func fetchEventsBySameWeekday(
         date: Date,
         currentYear: Int,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        enabledCalendarIds: Set<String>
     ) throws -> [ArchivedCalendarEvent] {
         let calendar = Calendar.current
         let weekday = calendar.component(.weekday, from: date)
@@ -210,7 +221,12 @@ final class RelatedMemoryService {
             }
             let descriptor = FetchDescriptor(predicate: predicate)
             let events = try modelContext.fetch(descriptor)
-            results.append(contentsOf: events)
+            
+            // 有効なカレンダーのイベントのみをフィルタリング
+            let filteredEvents = events.filter { event in
+                enabledCalendarIds.isEmpty || enabledCalendarIds.contains(event.calendarId)
+            }
+            results.append(contentsOf: filteredEvents)
         }
 
         // 未来10年分をチェック
@@ -249,7 +265,12 @@ final class RelatedMemoryService {
             }
             let descriptor = FetchDescriptor(predicate: predicate)
             let events = try modelContext.fetch(descriptor)
-            results.append(contentsOf: events)
+            
+            // 有効なカレンダーのイベントのみをフィルタリング
+            let filteredEvents = events.filter { event in
+                enabledCalendarIds.isEmpty || enabledCalendarIds.contains(event.calendarId)
+            }
+            results.append(contentsOf: filteredEvents)
         }
 
         return results
@@ -258,7 +279,8 @@ final class RelatedMemoryService {
     private func fetchEventsByHoliday(
         holidayId: String,
         currentYear: Int,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        enabledCalendarIds: Set<String>
     ) throws -> [ArchivedCalendarEvent] {
         let predicate = #Predicate<ArchivedCalendarEvent> { event in
             event.holidayId == holidayId
@@ -267,8 +289,14 @@ final class RelatedMemoryService {
         let allEvents = try modelContext.fetch(descriptor)
 
         // 同じ年を除外（同じ祝日で年が異なる場合のみ含める）
+        // 有効なカレンダーのイベントのみを対象
         let calendar = Calendar.current
         return allEvents.filter { event in
+            // 有効なカレンダーのイベントのみを対象
+            if !enabledCalendarIds.isEmpty && !enabledCalendarIds.contains(event.calendarId) {
+                return false
+            }
+            
             let eventYear = calendar.component(.year, from: event.start)
             return eventYear != currentYear
         }

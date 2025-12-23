@@ -5,6 +5,7 @@ struct RelatedMemoriesSection: View {
     let targetDate: Date
     @Environment(\.modelContext) private var modelContext
     @Query private var archivedEvents: [ArchivedCalendarEvent]
+    @Query private var cachedCalendars: [CachedCalendar]
 
     @State private var relatedItems: [RelatedMemoryItem] = []
     @State private var isLoading = true
@@ -12,6 +13,11 @@ struct RelatedMemoriesSection: View {
 
     private let service = RelatedMemoryService()
     private let settings = RelatedMemorySettings.load()
+    
+    /// 有効なカレンダーID集合
+    private var enabledCalendarIds: Set<String> {
+        Set(cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId })
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -111,9 +117,11 @@ struct RelatedMemoriesSection: View {
             let items = try service.findRelatedMemories(
                 for: targetDate,
                 settings: settings,
-                modelContext: modelContext
+                modelContext: modelContext,
+                enabledCalendarIds: enabledCalendarIds
             )
-            relatedItems = items
+            // サービス側でフィルタリング済みだが、念のため再度フィルタリング
+            relatedItems = items.filter { enabledCalendarIds.contains($0.event.calendarId) }
         } catch {
             errorMessage = "関連メモリーの読み込みに失敗しました"
         }

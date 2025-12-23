@@ -133,35 +133,35 @@ struct SettingsView: View {
                     }
                 }
 
-                // Section("長期キャッシュ（一括取り込み）") {
-                //     if !isImportingArchive {
-                //         Button {
-                //             archiveTask = Task { await importArchive() }
-                //         } label: {
-                //             Text("表示中の全カレンダーを取り込む")
-                //         }
-                //     } else {
-                //         HStack {
-                //             Button("取り込み中…") {}
-                //                 .disabled(true)
-                //             Spacer()
-                //             Button("キャンセル") {
-                //                 cancelArchiveImport()
-                //             }
-                //             .foregroundStyle(.red)
-                //         }
-                //     }
+                Section("長期キャッシュ（一括取り込み）") {
+                    if !isImportingArchive {
+                        Button {
+                            archiveTask = Task { await importArchive() }
+                        } label: {
+                            Text("表示中の全カレンダーを取り込む")
+                        }
+                    } else {
+                        HStack {
+                            Button("取り込み中…") {}
+                                .disabled(true)
+                            Spacer()
+                            Button("キャンセル") {
+                                cancelArchiveImport()
+                            }
+                            .foregroundStyle(.red)
+                        }
+                    }
 
-                //     if let archiveProgressText {
-                //         Text(archiveProgressText)
-                //             .font(.caption)
-                //             .foregroundStyle(.secondary)
-                //     }
+                    if let archiveProgressText {
+                        Text(archiveProgressText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
-                //     Text("表示中の全カレンダーの長期キャッシュを一括で取り込みます。各カレンダーごとの取り込みは、カレンダー設定画面から行えます。")
-                //         .font(.caption)
-                //         .foregroundStyle(.secondary)
-                // }
+                    Text("表示中の全カレンダーの長期キャッシュを一括で取り込みます。各カレンダーごとの取り込みは、カレンダー設定画面から行えます。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 Section("同期待ち") {
                     if pendingEntries.isEmpty {

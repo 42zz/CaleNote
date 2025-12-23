@@ -237,6 +237,8 @@ final class ArchiveSyncService {
             let holidayId = holidayProvider.holiday(for: e.start)?.holidayId
 
             if let existing = fetchArchived(uid: uid, modelContext: modelContext) {
+                existing.calendarId = calendarId
+                existing.eventId = e.id
                 existing.title = e.title
                 existing.desc = e.description
                 existing.start = e.start

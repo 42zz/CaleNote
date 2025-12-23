@@ -58,10 +58,11 @@ enum ArchiveImportSettings {
             return
         }
 
+        // タスク開始前に進行中フラグを設定（重複実行を防ぐ）
+        markInProgress(calendarId: calendar.calendarId)
+
         // バックグラウンドタスクで取得開始
         Task(priority: .background) {
-            markInProgress(calendarId: calendar.calendarId)
-
             do {
                 let archiveSync = ArchiveSyncService()
                 try await archiveSync.importAllEventsToArchive(

@@ -133,6 +133,17 @@ Googleカレンダーを**唯一の真実のソース（Single Source of Truth�
   - 今日セクションが存在しない場合でも空セクションを生成してフォーカス可能
   - 検索中は自動フォーカスを無効化（検索結果の先頭表示を維持）
   - 日付ジャンプ機能で選択された日がある場合は、その日を優先してフォーカス
+- **ページネーション機能**: 長期キャッシュの大量データを効率的に表示
+  - **カーソルベースのページネーション**: 日付キー（YYYYMMDD形式）を使用した双方向ロード
+  - **初期ロード**: 「今日」を中心に未来側100件 + 過去側100件を自動ロード
+  - **遅延ロード**: スクロールに応じて自動的に追加データをロード
+    - 上端に到達で未来方向に150件ずつロード
+    - 下端に到達で過去方向に150件ずつロード
+  - **ウィンドウトリミング**: メモリ消費を抑えるため、最大600件を保持
+    - 最大件数を超えた場合、スクロール方向と逆側のデータを自動削除
+    - 過去方向にスクロール中は未来側を削除、未来方向にスクロール中は過去側を削除
+  - **重複ロード防止**: ローディングフラグと境界キー管理で効率化
+  - **短期キャッシュ（CachedCalendarEvent）は全量表示**: ページネーションは長期キャッシュ（ArchivedCalendarEvent）のみに適用
 
 ### 2.3 カレンダー機能
 
@@ -1114,6 +1125,64 @@ final class SyncLog {
 - 同期失敗時に`SyncErrorReporter.reportSyncFailure()`を呼び出し、Crashlyticsに非致命的エラーとして送信
 - 送信される情報は`SyncLog`と同じプライバシー保護ポリシーに準拠
 - Firebase Crashlyticsが設定されていない場合はログ出力のみ（条件付きコンパイル）
+
+### 4.10 TimelinePagingState（@Observable）
+
+**タイムライン表示用のページネーション状態管理クラス**:
+
+```swift
+@MainActor
+@Observable
+final class TimelinePagingState {
+    // カーソル追跡
+    var earliestLoadedDayKey: Int?  // 最も古い（過去側）にロード済みの日付キー（YYYYMMDD形式）
+    var latestLoadedDayKey: Int?    // 最も新しい（未来側）にロード済みの日付キー（YYYYMMDD形式）
+
+    // ローディングフラグ
+    var isLoadingPast: Bool = false    // 過去方向のロード中フラグ
+    var isLoadingFuture: Bool = false  // 未来方向のロード中フラグ
+
+    // 境界フラグ
+    var hasReachedEarliestData: Bool = false  // 過去方向のロードが完了（これ以上データがない）
+    var hasReachedLatestData: Bool = false    // 未来方向のロードが完了（これ以上データがない）
+
+    // ロード済みデータ
+    var loadedArchivedEvents: [ArchivedCalendarEvent] = []
+
+    // スクロール位置の復元用アンカー（将来の拡張用）
+    var scrollAnchorId: String?
+
+    // 主要メソッド
+    func initialLoad(modelContext: ModelContext, enabledCalendarIds: Set<String>) async
+    func loadPastPage(modelContext: ModelContext, enabledCalendarIds: Set<String>) async
+    func loadFuturePage(modelContext: ModelContext, enabledCalendarIds: Set<String>) async
+    func trimIfNeeded(scrollDirection: ScrollDirection)
+}
+```
+
+**ページネーション戦略**:
+- **カーソルベース**: 日付キー（YYYYMMDD形式の整数）を使用した効率的なクエリ
+- **双方向ロード**: 過去方向と未来方向を独立して管理
+- **初期ロード**: 「今日」を中心に未来側と過去側を両方ロード（各100件）
+- **追加ロード**: 各方向に150件ずつ追加
+- **ウィンドウトリミング**: 最大600件を超えた場合、スクロール方向と逆側を削除
+- **重複防止**: 境界キーの記録により同一範囲の重複ロードを防止
+
+**設定値（AppConfig.Timeline）**:
+- `pageSize`: 1回のロードで取得する件数（150件）
+- `maxLoadedItems`: タイムラインに保持する最大アイテム数（600件）
+- `initialPageSize`: 初期ロード時に未来側と過去側それぞれに読む件数（100件）
+
+**UIとの連携**:
+- `TimelineView`の番兵ビュー（sentinel view）がスクロールで表示されると自動ロードをトリガー
+- 上端の番兵 → 未来方向ロード（`loadFuturePage`）
+- 下端の番兵 → 過去方向ロード（`loadPastPage`）
+- タイムラインは逆時系列（新しいものが上）なので、上スクロール=未来、下スクロール=過去
+
+**パフォーマンス最適化**:
+- 有効なカレンダーのイベントのみをフィルタリング
+- ソート済み配列として管理（`startDayKey`降順）
+- 重複イベントの自動排除（`uid`でグループ化）
 
 ---
 

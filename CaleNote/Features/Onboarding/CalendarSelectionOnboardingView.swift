@@ -75,21 +75,7 @@ struct CalendarSelectionOnboardingView: View {
                     await reloadCalendars()
                 } else {
                     // データベースにカレンダーがある場合は@Queryの更新を待つ
-                    // まず、データベースから直接取得したカレンダーで初期値を設定
-                    if !dbCalendars.contains(where: { $0.isEnabled }) {
-                        if let primary = dbCalendars.first(where: { $0.isPrimary }) {
-                            primary.isEnabled = true
-                            primary.updatedAt = Date()
-                        } else if let first = dbCalendars.first {
-                            first.isEnabled = true
-                            first.updatedAt = Date()
-                        }
-                        try? modelContext.save()
-                        modelContext.processPendingChanges()
-                        
-                        // 再度データベースから取得
-                        dbCalendars = (try? modelContext.fetch(descriptor)) ?? []
-                    }
+                    // 初期状態はすべて未選択のままにする
                     
                     // @Queryが更新されるまで待つ（最大3秒）
                     var waitCount = 0
@@ -98,10 +84,9 @@ struct CalendarSelectionOnboardingView: View {
                         waitCount += 1
                     }
                     
-                    // @Queryが更新されたら初期値を設定
+                    // @Queryが更新されたらローディングを終了
                     if !calendars.isEmpty {
                         isLoadingCalendars = false
-                        await initializeDefaultSelectionAsync()
                     } else {
                         // @Queryが更新されない場合は、データベースから直接設定した値を使用
                         // この場合、calendarsは空だが、データベースにはカレンダーがある
@@ -195,7 +180,9 @@ struct CalendarSelectionOnboardingView: View {
                 }
 
                 Button {
-                    completeOnboarding()
+                    Task {
+                        await completeOnboarding()
+                    }
                 } label: {
                     Text("続ける")
                         .font(.headline)
@@ -218,48 +205,10 @@ struct CalendarSelectionOnboardingView: View {
         }
     }
 
-    private func initializeDefaultSelection() {
-        // 既に有効なカレンダーがある場合は何もしない
-        if hasEnabledCalendar { return }
+    // 初期選択機能は削除（すべて未選択の状態から開始）
 
-        // primaryカレンダーを自動的にONにする
-        if let primary = calendars.first(where: { $0.isPrimary }) {
-            primary.isEnabled = true
-            primary.updatedAt = Date()
-            try? modelContext.save()
-        } else if let first = calendars.first {
-            // primaryがない場合は最初のカレンダーをON
-            first.isEnabled = true
-            first.updatedAt = Date()
-            try? modelContext.save()
-        }
-    }
-
-    private func initializeDefaultSelectionAsync() async {
-        // @Queryが更新されるまで少し待機
-        var waitCount = 0
-        while calendars.isEmpty && waitCount < 10 {
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1秒
-            waitCount += 1
-        }
-        
-        // 既に有効なカレンダーがある場合は何もしない
-        if hasEnabledCalendar { return }
-
-        // primaryカレンダーを自動的にONにする
-        if let primary = calendars.first(where: { $0.isPrimary }) {
-            primary.isEnabled = true
-            primary.updatedAt = Date()
-            try? modelContext.save()
-        } else if let first = calendars.first {
-            // primaryがない場合は最初のカレンダーをON
-            first.isEnabled = true
-            first.updatedAt = Date()
-            try? modelContext.save()
-        }
-    }
-
-    private func completeOnboarding() {
+    @MainActor
+    private func completeOnboarding() async {
         // 書き込み先カレンダーが未設定なら自動設定
         let currentWriteCalendarId = JournalWriteSettings.loadWriteCalendarId()
         let enabledCalendars = calendars.filter { $0.isEnabled }
@@ -281,6 +230,9 @@ struct CalendarSelectionOnboardingView: View {
                 modelContext: modelContext
             )
         }
+
+        // バックグラウンドタスクが開始されるまで少し待機（確実に開始されるように）
+        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1秒
 
         // オンボーディング完了フラグを保存
         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
@@ -328,20 +280,8 @@ struct CalendarSelectionOnboardingView: View {
                     waitCount += 1
                 }
                 
-                // まだ@Queryが更新されていない場合は、データベースから直接設定
+                // まだ@Queryが更新されていない場合は、もう一度待つ
                 if calendars.isEmpty {
-                    // データベースから直接取得したカレンダーで初期値を設定
-                    if let primary = fetchedCalendars.first(where: { $0.isPrimary }) {
-                        primary.isEnabled = true
-                        primary.updatedAt = Date()
-                    } else if let first = fetchedCalendars.first {
-                        first.isEnabled = true
-                        first.updatedAt = Date()
-                    }
-                    try? modelContext.save()
-                    modelContext.processPendingChanges()
-                    
-                    // もう一度@Queryの更新を待つ
                     waitCount = 0
                     while calendars.isEmpty && waitCount < 10 {
                         try await Task.sleep(nanoseconds: 100_000_000) // 0.1秒
@@ -349,8 +289,7 @@ struct CalendarSelectionOnboardingView: View {
                     }
                 }
                 
-                // 初期値設定: 有効なカレンダーがない場合はprimaryをONにする
-                await initializeDefaultSelectionAsync()
+                // 初期状態はすべて未選択のままにする
                 isLoadingCalendars = false
                 showRetryButton = false
             }

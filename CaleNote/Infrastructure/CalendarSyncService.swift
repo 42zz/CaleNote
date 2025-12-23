@@ -372,6 +372,8 @@ final class CalendarSyncService {
 
     if let archived = try? modelContext.fetch(descriptor).first {
       // 長期キャッシュが存在する場合は更新
+      archived.calendarId = calendarId
+      archived.eventId = eventId
       archived.title = event.title
       archived.desc = event.description
       archived.start = event.start
