@@ -201,8 +201,20 @@ struct TimelineView: View {
 
     private func journalItems(from entries: [JournalEntry]) -> [TimelineItem] {
         entries.map { entry in
-            // colorHexはエントリ固有、iconNameは所属カレンダー（linkedCalendarId）の設定を反映
-            let colorHex = entry.colorHex.isEmpty ? defaultColorHex : entry.colorHex
+            // colorHexはエントリ固有、ただし空文字列やデフォルト値の場合はカレンダーの色を使用
+            let colorHex: String
+            if entry.colorHex.isEmpty || entry.colorHex == "#3B82F6" {
+                // カレンダーの色を使用
+                if let linkedCalendarId = entry.linkedCalendarId,
+                   let calendar = cachedCalendars.first(where: { $0.calendarId == linkedCalendarId }),
+                   !calendar.userColorHex.isEmpty {
+                    colorHex = calendar.userColorHex
+                } else {
+                    colorHex = defaultColorHex
+                }
+            } else {
+                colorHex = entry.colorHex
+            }
 
             // linkedCalendarIdからカレンダーを取得してiconNameを決定
             let iconName: String
@@ -232,8 +244,19 @@ struct TimelineView: View {
         cached.map { e in
             // CachedCalendarのcolorHex/iconNameを確実に反映
             let calendar = cachedCalendars.first(where: { $0.calendarId == e.calendarId })
-            let colorHex = calendar?.userColorHex ?? defaultColorHex
-            let iconName = calendar?.iconName ?? defaultIconName
+            let colorHex: String
+            if let cal = calendar, !cal.userColorHex.isEmpty {
+                colorHex = cal.userColorHex
+            } else {
+                colorHex = defaultColorHex
+            }
+            
+            let iconName: String
+            if let cal = calendar, !cal.iconName.isEmpty {
+                iconName = cal.iconName
+            } else {
+                iconName = defaultIconName
+            }
 
             return TimelineItem(
                 id: "calendar-\(e.uid)",
@@ -252,8 +275,19 @@ struct TimelineView: View {
         archived.map { e in
             // CachedCalendarのcolorHex/iconNameを確実に反映
             let calendar = cachedCalendars.first(where: { $0.calendarId == e.calendarId })
-            let colorHex = calendar?.userColorHex ?? defaultColorHex
-            let iconName = calendar?.iconName ?? defaultIconName
+            let colorHex: String
+            if let cal = calendar, !cal.userColorHex.isEmpty {
+                colorHex = cal.userColorHex
+            } else {
+                colorHex = defaultColorHex
+            }
+            
+            let iconName: String
+            if let cal = calendar, !cal.iconName.isEmpty {
+                iconName = cal.iconName
+            } else {
+                iconName = defaultIconName
+            }
 
             return TimelineItem(
                 id: "archived-\(e.uid)",
@@ -275,6 +309,17 @@ struct TimelineView: View {
 
         // 2) 重複排除用の「全ジャーナルID集合」（フィルタに影響されないよう全件）
         let allJournalIdSet: Set<String> = Set(entries.map { $0.id.uuidString })
+        
+        // 2-1) 表示対象のジャーナルID集合（重複排除に使用）
+        let visibleJournalIdSet: Set<String> = Set(visibleJournals.map { $0.id.uuidString })
+        
+        // 2-2) 表示対象のジャーナルに対応するカレンダーイベントのUID集合（重複排除に使用）
+        // linkedEventIdとlinkedCalendarIdを使って、ジャーナルエントリに対応するカレンダーイベントを特定
+        let journalLinkedEventUids: Set<String> = Set(visibleJournals.compactMap { entry in
+            guard let calendarId = entry.linkedCalendarId,
+                  let eventId = entry.linkedEventId else { return nil }
+            return "\(calendarId):\(eventId)"
+        })
 
         // 3) 有効カレンダーID集合
         let enabledCalendarIds: Set<String> = Set(
@@ -286,9 +331,22 @@ struct TimelineView: View {
         }
 
         // 5) ジャーナルに紐づくイベントはカレンダー側で表示しない（重複排除）
+        // 方法1: linkedJournalIdでチェック
+        // 方法2: linkedEventIdとlinkedCalendarIdでチェック（より確実）
         let dedupedCalendarEvents: [CachedCalendarEvent] = enabledCalendarEvents.filter { ev in
-            guard let jid = ev.linkedJournalId else { return true }
-            return !allJournalIdSet.contains(jid)
+            // linkedJournalIdでチェック
+            if let jid = ev.linkedJournalId {
+                if allJournalIdSet.contains(jid) || visibleJournalIdSet.contains(jid) {
+                    return false
+                }
+            }
+            
+            // linkedEventIdとlinkedCalendarIdでチェック（より確実）
+            if journalLinkedEventUids.contains(ev.uid) {
+                return false
+            }
+            
+            return true
         }
 
         // 6) カレンダーイベントにも検索フィルタとタグフィルタを適用
@@ -319,9 +377,22 @@ struct TimelineView: View {
         }
 
         // ジャーナルに紐づくイベントは除外
+        // 全ジャーナルID集合と表示対象ジャーナルID集合の両方をチェック
+        // また、linkedEventIdとlinkedCalendarIdでもチェック
         let dedupedArchivedEvents: [ArchivedCalendarEvent] = enabledArchivedEvents.filter { ev in
-            guard let jid = ev.linkedJournalId else { return true }
-            return !allJournalIdSet.contains(jid)
+            // linkedJournalIdでチェック
+            if let jid = ev.linkedJournalId {
+                if allJournalIdSet.contains(jid) || visibleJournalIdSet.contains(jid) {
+                    return false
+                }
+            }
+            
+            // linkedEventIdとlinkedCalendarIdでチェック（より確実）
+            if journalLinkedEventUids.contains(ev.uid) {
+                return false
+            }
+            
+            return true
         }
 
         // CachedCalendarEventと重複する場合はCachedCalendarEventを優先（重複排除）
