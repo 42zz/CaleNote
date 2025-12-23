@@ -264,7 +264,7 @@ struct TimelineView: View {
                 let token = try await auth.validAccessToken()
 
                 // リモート削除（Google Calendar API）
-                try await GoogleCalendarClient.deleteEvent(
+                _ = try await GoogleCalendarClient.deleteEvent(
                     accessToken: token,
                     calendarId: event.calendarId,
                     eventId: event.eventId

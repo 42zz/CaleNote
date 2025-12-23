@@ -22,6 +22,8 @@ final class SyncLog {
     var conflictCount: Int
     var had410Fallback: Bool  // syncToken期限切れでフルバックした
     var had429Retry: Bool  // レート制限でリトライした
+    var retryCount: Int  // リトライ回数（429エラー時）
+    var totalWaitTime: Double  // 合計待機時間（秒）
     var errorType: String?  // エラー種別
     var errorMessage: String?  // エラーメッセージ
 
@@ -38,6 +40,8 @@ final class SyncLog {
         conflictCount: Int = 0,
         had410Fallback: Bool = false,
         had429Retry: Bool = false,
+        retryCount: Int = 0,
+        totalWaitTime: Double = 0,
         errorType: String? = nil,
         errorMessage: String? = nil
     ) {
@@ -53,6 +57,8 @@ final class SyncLog {
         self.conflictCount = conflictCount
         self.had410Fallback = had410Fallback
         self.had429Retry = had429Retry
+        self.retryCount = retryCount
+        self.totalWaitTime = totalWaitTime
         self.errorType = errorType
         self.errorMessage = errorMessage
     }
@@ -75,7 +81,9 @@ final class SyncLog {
             "skippedCount": skippedCount,
             "conflictCount": conflictCount,
             "had410Fallback": had410Fallback,
-            "had429Retry": had429Retry
+            "had429Retry": had429Retry,
+            "retryCount": retryCount,
+            "totalWaitTime": totalWaitTime
         ]
 
         if let endTimestamp = endTimestamp {

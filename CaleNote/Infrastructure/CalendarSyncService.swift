@@ -74,6 +74,9 @@ final class CalendarSyncService {
       syncLog.updatedCount = counts.updatedCount
       syncLog.deletedCount = counts.deletedCount
       syncLog.had410Fallback = had410Fallback
+      syncLog.had429Retry = result.retryResult.retryCount > 0
+      syncLog.retryCount = result.retryResult.retryCount
+      syncLog.totalWaitTime = result.retryResult.totalWaitTime
       syncLog.httpStatusCode = 200
 
       try modelContext.save()
@@ -105,6 +108,9 @@ final class CalendarSyncService {
       syncLog.updatedCount = counts.updatedCount
       syncLog.deletedCount = counts.deletedCount
       syncLog.had410Fallback = true
+      syncLog.had429Retry = result.retryResult.retryCount > 0
+      syncLog.retryCount = result.retryResult.retryCount
+      syncLog.totalWaitTime = result.retryResult.totalWaitTime
       syncLog.httpStatusCode = 200
 
       try modelContext.save()
@@ -161,6 +167,9 @@ final class CalendarSyncService {
       syncLog.updatedCount = counts.updatedCount
       syncLog.deletedCount = counts.deletedCount
       syncLog.had410Fallback = had410Fallback
+      syncLog.had429Retry = result.retryResult.retryCount > 0
+      syncLog.retryCount = result.retryResult.retryCount
+      syncLog.totalWaitTime = result.retryResult.totalWaitTime
       syncLog.httpStatusCode = 200
 
       try modelContext.save()
@@ -194,6 +203,9 @@ final class CalendarSyncService {
       syncLog.updatedCount = counts.updatedCount
       syncLog.deletedCount = counts.deletedCount
       syncLog.had410Fallback = true
+      syncLog.had429Retry = result.retryResult.retryCount > 0
+      syncLog.retryCount = result.retryResult.retryCount
+      syncLog.totalWaitTime = result.retryResult.totalWaitTime
       syncLog.httpStatusCode = 200
 
       try modelContext.save()

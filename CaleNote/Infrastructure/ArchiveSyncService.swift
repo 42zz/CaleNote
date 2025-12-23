@@ -86,6 +86,8 @@ final class ArchiveSyncService {
             )
             modelContext.insert(syncLog)
 
+            var totalRetryResult = RetryResult()
+
             // 前回の進捗を復元
             let startIndex = loadProgress(for: cal.calendarId) ?? -1
             if startIndex >= 0 {
@@ -114,6 +116,10 @@ final class ArchiveSyncService {
                         timeMax: timeMax,
                         syncToken: nil
                     )
+
+                    // リトライ結果を累積
+                    totalRetryResult.retryCount += result.retryResult.retryCount
+                    totalRetryResult.totalWaitTime += result.retryResult.totalWaitTime
 
                     // 取得したイベントをアーカイブに反映
                     let delta = try applyToArchive(
@@ -148,6 +154,9 @@ final class ArchiveSyncService {
                 syncLog.endTimestamp = Date()
                 syncLog.updatedCount = progress.upserted
                 syncLog.deletedCount = progress.deleted
+                syncLog.had429Retry = totalRetryResult.retryCount > 0
+                syncLog.retryCount = totalRetryResult.retryCount
+                syncLog.totalWaitTime = totalRetryResult.totalWaitTime
                 syncLog.httpStatusCode = 200
                 try modelContext.save()
 
@@ -156,6 +165,9 @@ final class ArchiveSyncService {
                 syncLog.endTimestamp = Date()
                 syncLog.updatedCount = progress.upserted
                 syncLog.deletedCount = progress.deleted
+                syncLog.had429Retry = totalRetryResult.retryCount > 0
+                syncLog.retryCount = totalRetryResult.retryCount
+                syncLog.totalWaitTime = totalRetryResult.totalWaitTime
                 syncLog.errorType = "CancellationError"
                 syncLog.errorMessage = "取り込みがキャンセルされました"
                 try? modelContext.save()
@@ -165,6 +177,9 @@ final class ArchiveSyncService {
                 syncLog.endTimestamp = Date()
                 syncLog.updatedCount = progress.upserted
                 syncLog.deletedCount = progress.deleted
+                syncLog.had429Retry = totalRetryResult.retryCount > 0
+                syncLog.retryCount = totalRetryResult.retryCount
+                syncLog.totalWaitTime = totalRetryResult.totalWaitTime
                 syncLog.errorType = String(describing: type(of: error))
                 syncLog.errorMessage = error.localizedDescription
                 try? modelContext.save()

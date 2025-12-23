@@ -59,6 +59,7 @@ Googleカレンダーを**唯一の真実のソース（Single Source of Truth�
 - 振り返り・検索用
 - 設定画面から明示的に取り込む必要がある（`ArchiveSyncService`）
 - 半年単位でAPI取得、レート制限対策として0.2秒のsleep挿入
+- **レート制限対応**: 指数バックオフ + ジッター（自動リトライ、最大5回、最大60秒待機）
 - **キャンセル機能**: 取り込み中にキャンセル可能。進捗はUserDefaultsに保存され、再開時に続きから実行
 - **進捗保存**: カレンダー×半年レンジ単位で進捗を記録。中断・再開に対応
 
@@ -203,6 +204,12 @@ extendedProperties.private = {
 **レート制限**
 - `SyncRateLimiter`により、5秒間隔で同期を制限
 - 手動同期時は残り秒数を表示
+- **指数バックオフ + ジッター**: HTTP 429（Too Many Requests）またはHTTP 403で`rateLimitExceeded`/`userRateLimitExceeded`を検出した場合、自動リトライ
+  - 最大リトライ回数: 5回
+  - 最大待機時間: 60秒
+  - 計算式: `delay = min(baseDelay * 2^attempt + jitter, maxWaitTime)`
+  - ジッター: `random(0..<0.5) * exponentialDelay`（サンダリングハード防止）
+  - リトライメトリクスは`SyncLog`に記録（`retryCount`, `totalWaitTime`）
 
 **更新優先度**
 - Googleカレンダー側の`updated`が新しければアプリを更新
@@ -549,6 +556,7 @@ extendedProperties.private = {
 - `ArchiveSyncService`が設定画面から明示的に取り込み
 - 半年単位でAPI取得（`splitIntoHalfYearRanges`）
 - レート制限対策として各バッチ間に0.2秒のsleep挿入
+- **レート制限対応**: 指数バックオフ + ジッター（HTTP 429/403 rateLimitExceeded時に自動リトライ）
 - 進捗表示あり（`Progress`構造体）
 - **キャンセル機能**: 取り込み中にキャンセル可能（`Task.checkCancellation()`を使用）
 - **進捗保存**: UserDefaultsに進捗を保存し、再開時に続きから実行
@@ -738,7 +746,7 @@ final class SyncLog {
     @Attribute(.unique) var id: UUID
     var timestamp: Date  // 同期開始時刻
     var endTimestamp: Date?  // 同期終了時刻
-    var syncType: String  // 同期種別: "incremental", "full", "archive", "journal_push"
+    var syncType: String  // 同期種別: "incremental", "full", "archive", "journal_push", "calendar_list"
     var calendarIdHash: String?  // カレンダーIDのSHA256ハッシュ（最初の8文字）
     var httpStatusCode: Int?
     var updatedCount: Int
@@ -747,6 +755,8 @@ final class SyncLog {
     var conflictCount: Int
     var had410Fallback: Bool  // syncToken期限切れでフルバックした
     var had429Retry: Bool  // レート制限でリトライした
+    var retryCount: Int  // リトライ回数（429エラー時）
+    var totalWaitTime: Double  // 合計待機時間（秒）
     var errorType: String?  // エラー種別
     var errorMessage: String?  // エラーメッセージ
 }
@@ -757,6 +767,7 @@ final class SyncLog {
 - `"full"`: フル同期（syncToken期限切れ時）
 - `"archive"`: 長期キャッシュ取り込み
 - `"journal_push"`: ジャーナル→カレンダー同期
+- `"calendar_list"`: カレンダーリスト取得
 
 **プライバシー保護**:
 - カレンダーIDは`SHA256.hash`で暗号化し、最初の8文字のみ保存

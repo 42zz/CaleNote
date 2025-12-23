@@ -1,5 +1,116 @@
 import Foundation
 
+// MARK: - Retry Strategy with Exponential Backoff
+
+struct RetryStrategy {
+    let maxRetries: Int
+    let maxWaitTime: Double  // 秒
+    let baseDelay: Double  // 秒
+
+    static let `default` = RetryStrategy(
+        maxRetries: 5,
+        maxWaitTime: 60.0,
+        baseDelay: 1.0
+    )
+
+    /// 指数バックオフ + ジッターで待機時間を計算
+    func calculateDelay(attempt: Int) -> Double {
+        let exponentialDelay = baseDelay * pow(2.0, Double(attempt))
+        let jitter = Double.random(in: 0..<0.5) * exponentialDelay
+        let delay = exponentialDelay + jitter
+        return min(delay, maxWaitTime)
+    }
+}
+
+struct RetryResult {
+    var retryCount: Int = 0
+    var totalWaitTime: Double = 0
+}
+
+/// Google API エラーレスポンス
+private struct GoogleAPIErrorResponse: Decodable {
+    struct Error: Decodable {
+        struct ErrorDetail: Decodable {
+            let reason: String?
+            let message: String?
+        }
+        let code: Int?
+        let message: String?
+        let errors: [ErrorDetail]?
+    }
+    let error: Error?
+}
+
+/// リトライ可能なエラーかチェック
+private func isRetryableError(statusCode: Int, data: Data) -> Bool {
+    // 429: Too Many Requests
+    if statusCode == 429 {
+        return true
+    }
+
+    // 403 で rateLimitExceeded の場合
+    if statusCode == 403 {
+        if let errorResponse = try? JSONDecoder().decode(GoogleAPIErrorResponse.self, from: data),
+           let errors = errorResponse.error?.errors {
+            return errors.contains { $0.reason == "rateLimitExceeded" || $0.reason == "userRateLimitExceeded" }
+        }
+    }
+
+    return false
+}
+
+/// リトライ付きでHTTPリクエストを実行
+private func performRequestWithRetry(
+    strategy: RetryStrategy = .default,
+    operation: @escaping () async throws -> (Data, URLResponse)
+) async throws -> (Data, URLResponse, RetryResult) {
+    var result = RetryResult()
+    var lastData: Data?
+    var lastResponse: URLResponse?
+
+    for attempt in 0..<strategy.maxRetries {
+        do {
+            let (data, response) = try await operation()
+            lastData = data
+            lastResponse = response
+
+            guard let http = response as? HTTPURLResponse else {
+                return (data, response, result)
+            }
+
+            // リトライ可能なエラーかチェック
+            if isRetryableError(statusCode: http.statusCode, data: data) {
+                if attempt < strategy.maxRetries - 1 {
+                    let delay = strategy.calculateDelay(attempt: attempt)
+                    result.retryCount += 1
+                    result.totalWaitTime += delay
+
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+            }
+
+            // リトライ不要、または最大リトライ回数到達
+            return (data, response, result)
+
+        } catch {
+            // ネットワークエラーなど、リトライしない
+            throw error
+        }
+    }
+
+    // 最大リトライ回数到達
+    if let data = lastData, let response = lastResponse {
+        return (data, response, result)
+    }
+
+    throw NSError(
+        domain: "GoogleCalendarClient",
+        code: -1,
+        userInfo: [NSLocalizedDescriptionKey: "Max retries exceeded"]
+    )
+}
+
 struct GoogleCalendarEvent: Identifiable {
   let id: String
   let title: String
@@ -24,6 +135,7 @@ enum GoogleCalendarClient {
   struct ListResult {
     let events: [GoogleCalendarEvent]
     let nextSyncToken: String?
+    let retryResult: RetryResult
   }
 
   static func listEvents(
@@ -37,6 +149,7 @@ enum GoogleCalendarClient {
     var all: [GoogleCalendarEvent] = []
     var pageToken: String? = nil
     var newestSyncToken: String? = nil
+    var totalRetryResult = RetryResult()
 
     repeat {
       let encodedId = encodedCalendarId(calendarId)
@@ -78,7 +191,13 @@ enum GoogleCalendarClient {
       request.httpMethod = "GET"
       request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
-      let (data, response) = try await URLSession.shared.data(for: request)
+      let (data, response, retryResult) = try await performRequestWithRetry {
+        try await URLSession.shared.data(for: request)
+      }
+
+      totalRetryResult.retryCount += retryResult.retryCount
+      totalRetryResult.totalWaitTime += retryResult.totalWaitTime
+
       guard let http = response as? HTTPURLResponse else {
         throw NSError(
           domain: "GoogleCalendarClient", code: 1,
@@ -105,7 +224,11 @@ enum GoogleCalendarClient {
 
     } while pageToken != nil
 
-    return ListResult(events: all, nextSyncToken: newestSyncToken)
+    return ListResult(
+      events: all,
+      nextSyncToken: newestSyncToken,
+      retryResult: totalRetryResult
+    )
   }
 }
 
@@ -284,6 +407,11 @@ private enum GoogleRFC3339 {
 }
 
 extension GoogleCalendarClient {
+  struct EventResult {
+    let event: GoogleCalendarEvent
+    let retryResult: RetryResult
+  }
+
   static func insertEvent(
     accessToken: String,
     calendarId: String,
@@ -292,7 +420,7 @@ extension GoogleCalendarClient {
     start: Date,
     end: Date,
     appPrivateProperties: [String: String]
-  ) async throws -> GoogleCalendarEvent {
+  ) async throws -> EventResult {
 
     let reqBody = EventWriteRequest(
       summary: title,
@@ -330,7 +458,10 @@ extension GoogleCalendarClient {
     request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
     request.httpBody = try JSONEncoder().encode(reqBody)
 
-    let (data, response) = try await URLSession.shared.data(for: request)
+    let (data, response, retryResult) = try await performRequestWithRetry {
+      try await URLSession.shared.data(for: request)
+    }
+
     try ensure2xx(response: response, data: data)
 
     let decoded = try JSONDecoder().decode(EventItem.self, from: data)
@@ -339,7 +470,7 @@ extension GoogleCalendarClient {
         domain: "GoogleCalendarClient", code: 2001,
         userInfo: [NSLocalizedDescriptionKey: "insertのレスポンスが解釈できません"])
     }
-    return event
+    return EventResult(event: event, retryResult: retryResult)
   }
 
   static func updateEvent(
@@ -351,7 +482,7 @@ extension GoogleCalendarClient {
     start: Date,
     end: Date,
     appPrivateProperties: [String: String]
-  ) async throws -> GoogleCalendarEvent {
+  ) async throws -> EventResult {
 
     let reqBody = EventWriteRequest(
       summary: title,
@@ -384,12 +515,15 @@ extension GoogleCalendarClient {
     ]
 
     var request = URLRequest(url: components.url!)
-    request.httpMethod = "PUT"  // updateは全量更新 :contentReference[oaicite:1]{index=1}
+    request.httpMethod = "PUT"  // updateは全量更新
     request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
     request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
     request.httpBody = try JSONEncoder().encode(reqBody)
 
-    let (data, response) = try await URLSession.shared.data(for: request)
+    let (data, response, retryResult) = try await performRequestWithRetry {
+      try await URLSession.shared.data(for: request)
+    }
+
     try ensure2xx(response: response, data: data)
 
     let decoded = try JSONDecoder().decode(EventItem.self, from: data)
@@ -398,7 +532,7 @@ extension GoogleCalendarClient {
         domain: "GoogleCalendarClient", code: 2002,
         userInfo: [NSLocalizedDescriptionKey: "updateのレスポンスが解釈できません"])
     }
-    return event
+    return EventResult(event: event, retryResult: retryResult)
   }
 
   private static func ensure2xx(response: URLResponse, data: Data) throws {
@@ -414,7 +548,12 @@ extension GoogleCalendarClient {
         userInfo: [NSLocalizedDescriptionKey: "HTTP \(http.statusCode): \(body)"])
     }
   }
-  static func listCalendars(accessToken: String) async throws -> [GoogleCalendarListItem] {
+  struct CalendarListResult {
+    let calendars: [GoogleCalendarListItem]
+    let retryResult: RetryResult
+  }
+
+  static func listCalendars(accessToken: String) async throws -> CalendarListResult {
     var components = URLComponents(
       string: "https://www.googleapis.com/calendar/v3/users/me/calendarList")!
     components.queryItems = [
@@ -426,7 +565,10 @@ extension GoogleCalendarClient {
     request.httpMethod = "GET"
     request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
-    let (data, response) = try await URLSession.shared.data(for: request)
+    let (data, response, retryResult) = try await performRequestWithRetry {
+      try await URLSession.shared.data(for: request)
+    }
+
     guard let http = response as? HTTPURLResponse else {
       throw NSError(
         domain: "GoogleCalendarClient", code: 20,
@@ -440,7 +582,7 @@ extension GoogleCalendarClient {
     }
 
     let decoded = try JSONDecoder().decode(CalendarListResponse.self, from: data)
-    return decoded.items.map {
+    let calendars = decoded.items.map {
       GoogleCalendarListItem(
         id: $0.id,
         summary: $0.summary ?? "（無題）",
@@ -448,12 +590,13 @@ extension GoogleCalendarClient {
         colorId: $0.colorId
       )
     }
+    return CalendarListResult(calendars: calendars, retryResult: retryResult)
   }
   static func deleteEvent(
     accessToken: String,
     calendarId: String,
     eventId: String
-  ) async throws {
+  ) async throws -> RetryResult {
     let encodedId = encodedCalendarId(calendarId)
     let url = URL(
       string: "https://www.googleapis.com/calendar/v3/calendars/\(encodedId)/events/\(eventId)")!
@@ -462,7 +605,10 @@ extension GoogleCalendarClient {
     request.httpMethod = "DELETE"
     request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
-    let (_, response) = try await URLSession.shared.data(for: request)
+    let (_, response, retryResult) = try await performRequestWithRetry {
+      try await URLSession.shared.data(for: request)
+    }
+
     guard let http = response as? HTTPURLResponse else {
       throw NSError(
         domain: "GoogleCalendarClient", code: 3001,
@@ -470,11 +616,12 @@ extension GoogleCalendarClient {
     }
 
     // 204 No Content が典型。404でも「すでに無い」なら成功扱いにして良い
-    if http.statusCode == 404 { return }
+    if http.statusCode == 404 { return retryResult }
     guard (200..<300).contains(http.statusCode) else {
       throw NSError(
         domain: "GoogleCalendarClient", code: http.statusCode,
         userInfo: [NSLocalizedDescriptionKey: "HTTP \(http.statusCode)"])
     }
+    return retryResult
   }
 }

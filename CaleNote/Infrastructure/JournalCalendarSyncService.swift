@@ -37,12 +37,14 @@ final class JournalCalendarSyncService {
         "journalId": entry.id.uuidString,
       ]
 
+      var retryResult = RetryResult()
+
       if let calendarId = entry.linkedCalendarId,
         let eventId = entry.linkedEventId,
         calendarId == targetCalendarId
       {
 
-        let updated = try await GoogleCalendarClient.updateEvent(
+        let result = try await GoogleCalendarClient.updateEvent(
           accessToken: token,
           calendarId: calendarId,
           eventId: eventId,
@@ -53,15 +55,17 @@ final class JournalCalendarSyncService {
           appPrivateProperties: appPrivateProperties
         )
 
+        retryResult = result.retryResult
+
         // ローカル側の紐付けは維持、失敗フラグを落とす
         entry.needsCalendarSync = false
         entry.updatedAt = Date()
 
         // ついでにイベントキャッシュも即時更新（同期を待たない）
-        upsertCachedEvent(from: updated, calendarId: calendarId, modelContext: modelContext)
+        upsertCachedEvent(from: result.event, calendarId: calendarId, modelContext: modelContext)
 
       } else {
-        let created = try await GoogleCalendarClient.insertEvent(
+        let result = try await GoogleCalendarClient.insertEvent(
           accessToken: token,
           calendarId: targetCalendarId,
           title: title,
@@ -71,17 +75,22 @@ final class JournalCalendarSyncService {
           appPrivateProperties: appPrivateProperties
         )
 
+        retryResult = result.retryResult
+
         entry.linkedCalendarId = targetCalendarId
-        entry.linkedEventId = created.id
+        entry.linkedEventId = result.event.id
         entry.needsCalendarSync = false
         entry.updatedAt = Date()
 
-        upsertCachedEvent(from: created, calendarId: targetCalendarId, modelContext: modelContext)
+        upsertCachedEvent(from: result.event, calendarId: targetCalendarId, modelContext: modelContext)
       }
 
       // ログ記録（成功）
       syncLog.endTimestamp = Date()
       syncLog.updatedCount = 1  // ジャーナル1件を同期
+      syncLog.had429Retry = retryResult.retryCount > 0
+      syncLog.retryCount = retryResult.retryCount
+      syncLog.totalWaitTime = retryResult.totalWaitTime
       syncLog.httpStatusCode = 200
 
       try modelContext.save()
@@ -144,7 +153,7 @@ final class JournalCalendarSyncService {
     try await auth.ensureCalendarScopeGranted()
     let token = try await auth.validAccessToken()
 
-    try await GoogleCalendarClient.deleteEvent(
+    _ = try await GoogleCalendarClient.deleteEvent(
       accessToken: token,
       calendarId: calendarId,
       eventId: eventId
