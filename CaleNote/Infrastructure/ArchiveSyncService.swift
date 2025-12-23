@@ -12,6 +12,45 @@ final class ArchiveSyncService {
         var deleted: Int = 0
     }
 
+    // 進捗状態の保存・復元
+    private struct SavedProgress: Codable {
+        var calendarId: String
+        var completedRangeIndex: Int  // 最後に完了したレンジのインデックス
+    }
+
+    private let progressKey = "ArchiveSyncService.SavedProgress"
+
+    private func loadProgress(for calendarId: String) -> Int? {
+        guard let data = UserDefaults.standard.data(forKey: progressKey),
+              let saved = try? JSONDecoder().decode([SavedProgress].self, from: data) else {
+            return nil
+        }
+        return saved.first { $0.calendarId == calendarId }?.completedRangeIndex
+    }
+
+    private func saveProgress(calendarId: String, completedRangeIndex: Int) {
+        var saved: [SavedProgress] = []
+        if let data = UserDefaults.standard.data(forKey: progressKey),
+           let existing = try? JSONDecoder().decode([SavedProgress].self, from: data) {
+            saved = existing.filter { $0.calendarId != calendarId }
+        }
+        saved.append(SavedProgress(calendarId: calendarId, completedRangeIndex: completedRangeIndex))
+        if let data = try? JSONEncoder().encode(saved) {
+            UserDefaults.standard.set(data, forKey: progressKey)
+        }
+    }
+
+    private func clearProgress(for calendarId: String) {
+        guard let data = UserDefaults.standard.data(forKey: progressKey),
+              var saved = try? JSONDecoder().decode([SavedProgress].self, from: data) else {
+            return
+        }
+        saved.removeAll { $0.calendarId == calendarId }
+        if let data = try? JSONEncoder().encode(saved) {
+            UserDefaults.standard.set(data, forKey: progressKey)
+        }
+    }
+
     func importAllEventsToArchive(
         auth: GoogleAuthService,
         modelContext: ModelContext,
@@ -32,14 +71,31 @@ final class ArchiveSyncService {
         var progress = Progress(totalRanges: ranges.count)
 
         for cal in calendars {
+            // キャンセルチェック（カレンダー開始時）
+            try Task.checkCancellation()
+
             progress.calendarId = cal.calendarId
             progress.fetchedRanges = 0
             progress.upserted = 0
             progress.deleted = 0
+
+            // 前回の進捗を復元
+            let startIndex = loadProgress(for: cal.calendarId) ?? -1
+            if startIndex >= 0 {
+                progress.fetchedRanges = startIndex + 1
+            }
             onProgress(progress)
 
-            for (timeMin, timeMax) in ranges {
-                progress.fetchedRanges += 1
+            for (index, (timeMin, timeMax)) in ranges.enumerated() {
+                // 既に完了したレンジはスキップ
+                if index <= startIndex {
+                    continue
+                }
+
+                // キャンセルチェック（バッチ開始前）
+                try Task.checkCancellation()
+
+                progress.fetchedRanges = index + 1
                 onProgress(progress)
 
                 // フル同期として events.list を期間指定で取得（syncTokenは使わない）
@@ -64,9 +120,21 @@ final class ArchiveSyncService {
                 // 端末を守るため、バッチごとに保存
                 try modelContext.save()
 
+                // 進捗を保存（このレンジが完了）
+                saveProgress(calendarId: cal.calendarId, completedRangeIndex: index)
+
+                // キャンセルチェック（sleep前）
+                try Task.checkCancellation()
+
                 // やりすぎ防止の小休止（レート制限の一部）
                 try await Task.sleep(nanoseconds: 200_000_000) // 0.2s
+
+                // キャンセルチェック（sleep後）
+                try Task.checkCancellation()
             }
+
+            // このカレンダーが完了したので進捗をクリア
+            clearProgress(for: cal.calendarId)
         }
     }
 

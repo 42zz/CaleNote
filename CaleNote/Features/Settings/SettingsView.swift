@@ -16,6 +16,7 @@ struct SettingsView: View {
 
     @State private var isImportingArchive = false
     @State private var archiveProgressText: String?
+    @State private var archiveTask: Task<Void, Never>?
     private let archiveSync = ArchiveSyncService()
 
     @Query(
@@ -26,6 +27,9 @@ struct SettingsView: View {
     private let journalSync = JournalCalendarSyncService()
     @State private var pastDays: Int = SyncSettings.pastDays()
     @State private var futureDays: Int = SyncSettings.futureDays()
+
+    @State private var developerTapCount: Int = 0
+    @State private var isDeveloperModeEnabled: Bool = UserDefaults.standard.bool(forKey: "isDeveloperModeEnabled")
 
     private var calendarsPrimaryFirst: [CachedCalendar] {
         calendars.sorted { a, b in
@@ -191,12 +195,23 @@ struct SettingsView: View {
                 }
 
                 Section("長期キャッシュ") {
-                    Button {
-                        Task { await importArchive() }
-                    } label: {
-                        Text(isImportingArchive ? "取り込み中…" : "長期キャッシュを取り込む（全期間）")
+                    if !isImportingArchive {
+                        Button {
+                            archiveTask = Task { await importArchive() }
+                        } label: {
+                            Text("長期キャッシュを取り込む（全期間）")
+                        }
+                    } else {
+                        HStack {
+                            Button("取り込み中…") {}
+                                .disabled(true)
+                            Spacer()
+                            Button("キャンセル") {
+                                cancelArchiveImport()
+                            }
+                            .foregroundStyle(.red)
+                        }
                     }
-                    .disabled(isImportingArchive)
 
                     if let archiveProgressText {
                         Text(archiveProgressText)
@@ -214,6 +229,43 @@ struct SettingsView: View {
                         Text(errorMessage)
                             .foregroundStyle(.red)
                             .font(.caption)
+                    }
+                }
+
+                // 開発者向けツール（隠し導線）
+                if isDeveloperModeEnabled {
+                    Section("開発者向け") {
+                        NavigationLink {
+                            DeveloperToolsView()
+                        } label: {
+                            HStack {
+                                Image(systemName: "wrench.and.screwdriver")
+                                Text("開発者向けツール")
+                            }
+                        }
+                    }
+                }
+
+                // バージョン情報（7回タップで開発者モード有効化）
+                Section {
+                    HStack {
+                        Text("バージョン")
+                        Spacer()
+                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        developerTapCount += 1
+                        if developerTapCount >= 7 {
+                            isDeveloperModeEnabled.toggle()
+                            UserDefaults.standard.set(isDeveloperModeEnabled, forKey: "isDeveloperModeEnabled")
+                            developerTapCount = 0
+                        }
+                        // 5秒後にカウントリセット
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                            developerTapCount = 0
+                        }
                     }
                 }
             }
@@ -261,7 +313,10 @@ struct SettingsView: View {
     private func importArchive() async {
         if isImportingArchive { return }
         isImportingArchive = true
-        defer { isImportingArchive = false }
+        defer {
+            isImportingArchive = false
+            archiveTask = nil
+        }
 
         do {
             // 対象は「表示ONのカレンダーだけ」でもいいし、「全カレンダー」でもいい
@@ -285,9 +340,17 @@ struct SettingsView: View {
             }
 
             archiveProgressText = "長期キャッシュ取り込み完了"
+        } catch is CancellationError {
+            archiveProgressText = "取り込みをキャンセルしました（進捗は保存されています）"
         } catch {
             archiveProgressText = "取り込み失敗: \(error.localizedDescription)"
         }
+    }
+
+    @MainActor
+    private func cancelArchiveImport() {
+        archiveTask?.cancel()
+        archiveTask = nil
     }
 
 }

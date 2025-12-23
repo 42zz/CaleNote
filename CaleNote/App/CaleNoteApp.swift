@@ -15,7 +15,8 @@ struct CaleNoteApp: App {
             JournalEntry.self,
             CachedCalendarEvent.self,   // 短期
             ArchivedCalendarEvent.self, // 長期
-            CachedCalendar.self
+            CachedCalendar.self,
+            SyncLog.self                // 開発者向けログ
         ])
 
     }
