@@ -182,7 +182,23 @@ final class ArchiveSyncService {
                 syncLog.totalWaitTime = totalRetryResult.totalWaitTime
                 syncLog.errorType = String(describing: type(of: error))
                 syncLog.errorMessage = error.localizedDescription
+                
+                // HTTPステータスコードを取得
+                let httpStatusCode = SyncErrorReporter.extractHttpStatusCode(from: error)
+                syncLog.httpStatusCode = httpStatusCode
+                
                 try? modelContext.save()
+                
+                // Crashlyticsに送信
+                SyncErrorReporter.reportSyncFailure(
+                    error: error,
+                    syncType: "archive",
+                    calendarId: cal.calendarId,
+                    phase: "long_term",
+                    had410Fallback: false,
+                    httpStatusCode: httpStatusCode
+                )
+                
                 throw error
             }
         }

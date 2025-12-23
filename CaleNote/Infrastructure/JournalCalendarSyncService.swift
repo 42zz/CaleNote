@@ -153,7 +153,23 @@ final class JournalCalendarSyncService {
       syncLog.endTimestamp = Date()
       syncLog.errorType = String(describing: type(of: error))
       syncLog.errorMessage = error.localizedDescription
+      
+      // HTTPステータスコードを取得
+      let httpStatusCode = SyncErrorReporter.extractHttpStatusCode(from: error)
+      syncLog.httpStatusCode = httpStatusCode
+      
       try? modelContext.save()
+      
+      // Crashlyticsに送信
+      SyncErrorReporter.reportSyncFailure(
+        error: error,
+        syncType: "journal_push",
+        calendarId: targetCalendarId,
+        phase: "resend",
+        had410Fallback: false,
+        httpStatusCode: httpStatusCode
+      )
+      
       throw error
     }
   }

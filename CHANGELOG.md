@@ -73,6 +73,12 @@
   - デフォルトの書き込み先を設定画面から切り替え可能
   - 各カレンダーごとに長期キャッシュを取り込めるように機能追加
   - 長期キャッシュ取り込み中は進捗表示とキャンセル機能を提供
+- 同期失敗をCrashlyticsに送信する機能を追加
+  - `SyncErrorReporter`を新規作成し、同期失敗をCrashlyticsに送信
+  - 送信情報: 失敗種別、対象カレンダーIDのハッシュ、HTTPコード、syncTokenフォールバック有無、処理フェーズ（短期/長期/再送）
+  - ユーザーコンテンツ（本文、タイトルなど）は送信しない
+  - 各同期サービス（`CalendarSyncService`、`JournalCalendarSyncService`、`ArchiveSyncService`、`CalendarListSyncService`）のエラーハンドリングで自動送信
+  - Firebase Crashlyticsが設定されていない場合はログ出力のみ（条件付きコンパイル）
 
 ---
 

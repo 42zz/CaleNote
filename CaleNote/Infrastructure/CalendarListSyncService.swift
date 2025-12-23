@@ -92,7 +92,23 @@ final class CalendarListSyncService {
       syncLog.endTimestamp = Date()
       syncLog.errorType = String(describing: type(of: error))
       syncLog.errorMessage = error.localizedDescription
+      
+      // HTTPステータスコードを取得
+      let httpStatusCode = SyncErrorReporter.extractHttpStatusCode(from: error)
+      syncLog.httpStatusCode = httpStatusCode
+      
       try? modelContext.save()
+      
+      // Crashlyticsに送信（カレンダーリストは全カレンダー対象なのでcalendarIdはnil）
+      SyncErrorReporter.reportSyncFailure(
+        error: error,
+        syncType: "calendar_list",
+        calendarId: nil,
+        phase: "short_term",
+        had410Fallback: false,
+        httpStatusCode: httpStatusCode
+      )
+      
       throw error
     }
   }

@@ -52,27 +52,6 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Google連携") {
-                    if let user = auth.user {
-                        Text("ログイン中: \(user.profile?.email ?? "不明")")
-                        Button("ログアウト") { auth.signOut() }
-                    } else {
-                        Text("未ログイン")
-                        Button("Googleでログイン") {
-                            Task {
-                                do {
-                                    try await auth.signIn()
-                                    errorMessage = nil
-                                    // ログイン成功後、自動的にカレンダー一覧を同期
-                                    await syncCalendarList()
-                                } catch {
-                                    errorMessage = "ログイン失敗: \(error.localizedDescription)"
-                                }
-                            }
-                        }
-                    }
-                }
-
                 Section("表示するカレンダー") {
                     if calendarsPrimaryFirst.isEmpty {
                         Text("カレンダー一覧がありません。")
@@ -91,14 +70,17 @@ struct SettingsView: View {
                                     // カラーチップとアイコン
                                     ZStack {
                                         Circle()
-                                            .fill(Color(hex: cal.userColorHex)?.opacity(0.2) ?? .blue.opacity(0.2))
+                                            .fill(
+                                                Color(hex: cal.userColorHex)?.opacity(0.2)
+                                                    ?? .blue.opacity(0.2)
+                                            )
                                             .frame(width: 32, height: 32)
-                                        
+
                                         Image(systemName: cal.iconName)
                                             .font(.caption)
                                             .foregroundStyle(Color(hex: cal.userColorHex) ?? .blue)
                                     }
-                                    
+
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(cal.summary)
                                         if cal.isPrimary {
@@ -107,9 +89,9 @@ struct SettingsView: View {
                                                 .foregroundStyle(.secondary)
                                         }
                                     }
-                                    
+
                                     Spacer()
-                                    
+
                                     // 表示状態をインジケーターで表示
                                     if cal.isEnabled {
                                         Image(systemName: "checkmark.circle.fill")
@@ -159,6 +141,27 @@ struct SettingsView: View {
                 //         .font(.caption)
                 //         .foregroundStyle(.secondary)
                 // }
+
+                Section("Google連携") {
+                    if let user = auth.user {
+                        Text("ログイン中: \(user.profile?.email ?? "不明")")
+                        Button("ログアウト") { auth.signOut() }
+                    } else {
+                        Text("未ログイン")
+                        Button("Googleでログイン") {
+                            Task {
+                                do {
+                                    try await auth.signIn()
+                                    errorMessage = nil
+                                    // ログイン成功後、自動的にカレンダー一覧を同期
+                                    await syncCalendarList()
+                                } catch {
+                                    errorMessage = "ログイン失敗: \(error.localizedDescription)"
+                                }
+                            }
+                        }
+                    }
+                }
 
                 Section("同期待ち") {
                     if pendingEntries.isEmpty {
@@ -226,7 +229,7 @@ struct SettingsView: View {
                         Spacer()
                         Text(
                             Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-                                ?? "0.9"
+                                ?? "0.11"
                         )
                         .foregroundStyle(.secondary)
                     }

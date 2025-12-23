@@ -94,6 +94,7 @@ Business logic and external integrations:
 - `TagExtractor`: Parses hashtags from journal content (`#tag` format)
 - `TagStats`: Tracks tag usage frequency and recency
 - `MockCalendarEventProvider`: Test data generation
+- `SyncErrorReporter`: Reports sync failures to Crashlytics (failure type, calendar ID hash, HTTP code, 410 fallback status, sync phase)
 
 #### Features Layer (`/CaleNote/Features/`)
 SwiftUI views organized by feature:
@@ -278,6 +279,8 @@ All sync services automatically record logs:
 5. Set `endTimestamp` when operation completes
 6. Record errors with `errorType` and `errorMessage` on failure
 7. Never record user content (titles, descriptions) in logs
+8. Call `SyncErrorReporter.reportSyncFailure()` in catch blocks to send failures to Crashlytics
+9. Extract HTTP status code using `SyncErrorReporter.extractHttpStatusCode()` and include in both `SyncLog` and Crashlytics report
 
 ### Testing Strategy
 - Unit tests: Use `MockCalendarEventProvider` for test data

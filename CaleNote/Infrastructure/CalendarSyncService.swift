@@ -119,7 +119,23 @@ final class CalendarSyncService {
       syncLog.endTimestamp = Date()
       syncLog.errorType = String(describing: type(of: error))
       syncLog.errorMessage = error.localizedDescription
+      
+      // HTTPステータスコードを取得
+      let httpStatusCode = SyncErrorReporter.extractHttpStatusCode(from: error)
+      syncLog.httpStatusCode = httpStatusCode
+      
       try? modelContext.save()
+      
+      // Crashlyticsに送信
+      SyncErrorReporter.reportSyncFailure(
+        error: error,
+        syncType: syncLog.syncType,
+        calendarId: calendarId,
+        phase: "short_term",
+        had410Fallback: had410Fallback,
+        httpStatusCode: httpStatusCode
+      )
+      
       throw error
     }
   }
@@ -214,7 +230,23 @@ final class CalendarSyncService {
       syncLog.endTimestamp = Date()
       syncLog.errorType = String(describing: type(of: error))
       syncLog.errorMessage = error.localizedDescription
+      
+      // HTTPステータスコードを取得
+      let httpStatusCode = SyncErrorReporter.extractHttpStatusCode(from: error)
+      syncLog.httpStatusCode = httpStatusCode
+      
       try? modelContext.save()
+      
+      // Crashlyticsに送信
+      SyncErrorReporter.reportSyncFailure(
+        error: error,
+        syncType: syncLog.syncType,
+        calendarId: calendarId,
+        phase: "short_term",
+        had410Fallback: had410Fallback,
+        httpStatusCode: httpStatusCode
+      )
+      
       throw error
     }
   }
