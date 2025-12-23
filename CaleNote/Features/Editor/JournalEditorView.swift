@@ -125,8 +125,18 @@ struct JournalEditorView: View {
                     Button("キャンセル") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
+                    Button {
                         save()
+                    } label: {
+                        if isSaving {
+                            HStack(spacing: 6) {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("保存中...")
+                            }
+                        } else {
+                            Text("保存")
+                        }
                     }
                     .disabled(isSaving)
                 }
