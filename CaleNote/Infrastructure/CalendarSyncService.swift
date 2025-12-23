@@ -387,7 +387,14 @@ final class CalendarSyncService {
       let components = calendar.dateComponents([.year, .month, .day], from: event.start)
       if let year = components.year, let month = components.month, let day = components.day {
         archived.startDayKey = year * 10000 + month * 100 + day
+        // 関連メモリー検索用インデックスも更新
+        archived.startMonthDayKey = month * 100 + day
       }
+
+      // 祝日IDも更新（日付が変更された可能性があるため）
+      let settings = RelatedMemorySettings.load()
+      let holidayProvider = HolidayProviderFactory.provider(for: settings.holidayRegion)
+      archived.holidayId = holidayProvider.holiday(for: event.start)?.holidayId
     }
   }
 

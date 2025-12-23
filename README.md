@@ -297,11 +297,60 @@ extendedProperties.private = {
 - Googleカレンダー側の`updated`が新しければアプリを更新
 - ローカルが新しくても競合時は**安全側にスキップ**（`CalendarToJournalSyncService`）
 
-### 2.6 過去の同じ日を振り返り機能
+### 2.6 関連するエントリー機能
 
-- 今日と同じ月日の過去エントリを表示
-- 「1年前」「5年前」「10年前」などの節目を強調
-- タイムライン上部または専用セクションに表示
+エントリー詳細画面（ジャーナル詳細・予定詳細のどちらでも）に、長期キャッシュ ArchivedCalendarEvent を使った「関連エントリー」セクションを表示する。
+
+#### 2.6.1 検索条件
+
+以下の3つの条件でマッチするエントリーを検索する（設定で有効/無効を切り替え可能、デフォルト: 同日のみON）：
+
+1. **同じ日（MMDD一致）**: 同じ月日（例: 12月23日）の過去・未来のエントリーを表示
+2. **同じ週の同じ曜日**: ISO週番号と曜日が一致するエントリーを表示（過去10年 + 未来10年）
+3. **同じ祝日**: 同じ祝日（例: 元日）の過去・未来のエントリーを表示
+
+#### 2.6.2 除外条件
+
+- **同じ年月日のエントリーは除外**: 同じ日付（年・月・日が全て一致）のエントリーは関連エントリーに含めない
+- **同じ年のエントリーは除外**: 各検索条件で、対象日と同じ年のエントリーは除外
+
+#### 2.6.3 表示形式
+
+- **年数表示**: 「N年前」「N年後」「今年」の形式で表示
+- **一致理由**: 「同日」「同週同曜」「同祝日」のバッジを表示（複数条件に一致する場合は複数表示）
+- **ソート順**: 絶対距離が近い順（過去の近い順 → 過去の遠い順 → 未来の近い順 → 未来の遠い順）
+
+#### 2.6.4 パフォーマンス最適化
+
+- `startMonthDayKey`: MMDD形式の整数インデックス（例: 1223）で高速検索
+- `holidayId`: 祝日IDで高速検索（例: "JP:NEW_YEAR"）
+- `startDayKey`: YYYYMMDD形式の整数インデックス（例: 20241223）で高速検索
+
+#### 2.6.5 祝日システム
+
+- **プロトコルベース**: `HolidayProvider`プロトコルで国際化対応
+- **日本祝日**: `JapanHolidayProvider`で日本の祝日を実装（固定祝日・移動祝日・春分/秋分を含む）
+- **祝日ID**: "JP:NEW_YEAR"などの安定したIDで管理
+
+#### 2.6.6 UI
+
+- **セクションヘッダー**: 「関連するエントリー」
+- **有効条件表示**: 現在有効な検索条件を表示（例: 「同日・同週同曜」）
+- **空状態**:
+  - 長期キャッシュ未取り込み → 設定画面への誘導リンク表示
+  - 条件が全て無効 → 設定画面への誘導リンク表示
+  - 該当なし → 「関連する過去のエントリーは見つかりませんでした」と表示
+- **エントリー一覧**: タイトル、日時、年数、一致理由バッジを表示
+- **タップ動作**: `ArchivedCalendarEventDetailView`に遷移（詳細→詳細のナビゲーション）
+
+#### 2.6.7 設定
+
+設定画面の「関連する過去の表示設定」セクション（`RelatedMemorySettingsSection`）で以下を設定可能：
+
+- 同じ日（MMDD一致）ON/OFF
+- 同じ週の同じ曜日 ON/OFF
+- 同じ祝日 ON/OFF
+- 現在有効な条件の表示
 
 ### 2.7 検索機能
 
@@ -314,7 +363,7 @@ extendedProperties.private = {
 
 ### 2.8 競合解決機能
 
-#### 2.7.1 競合検知
+#### 2.8.1 競合検知
 
 ローカルとGoogle Calendar両方でジャーナルが変更された場合に競合を検知する。
 
@@ -329,7 +378,7 @@ extendedProperties.private = {
 - 同期ステータスに競合カウントを表示
 - タイムライン上にオレンジの三角バッジを表示
 
-#### 2.7.2 競合解決UI
+#### 2.8.2 競合解決UI
 
 **JournalDetailView**:
 - 競合状態の場合、メタデータセクションに警告表示
@@ -349,7 +398,7 @@ extendedProperties.private = {
 - タイムライン上のバッジが消える
 - エラー発生時は画面上にエラーメッセージを表示
 
-#### 2.7.3 自動解決
+#### 2.8.3 自動解決
 
 以下の場合は自動的に競合フラグをクリア:
 - カレンダーからの変更が正常にローカルに適用された場合
@@ -357,7 +406,7 @@ extendedProperties.private = {
 
 ### 2.9 同期状態バッジ表示
 
-#### 2.8.1 タイムライン上のバッジ表示
+#### 2.9.1 タイムライン上のバッジ表示
 
 **表示位置**: ジャーナルカードの時刻の右側
 
@@ -379,7 +428,7 @@ extendedProperties.private = {
 
 - **同期済み**: バッジなし（何も表示しない）
 
-#### 2.8.2 個別再送機能
+#### 2.9.2 個別再送機能
 
 **動線**:
 1. タイムライン上の同期失敗バッジをタップ
@@ -388,7 +437,7 @@ extendedProperties.private = {
 4. 成功時: バッジが消える、ステータスに「再送成功」表示
 5. 失敗時: エラーアラート表示
 
-#### 2.8.3 設定画面の「同期待ち」セクション
+#### 2.9.3 設定画面の「同期待ち」セクション
 
 **表示内容**:
 - 同期待ちのジャーナル件数（`needsCalendarSync == true`）
@@ -935,18 +984,32 @@ final class ArchivedCalendarEvent {
     @Attribute(.unique) var uid: String  // "calendarId:eventId"
     var calendarId: String
     var eventId: String
-    
+
     var title: String
     var desc: String?
     var start: Date
     var end: Date?
     var isAllDay: Bool
     var status: String
-    
+
     var updatedAt: Date
     var startDayKey: Int  // YYYYMMDD形式（検索高速化用）
     var linkedJournalId: String?
     var cachedAt: Date
+
+    // 関連メモリー検索用インデックス
+    var startMonthDayKey: Int?   // MMDD形式（例: 1223）
+    var holidayId: String?       // 祝日ID（例: "JP:NEW_YEAR"）
+
+    // computedプロパティ
+    var computedMonthDayKey: Int {
+        if let stored = startMonthDayKey {
+            return stored
+        }
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.month, .day], from: start)
+        return (components.month ?? 0) * 100 + (components.day ?? 0)
+    }
 }
 ```
 
@@ -1173,12 +1236,12 @@ final class SyncLog {
 - [x] 双方向同期（`CalendarToJournalSyncService`）
 - [x] 長期キャッシュ取り込み（`ArchiveSyncService`）
 
-### Phase 3: 拡張機能 🔄 一部実装済み
+### Phase 3: 拡張機能 ✅ 完了
 **目標**: 使いやすさ向上
 
 - [x] カラー・アイコン選択機能（カラーパレット・アイコンパレット実装）
+- [x] 関連するエントリー機能（過去・未来の同日/同週同曜/同祝日エントリーの表示）
 - [ ] 場所情報の追加（デフォルト設定含む） - **未実装**
-- [ ] **過去の同じ日を振り返り機能** - **未実装**
 
 ### Phase 4: 公開準備 🔄 進行中
 **目標**: App Store申請
@@ -1203,7 +1266,6 @@ final class SyncLog {
 ### Phase 6: 将来の拡張（公開後）
 - [ ] ウィジェット対応
 - [ ] カレンダーシート（日付選択、記録日ドット表示）
-- [ ] 過去の同じ日を振り返り機能
 - [ ] ダークモード対応
 - [ ] iPad対応
 - [ ] 場所情報の追加（デフォルト設定含む）

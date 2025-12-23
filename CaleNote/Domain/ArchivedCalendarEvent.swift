@@ -18,6 +18,25 @@ final class ArchivedCalendarEvent {
     // アーカイブ検索を軽くするためのインデックス用（YYYYMMDD）
     var startDayKey: Int
 
+    // 関連メモリー検索用インデックス
+    // オプショナルにして、既存データとの互換性を保つ
+    // nilの場合はstartから計算される（computedMonthDayKeyを使用）
+    var startMonthDayKey: Int?   // MMDD（例: 1223）
+    
+    var holidayId: String?       // 祝日ID（例: "JP:NEW_YEAR"）
+    
+    // startMonthDayKeyがnilの場合にstartから計算するヘルパー
+    var computedMonthDayKey: Int {
+        if let stored = startMonthDayKey {
+            return stored
+        }
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.month, .day], from: start)
+        let m = components.month ?? 0
+        let d = components.day ?? 0
+        return m * 100 + d
+    }
+
     // アプリ紐付け
     var linkedJournalId: String?
 
@@ -35,6 +54,8 @@ final class ArchivedCalendarEvent {
         status: String,
         updatedAt: Date,
         startDayKey: Int,
+        startMonthDayKey: Int? = nil,  // オプショナルに変更
+        holidayId: String? = nil,
         linkedJournalId: String?,
         cachedAt: Date = Date()
     ) {
@@ -49,6 +70,8 @@ final class ArchivedCalendarEvent {
         self.status = status
         self.updatedAt = updatedAt
         self.startDayKey = startDayKey
+        self.startMonthDayKey = startMonthDayKey
+        self.holidayId = holidayId
         self.linkedJournalId = linkedJournalId
         self.cachedAt = cachedAt
     }

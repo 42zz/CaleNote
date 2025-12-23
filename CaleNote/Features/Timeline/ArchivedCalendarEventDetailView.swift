@@ -141,8 +141,22 @@ struct ArchivedCalendarEventDetailView: View {
                             label: "キャッシュ日時",
                             value: formatDateTime(event.cachedAt)
                         )
+
+                        if let holidayId = event.holidayId {
+                            MetadataRow(
+                                icon: "flag.fill",
+                                label: "祝日",
+                                value: holidayId,
+                                valueColor: .red
+                            )
+                        }
                     }
                 }
+
+                Divider()
+
+                // 関連する過去セクション
+                RelatedMemoriesSection(targetDate: event.start)
             }
             .padding()
         }

@@ -23,10 +23,17 @@ struct OnboardingCoordinatorView: View {
                 .environmentObject(auth)
 
             case .selectCalendars:
-                CalendarSelectionOnboardingView {
-                    // ステップ2完了 → オンボーディング終了
-                    onComplete()
-                }
+                CalendarSelectionOnboardingView(
+                    onBack: {
+                        // 前の画面に戻る
+                        currentStep = .signIn
+                    },
+                    onComplete: {
+                        // ステップ2完了 → オンボーディング終了
+                        onComplete()
+                    }
+                )
+                .environmentObject(auth)
             }
         }
     }

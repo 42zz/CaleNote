@@ -213,6 +213,10 @@ final class ArchiveSyncService {
         var upserted = 0
         var deleted = 0
 
+        // 祝日プロバイダー（設定から取得）
+        let settings = RelatedMemorySettings.load()
+        let holidayProvider = HolidayProviderFactory.provider(for: settings.holidayRegion)
+
         for e in events {
             let uid = "\(calendarId):\(e.id)"
 
@@ -226,7 +230,11 @@ final class ArchiveSyncService {
             }
 
             let dayKey = makeDayKey(e.start)
+            let monthDayKey = makeMonthDayKey(e.start)
             let journalId = e.privateProps?["journalId"]
+
+            // 祝日判定
+            let holidayId = holidayProvider.holiday(for: e.start)?.holidayId
 
             if let existing = fetchArchived(uid: uid, modelContext: modelContext) {
                 existing.title = e.title
@@ -237,6 +245,8 @@ final class ArchiveSyncService {
                 existing.status = e.status
                 existing.updatedAt = e.updated
                 existing.startDayKey = dayKey
+                existing.startMonthDayKey = monthDayKey
+                existing.holidayId = holidayId
                 existing.linkedJournalId = journalId
                 existing.cachedAt = Date()
                 upserted += 1
@@ -253,6 +263,8 @@ final class ArchiveSyncService {
                     status: e.status,
                     updatedAt: e.updated,
                     startDayKey: dayKey,
+                    startMonthDayKey: monthDayKey,
+                    holidayId: holidayId,
                     linkedJournalId: journalId
                 )
                 modelContext.insert(archived)
@@ -275,6 +287,13 @@ final class ArchiveSyncService {
         let m = c.month ?? 0
         let d = c.day ?? 0
         return y * 10000 + m * 100 + d
+    }
+
+    private func makeMonthDayKey(_ date: Date) -> Int {
+        let c = Calendar.current.dateComponents([.month, .day], from: date)
+        let m = c.month ?? 0
+        let d = c.day ?? 0
+        return m * 100 + d
     }
 
     private func dateFromYMD(_ y: Int, _ m: Int, _ d: Int) -> Date {

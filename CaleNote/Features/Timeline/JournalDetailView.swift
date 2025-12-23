@@ -172,6 +172,11 @@ struct JournalDetailView: View {
                         }
                     }
                 }
+
+                Divider()
+
+                // 関連する過去セクション
+                RelatedMemoriesSection(targetDate: entry.eventDate)
             }
             .padding()
         }

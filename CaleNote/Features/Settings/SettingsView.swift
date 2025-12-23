@@ -200,6 +200,10 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("関連する過去の表示設定") {
+                    RelatedMemorySettingsSection()
+                }
+
                 if let errorMessage {
                     Section {
                         Text(errorMessage)

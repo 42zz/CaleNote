@@ -126,6 +126,11 @@ struct CalendarEventDetailView: View {
                         }
                     }
                 }
+
+                Divider()
+
+                // 関連する過去セクション
+                RelatedMemoriesSection(targetDate: event.start)
             }
             .padding()
         }
