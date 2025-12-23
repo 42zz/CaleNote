@@ -12,6 +12,9 @@ struct TimelineRowView: View {
 
   // 同期バッジタップ時のコールバック
   let onSyncBadgeTap: (() -> Void)?
+  
+  // 同期中のエントリーID（同期中かどうかを判定するため）
+  let syncingEntryId: String?
 
   // 表示色（統一カードの視覚的整合性のため）
   private var displayColor: Color {
@@ -76,8 +79,13 @@ struct TimelineRowView: View {
 
   @ViewBuilder
   private func syncStatusBadge(for entry: JournalEntry) -> some View {
-    // 優先順位: 競合 > 失敗 > 同期済み
-    if entry.hasConflict {
+    // 優先順位: 同期中 → 競合 → 同期失敗 → 同期済み（何も表示しない）
+    let isSyncing = syncingEntryId == entry.id.uuidString
+    
+    if isSyncing {
+      // 同期中バッジ（グルグル回るアイコン）
+      SyncingIconView()
+    } else if entry.hasConflict {
       // 競合バッジ
       Image(systemName: "exclamationmark.triangle.fill")
         .foregroundStyle(.orange)
@@ -93,11 +101,28 @@ struct TimelineRowView: View {
         .onTapGesture {
           onSyncBadgeTap?()
         }
-    } else if entry.linkedCalendarId != nil {
-      // 同期済みバッジ
-      Image(systemName: "arrow.triangle.2.circlepath")
-        .foregroundStyle(.blue)
-        .font(.caption)
     }
+    // 同期済みの場合は何も表示しない
+  }
+}
+
+// 同期中アイコンの回転アニメーション用ビュー
+private struct SyncingIconView: View {
+  @State private var rotation: Double = 0
+  
+  var body: some View {
+    Image(systemName: "arrow.triangle.2.circlepath")
+      .foregroundStyle(.blue)
+      .font(.caption)
+      .rotationEffect(.degrees(rotation))
+      .onAppear {
+        // 連続的に回転させる
+        withAnimation(.linear(duration: 1.0).repeatForever(autoreverses: false)) {
+          rotation = 360
+        }
+      }
+      .onDisappear {
+        rotation = 0
+      }
   }
 }

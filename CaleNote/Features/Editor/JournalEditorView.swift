@@ -134,7 +134,7 @@ struct JournalEditorView: View {
         if let entry {
             targetEntry = entry
             targetEntry.title = finalTitle
-            targetEntry.body = trimmedBody
+            targetEntry.body = content
             targetEntry.eventDate = eventDate
             targetEntry.updatedAt = Date()
         } else {
@@ -144,7 +144,7 @@ struct JournalEditorView: View {
             
             let newEntry = JournalEntry(
                 title: finalTitle,
-                body: trimmedBody,
+                body: content,
                 eventDate: eventDate,
                 createdAt: Date(),
                 updatedAt: Date(),

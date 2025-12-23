@@ -143,17 +143,18 @@ struct TimelineView: View {
         entries.map { entry in
             // colorHexはエントリ固有、iconNameは所属カレンダー（linkedCalendarId）の設定を反映
             let colorHex = entry.colorHex.isEmpty ? defaultColorHex : entry.colorHex
-            
+
             // linkedCalendarIdからカレンダーを取得してiconNameを決定
             let iconName: String
             if let linkedCalendarId = entry.linkedCalendarId,
-               let calendar = cachedCalendars.first(where: { $0.calendarId == linkedCalendarId }) {
+                let calendar = cachedCalendars.first(where: { $0.calendarId == linkedCalendarId })
+            {
                 iconName = calendar.iconName.isEmpty ? defaultIconName : calendar.iconName
             } else {
                 // エントリ固有のiconNameを使用、なければデフォルト
                 iconName = entry.iconName.isEmpty ? defaultIconName : entry.iconName
             }
-            
+
             return TimelineItem(
                 id: "journal-\(entry.id.uuidString)",
                 kind: .journal,
@@ -173,7 +174,7 @@ struct TimelineView: View {
             let calendar = cachedCalendars.first(where: { $0.calendarId == e.calendarId })
             let colorHex = calendar?.userColorHex ?? defaultColorHex
             let iconName = calendar?.iconName ?? defaultIconName
-            
+
             return TimelineItem(
                 id: "calendar-\(e.uid)",
                 kind: .calendar,
@@ -193,7 +194,7 @@ struct TimelineView: View {
             let calendar = cachedCalendars.first(where: { $0.calendarId == e.calendarId })
             let colorHex = calendar?.userColorHex ?? defaultColorHex
             let iconName = calendar?.iconName ?? defaultIconName
-            
+
             return TimelineItem(
                 id: "archived-\(e.uid)",
                 kind: .calendar,
@@ -269,7 +270,8 @@ struct TimelineView: View {
 
         // 9) 合成
         var merged: [TimelineItem] = []
-        merged.reserveCapacity(journalItemsLocal.count + calendarItemsLocal.count + archivedItemsLocal.count)
+        merged.reserveCapacity(
+            journalItemsLocal.count + calendarItemsLocal.count + archivedItemsLocal.count)
         merged.append(contentsOf: journalItemsLocal)
         merged.append(contentsOf: calendarItemsLocal)
         merged.append(contentsOf: archivedItemsLocal)
@@ -311,7 +313,8 @@ struct TimelineView: View {
 
                 // 紐付いているジャーナルがあれば、そちらのlinkedEventIdをクリア
                 if let journalId = event.linkedJournalId,
-                   let linkedEntry = entries.first(where: { $0.id.uuidString == journalId }) {
+                    let linkedEntry = entries.first(where: { $0.id.uuidString == journalId })
+                {
                     linkedEntry.linkedEventId = nil
                     linkedEntry.linkedCalendarId = nil
                 }
@@ -347,7 +350,9 @@ struct TimelineView: View {
             resendErrorMessage = nil
 
             do {
-                let targetCalendarId = entry.linkedCalendarId ?? JournalWriteSettings.loadWriteCalendarId() ?? "primary"
+                let targetCalendarId =
+                    entry.linkedCalendarId ?? JournalWriteSettings.loadWriteCalendarId()
+                    ?? "primary"
 
                 try await journalSync.syncOne(
                     entry: entry,
@@ -503,10 +508,12 @@ struct TimelineView: View {
                                     if let entry {
                                         JournalDetailView(entry: entry)
                                     } else if let calendarEvent {
-                                        CalendarEventDetailView(event: calendarEvent, calendar: calendar)
+                                        CalendarEventDetailView(
+                                            event: calendarEvent, calendar: calendar)
                                     } else if let archivedEvent {
                                         // アーカイブイベントの詳細表示（簡易版）
-                                        ArchivedCalendarEventDetailView(event: archivedEvent, calendar: calendar)
+                                        ArchivedCalendarEventDetailView(
+                                            event: archivedEvent, calendar: calendar)
                                     } else {
                                         Text("詳細を表示できません")
                                     }
@@ -515,9 +522,11 @@ struct TimelineView: View {
                                         item: item,
                                         journalEntry: entry,
                                         onDeleteJournal: nil,
-                                        onSyncBadgeTap: entry != nil ? {
-                                            handleSyncBadgeTap(for: entry!)
-                                        } : nil
+                                        onSyncBadgeTap: entry != nil
+                                            ? {
+                                                handleSyncBadgeTap(for: entry!)
+                                            } : nil,
+                                        syncingEntryId: isResendingIndividual ? entryToResend?.id.uuidString : nil
                                     )
                                 }
                                 .swipeActions(edge: .trailing) {
@@ -574,10 +583,13 @@ struct TimelineView: View {
                     Text("ジャーナルをカレンダーに再送します。")
                 }
             }
-            .alert("再送エラー", isPresented: Binding(
-                get: { resendErrorMessage != nil },
-                set: { if !$0 { resendErrorMessage = nil } }
-            )) {
+            .alert(
+                "再送エラー",
+                isPresented: Binding(
+                    get: { resendErrorMessage != nil },
+                    set: { if !$0 { resendErrorMessage = nil } }
+                )
+            ) {
                 Button("OK") {
                     resendErrorMessage = nil
                 }
@@ -594,7 +606,7 @@ struct TimelineView: View {
             }
         }
     }
-
+ 
     @MainActor
     private func runSync(isManual: Bool) async {
         if isSyncing { return }
@@ -627,10 +639,19 @@ struct TimelineView: View {
 
             let apply = try calendarToJournal.applyFromCachedEvents(modelContext: modelContext)
             let cleaner = CalendarCacheCleaner()
-            let removed = try cleaner.cleanupEventsOutsideWindow(modelContext: modelContext, timeMin: timeMin, timeMax: timeMax)
+            let removed = try cleaner.cleanupEventsOutsideWindow(
+                modelContext: modelContext, timeMin: timeMin, timeMax: timeMax)
 
             syncStatusMessage =
                 "同期完了（更新\(apply.updatedCount) / 削除\(apply.unlinkedCount) / スキップ\(apply.skippedCount) / 競合\(apply.conflictCount) / 掃除\(removed)）"
+
+            // 同期完了メッセージを3秒後にクリア
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 3_000_000_000)  // 3秒
+                if !isSyncing {
+                    syncStatusMessage = nil
+                }
+            }
         } catch {
             syncErrorMessage = error.localizedDescription
             syncStatusMessage = nil
