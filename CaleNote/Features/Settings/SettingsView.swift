@@ -52,6 +52,27 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Google連携") {
+                    if let user = auth.user {
+                        Text("ログイン中: \(user.profile?.email ?? "不明")")
+                        Button("ログアウト") { auth.signOut() }
+                    } else {
+                        Text("未ログイン")
+                        Button("Googleでログイン") {
+                            Task {
+                                do {
+                                    try await auth.signIn()
+                                    errorMessage = nil
+                                    // ログイン成功後、自動的にカレンダー一覧を同期
+                                    await syncCalendarList()
+                                } catch {
+                                    errorMessage = "ログイン失敗: \(error.localizedDescription)"
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Section("表示するカレンダー") {
                     if calendarsPrimaryFirst.isEmpty {
                         Text("カレンダー一覧がありません。")
@@ -141,27 +162,6 @@ struct SettingsView: View {
                 //         .font(.caption)
                 //         .foregroundStyle(.secondary)
                 // }
-
-                Section("Google連携") {
-                    if let user = auth.user {
-                        Text("ログイン中: \(user.profile?.email ?? "不明")")
-                        Button("ログアウト") { auth.signOut() }
-                    } else {
-                        Text("未ログイン")
-                        Button("Googleでログイン") {
-                            Task {
-                                do {
-                                    try await auth.signIn()
-                                    errorMessage = nil
-                                    // ログイン成功後、自動的にカレンダー一覧を同期
-                                    await syncCalendarList()
-                                } catch {
-                                    errorMessage = "ログイン失敗: \(error.localizedDescription)"
-                                }
-                            }
-                        }
-                    }
-                }
 
                 Section("同期待ち") {
                     if pendingEntries.isEmpty {

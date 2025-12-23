@@ -789,6 +789,17 @@ struct TimelineView: View {
         isSyncing = true
         defer { isSyncing = false }
 
+        // ログインしていない場合の処理
+        guard auth.user != nil else {
+            // 初期起動時はエラーメッセージを表示しない（正常な状態）
+            if isManual {
+                // 手動同期の場合は、ログインが必要であることを通知
+                toastMessage = "ログインが必要です（設定からログインしてください）"
+                toastType = ToastView.ToastType.info
+            }
+            return
+        }
+
         let now = Date()
         if !SyncRateLimiter.canSync(now: now) {
             let remain = SyncRateLimiter.remainingSeconds(now: now)
@@ -825,7 +836,13 @@ struct TimelineView: View {
                 "同期完了（更新\(apply.updatedCount) / 削除\(apply.unlinkedCount) / スキップ\(apply.skippedCount) / 競合\(apply.conflictCount) / 掃除\(removed)）\n最終同期: \(syncTime)"
             toastType = ToastView.ToastType.success
         } catch {
-            toastMessage = "同期エラー: \(error.localizedDescription)"
+            // エラーメッセージから「未ログインです」を除外（初期起動時の正常な状態）
+            let errorDesc = error.localizedDescription
+            if errorDesc.contains("未ログインです") && !isManual {
+                // 初期起動時で未ログインの場合はエラーを表示しない
+                return
+            }
+            toastMessage = "同期エラー: \(errorDesc)"
             toastType = ToastView.ToastType.error
         }
     }
