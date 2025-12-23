@@ -47,7 +47,21 @@ struct TimelineView: View {
 
     // 最近使ったタグ（上位）
     private var recentTagStats: [TagStat] {
-        let stats = buildTagStats(from: entries)
+        // 有効なカレンダーID集合を取得
+        let enabledCalendarIds: Set<String> = Set(
+            cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId }
+        )
+        
+        // 有効なカレンダーのイベントのみを対象
+        let enabledCalendarEvents = cachedCalendarEvents.filter { event in
+            enabledCalendarIds.contains(event.calendarId)
+        }
+        
+        // 同期対象期間内のイベントも含めてタグ統計を構築
+        let stats = buildTagStats(
+            from: entries,
+            cachedEvents: enabledCalendarEvents
+        )
 
         let sorted = stats.sorted { a, b in
             if a.lastUsedAt != b.lastUsedAt { return a.lastUsedAt > b.lastUsedAt }
@@ -113,16 +127,24 @@ struct TimelineView: View {
         return result
     }
 
-    private func buildTagStats(from entries: [JournalEntry]) -> [TagStat] {
+    /// タグ統計を構築（JournalEntryと同期対象期間内のCachedCalendarEventから）
+    private func buildTagStats(
+        from entries: [JournalEntry],
+        cachedEvents: [CachedCalendarEvent]
+    ) -> [TagStat] {
         var dict: [String: TagStat] = [:]
-
-        for e in entries {
-            let tags = TagExtractor.extract(from: e.body)
+        
+        // 同期対象期間を取得
+        let (timeMin, timeMax) = SyncSettings.windowDates()
+        
+        // JournalEntryからタグを抽出
+        for entry in entries {
+            let tags = TagExtractor.extract(from: entry.body)
             for tag in tags {
                 if var stat = dict[tag] {
                     stat.count += 1
-                    if e.eventDate > stat.lastUsedAt {
-                        stat.lastUsedAt = e.eventDate
+                    if entry.eventDate > stat.lastUsedAt {
+                        stat.lastUsedAt = entry.eventDate
                     }
                     dict[tag] = stat
                 } else {
@@ -130,12 +152,50 @@ struct TimelineView: View {
                         id: tag,
                         tag: tag,
                         count: 1,
-                        lastUsedAt: e.eventDate
+                        lastUsedAt: entry.eventDate
                     )
                 }
             }
         }
-
+        
+        // 同期対象期間内のCachedCalendarEventからタグを抽出
+        // 注意: JournalEntryと紐付いているイベントは重複カウントを避けるため、
+        // linkedJournalIdがnilのイベントのみを対象とする
+        for event in cachedEvents {
+            // 同期対象期間内かチェック
+            guard event.start >= timeMin && event.start <= timeMax else {
+                continue
+            }
+            
+            // JournalEntryと紐付いている場合はスキップ（既にカウント済み）
+            if event.linkedJournalId != nil {
+                continue
+            }
+            
+            // descriptionからタグを抽出
+            guard let desc = event.desc, !desc.isEmpty else {
+                continue
+            }
+            
+            let tags = TagExtractor.extract(from: desc)
+            for tag in tags {
+                if var stat = dict[tag] {
+                    stat.count += 1
+                    if event.start > stat.lastUsedAt {
+                        stat.lastUsedAt = event.start
+                    }
+                    dict[tag] = stat
+                } else {
+                    dict[tag] = TagStat(
+                        id: tag,
+                        tag: tag,
+                        count: 1,
+                        lastUsedAt: event.start
+                    )
+                }
+            }
+        }
+        
         return Array(dict.values)
     }
 
@@ -231,12 +291,25 @@ struct TimelineView: View {
             return !allJournalIdSet.contains(jid)
         }
 
-        // 6) カレンダーイベントにも検索フィルタを適用
+        // 6) カレンダーイベントにも検索フィルタとタグフィルタを適用
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         let filteredCalendarEvents: [CachedCalendarEvent] = dedupedCalendarEvents.filter { event in
-            if query.isEmpty { return true }
-            return event.title.localizedCaseInsensitiveContains(query)
-                || (event.desc?.localizedCaseInsensitiveContains(query) ?? false)
+            // テキスト検索
+            let matchesText: Bool = {
+                if query.isEmpty { return true }
+                return event.title.localizedCaseInsensitiveContains(query)
+                    || (event.desc?.localizedCaseInsensitiveContains(query) ?? false)
+            }()
+            
+            // タグ検索
+            let matchesTag: Bool = {
+                guard let tag = selectedTag else { return true }
+                guard let desc = event.desc, !desc.isEmpty else { return false }
+                let tags = TagExtractor.extract(from: desc)
+                return tags.contains(tag)
+            }()
+            
+            return matchesText && matchesTag
         }
 
         // 7) 長期キャッシュ（ArchivedCalendarEvent）の処理
@@ -257,11 +330,24 @@ struct TimelineView: View {
             !cachedUidSet.contains(ev.uid)
         }
 
-        // アーカイブイベントにも検索フィルタを適用
+        // アーカイブイベントにも検索フィルタとタグフィルタを適用
         let filteredArchivedEvents: [ArchivedCalendarEvent] = uniqueArchivedEvents.filter { event in
-            if query.isEmpty { return true }
-            return event.title.localizedCaseInsensitiveContains(query)
-                || (event.desc?.localizedCaseInsensitiveContains(query) ?? false)
+            // テキスト検索
+            let matchesText: Bool = {
+                if query.isEmpty { return true }
+                return event.title.localizedCaseInsensitiveContains(query)
+                    || (event.desc?.localizedCaseInsensitiveContains(query) ?? false)
+            }()
+            
+            // タグ検索
+            let matchesTag: Bool = {
+                guard let tag = selectedTag else { return true }
+                guard let desc = event.desc, !desc.isEmpty else { return false }
+                let tags = TagExtractor.extract(from: desc)
+                return tags.contains(tag)
+            }()
+            
+            return matchesText && matchesTag
         }
 
         // 8) 変換

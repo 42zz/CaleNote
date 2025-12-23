@@ -41,6 +41,16 @@
 - 保存ボタンにローディング表示を追加
   - `isSaving`が`true`の時、保存ボタンに`ProgressView()`と「保存中...」テキストを表示
   - 保存処理中であることを視覚的に示す
+- タグ抽出ロジックを整理し、カレンダー編集反映を安定化
+  - `buildTagStats`を修正して、`JournalEntry`と同期対象期間内の`CachedCalendarEvent`の両方からタグを抽出
+  - カレンダー側で`description`が編集された場合、同期でキャッシュが更新されるとタグ統計に自動反映
+  - 同期対象期間内のイベントのみを対象（`SyncSettings.windowDates()`を使用）
+  - `JournalEntry`と紐付いているイベントは重複カウントを避けるため除外
+  - 検索機能（`#tag`検索）は既存仕様どおり維持（`JournalEntry`のみを対象）
+  - 有効なカレンダー（`isEnabled == true`）のイベントのみを対象にし、表示OFFにしたカレンダーのタグは表示されないように修正
+- タグ検索のロジックを修正
+  - `timelineItems`でカレンダーイベント（`CachedCalendarEvent`と`ArchivedCalendarEvent`）にもタグフィルタリングを適用
+  - タグを選択した時に、ジャーナルエントリだけでなく、カレンダーイベントもタグでフィルタリングされるように修正
 
 ---
 

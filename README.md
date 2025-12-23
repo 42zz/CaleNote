@@ -96,8 +96,11 @@ Googleカレンダーを**唯一の真実のソース（Single Source of Truth�
 
 **表示・UI**
 - 表示するタグは「最近使われたタグ」のみ
-- 最近の定義: ローカルキャッシュ（同期対象期間）内での使用頻度・直近使用日時
-- タグ一覧は最大10件程度を想定
+- 最近の定義: 同期対象期間内の`JournalEntry`と有効なカレンダー（`isEnabled == true`）の`CachedCalendarEvent`での使用頻度・直近使用日時
+- カレンダー側で`description`が編集された場合、同期でキャッシュが更新されるとタグ統計に自動反映
+- `JournalEntry`と紐付いているイベントは重複カウントを避けるため除外
+- 表示OFFにしたカレンダーのタグは表示されない
+- タグ一覧は最大20件程度を表示
 
 **検索**
 - 検索バーに `#tag` を入力するとタグ検索として機能
@@ -161,7 +164,10 @@ Googleカレンダーを**唯一の真実のソース（Single Source of Truth�
 - **デフォルト: 過去30日〜未来30日**（`SyncSettings`）
 - ユーザーが設定画面で変更可能（UserDefaults管理）
 - 同期対象はイベントの必要最小限フィールド（title / description / start / end / updated / status / extendedProperties 等）
-- タグ抽出は同期対象期間内のイベント description から行う
+- タグ抽出は同期対象期間内の`JournalEntry`と有効なカレンダー（`isEnabled == true`）の`CachedCalendarEvent`の両方から行う
+- カレンダー側で`description`が編集された場合、同期でキャッシュが更新されるとタグ統計に自動反映
+- `JournalEntry`と紐付いているイベントは重複カウントを避けるため除外
+- 表示OFFにしたカレンダーのタグは表示されない
 - タグ一覧・頻出度はこの範囲のみで構築
 - 全期間のタグ網羅は行わない（古いタグを探したい場合は、手入力検索で対応）
 
