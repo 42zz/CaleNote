@@ -273,6 +273,15 @@ struct CalendarSelectionOnboardingView: View {
             }
         }
 
+        // 選択されたカレンダーの長期キャッシュ取得を開始
+        for calendar in enabledCalendars {
+            ArchiveImportSettings.startBackgroundImport(
+                for: calendar,
+                auth: auth,
+                modelContext: modelContext
+            )
+        }
+
         // オンボーディング完了フラグを保存
         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
 

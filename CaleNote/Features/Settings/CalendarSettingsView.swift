@@ -12,12 +12,6 @@ struct CalendarSettingsView: View {
     // 現在の書き込み先カレンダーID
     @State private var writeCalendarId: String? = JournalWriteSettings.loadWriteCalendarId()
 
-    // 長期キャッシュ取り込み関連
-    @State private var isImportingArchive = false
-    @State private var archiveProgressText: String?
-    @State private var archiveTask: Task<Void, Never>?
-    private let archiveSync = ArchiveSyncService()
-
     // Googleカレンダーの標準色をベースにしたパレット（5x5 = 25色）
     // 参考: Google Calendar API colors (https://developers.google.com/calendar/api/v3/reference/colors)
     private let palette: [String] = [
@@ -96,6 +90,15 @@ struct CalendarSettingsView: View {
                             calendar.isEnabled = newValue
                             calendar.updatedAt = Date()
                             try? modelContext.save()
+
+                            // 表示ONになった場合は長期キャッシュ取得を開始
+                            if newValue {
+                                ArchiveImportSettings.startBackgroundImport(
+                                    for: calendar,
+                                    auth: auth,
+                                    modelContext: modelContext
+                                )
+                            }
 
                             // 書き込みカレンダーが非表示になった場合は自動変更
                             let updatedEnabledCalendars = allCalendars.filter { $0.isEnabled }
@@ -234,36 +237,6 @@ struct CalendarSettingsView: View {
             //         .padding(.horizontal, 4)
             //     }
             // }
-
-            Section("長期キャッシュ") {
-                if !isImportingArchive {
-                    Button {
-                        archiveTask = Task { await importArchive() }
-                    } label: {
-                        Text("長期キャッシュを取り込む")
-                    }
-                } else {
-                    HStack {
-                        Button("取り込み中…") {}
-                            .disabled(true)
-                        Spacer()
-                        Button("キャンセル") {
-                            cancelArchiveImport()
-                        }
-                        .foregroundStyle(.red)
-                    }
-                }
-
-                if let archiveProgressText {
-                    Text(archiveProgressText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Text("過去の振り返り用にカレンダーイベントを端末に保存します。件数が多いと時間がかかります。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
         }
         .navigationTitle(calendar.summary)
         .navigationBarTitleDisplayMode(.inline)
@@ -277,41 +250,5 @@ struct CalendarSettingsView: View {
             return primary.calendarId
         }
         return enabled.first?.calendarId ?? ""
-    }
-
-    @MainActor
-    private func importArchive() async {
-        if isImportingArchive { return }
-        isImportingArchive = true
-        defer {
-            isImportingArchive = false
-            archiveTask = nil
-        }
-
-        do {
-            try await archiveSync.importAllEventsToArchive(
-                auth: auth,
-                modelContext: modelContext,
-                calendars: [calendar]  // このカレンダーのみ
-            ) { p in
-                Task { @MainActor in
-                    archiveProgressText =
-                        "進捗: \(p.fetchedRanges)/\(p.totalRanges)\n"
-                        + "反映: \(p.upserted) / 削除: \(p.deleted)"
-                }
-            }
-
-            archiveProgressText = "長期キャッシュ取り込み完了"
-        } catch is CancellationError {
-            archiveProgressText = "取り込みをキャンセルしました（進捗は保存されています）"
-        } catch {
-            archiveProgressText = "取り込み失敗: \(error.localizedDescription)"
-        }
-    }
-
-    @MainActor
-    private func cancelArchiveImport() {
-        archiveTask?.cancel()
-        archiveTask = nil
     }
 }
