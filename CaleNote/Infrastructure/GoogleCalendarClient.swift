@@ -592,6 +592,43 @@ extension GoogleCalendarClient {
     }
     return CalendarListResult(calendars: calendars, retryResult: retryResult)
   }
+  /// Google Calendar APIのカラーIDからカラーコード（HEX）に変換
+  /// Google Calendar APIのカラーパレットは固定されているため、マッピングテーブルを使用
+  static func colorIdToHex(colorId: String?) -> String? {
+    guard let colorId = colorId else { return nil }
+    
+    // Google Calendar APIのカラーパレット（カレンダー用）
+    // 参考: https://developers.google.com/calendar/api/v3/reference/colors
+    let colorMap: [String: String] = [
+      "1": "#ac725e",   // 茶色
+      "2": "#d06b64",   // 赤
+      "3": "#f83a22",   // 明るい赤
+      "4": "#fa573c",   // オレンジ
+      "5": "#ff7537",   // 明るいオレンジ
+      "6": "#ffad46",   // 黄色
+      "7": "#42d692",   // 緑
+      "8": "#16a765",   // 濃い緑
+      "9": "#7bd148",   // 明るい緑
+      "10": "#b3dc6c",  // ライムグリーン
+      "11": "#fbe983",  // 薄い黄色
+      "12": "#fbd75b",  // 黄色
+      "13": "#7ae7bf",  // ミントグリーン
+      "14": "#51b749",  // 緑
+      "15": "#46d6db",  // シアン
+      "16": "#4a86e8",  // 青
+      "17": "#a4bdfc",  // 薄い青
+      "18": "#5484ed",  // 濃い青
+      "19": "#755aca",  // 紫
+      "20": "#af38eb",  // 濃い紫
+      "21": "#dbadff",  // 薄い紫
+      "22": "#e1e1e1",  // グレー
+      "23": "#b99aff",  // ラベンダー
+      "24": "#f691b2",  // ピンク
+    ]
+    
+    return colorMap[colorId]
+  }
+
   static func deleteEvent(
     accessToken: String,
     calendarId: String,

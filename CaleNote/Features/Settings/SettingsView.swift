@@ -84,62 +84,41 @@ struct SettingsView: View {
                         }
                     } else {
                         ForEach(calendarsPrimaryFirst) { cal in
-                            Toggle(
-                                isOn: Binding(
-                                    get: { cal.isEnabled },
-                                    set: { newValue in
-                                        // 変更後の有効カレンダー数をチェック
-                                        let currentEnabledCount = calendars.filter { $0.isEnabled }
-                                            .count
-                                        // calが現在有効でnewValueがfalseの場合、1減る
-                                        // calが現在無効でnewValueがtrueの場合、1増える
-                                        let willBeEnabledCount =
-                                            currentEnabledCount
-                                            + (newValue
-                                                ? (cal.isEnabled ? 0 : 1)
-                                                : (cal.isEnabled ? -1 : 0))
-
-                                        // 最後の一つをOFFにしようとした場合は拒否
-                                        if willBeEnabledCount == 0 {
-                                            errorMessage = "表示するカレンダーは最低1つ必要です"
-                                            return
-                                        }
-
-                                        // 変更前の書き込みカレンダーIDを保存
-                                        let previousWriteCalendarId =
-                                            writeCalendarId
-                                            ?? defaultWriteCalendarId(
-                                                from: calendars.filter { $0.isEnabled })
-
-                                        // カレンダーの状態を更新
-                                        cal.isEnabled = newValue
-                                        cal.updatedAt = Date()
-                                        try? modelContext.save()
-
-                                        // 書き込みカレンダーが非表示になった場合は自動変更
-                                        let updatedEnabledCalendars = calendars.filter {
-                                            $0.isEnabled
-                                        }
-                                        if !updatedEnabledCalendars.contains(where: {
-                                            $0.calendarId == previousWriteCalendarId
-                                        }) {
-                                            let newWriteCalendarId = defaultWriteCalendarId(
-                                                from: updatedEnabledCalendars)
-                                            writeCalendarId = newWriteCalendarId
-                                            JournalWriteSettings.saveWriteCalendarId(
-                                                newWriteCalendarId)
-                                        }
-
-                                        errorMessage = nil
-                                    }
-                                )
-                            ) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(cal.summary)
-                                    if cal.isPrimary {
-                                        Text("メイン")
+                            NavigationLink {
+                                CalendarSettingsView(calendar: cal)
+                            } label: {
+                                HStack {
+                                    // カラーチップとアイコン
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color(hex: cal.userColorHex)?.opacity(0.2) ?? .blue.opacity(0.2))
+                                            .frame(width: 32, height: 32)
+                                        
+                                        Image(systemName: cal.iconName)
                                             .font(.caption)
+                                            .foregroundStyle(Color(hex: cal.userColorHex) ?? .blue)
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(cal.summary)
+                                        if cal.isPrimary {
+                                            Text("メイン")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    // 表示状態をインジケーターで表示
+                                    if cal.isEnabled {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(.green)
+                                            .font(.caption)
+                                    } else {
+                                        Image(systemName: "circle")
                                             .foregroundStyle(.secondary)
+                                            .font(.caption)
                                     }
                                 }
                             }
@@ -151,88 +130,35 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("ジャーナルの書き込み先") {
-                    let enabledCalendars = calendars.filter { $0.isEnabled }
+                // Section("長期キャッシュ（一括取り込み）") {
+                //     if !isImportingArchive {
+                //         Button {
+                //             archiveTask = Task { await importArchive() }
+                //         } label: {
+                //             Text("表示中の全カレンダーを取り込む")
+                //         }
+                //     } else {
+                //         HStack {
+                //             Button("取り込み中…") {}
+                //                 .disabled(true)
+                //             Spacer()
+                //             Button("キャンセル") {
+                //                 cancelArchiveImport()
+                //             }
+                //             .foregroundStyle(.red)
+                //         }
+                //     }
 
-                    if enabledCalendars.isEmpty {
-                        Text("先に表示するカレンダーを1つ以上ONにしてください。")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Picker(
-                            "書き込み先",
-                            selection: Binding(
-                                get: {
-                                    writeCalendarId
-                                        ?? defaultWriteCalendarId(from: enabledCalendars)
-                                },
-                                set: { newValue in
-                                    writeCalendarId = newValue
-                                    JournalWriteSettings.saveWriteCalendarId(newValue)
-                                }
-                            )
-                        ) {
-                            ForEach(enabledCalendars) { cal in
-                                Text(cal.summary).tag(cal.calendarId)
-                            }
-                        }
-                    }
-                }
+                //     if let archiveProgressText {
+                //         Text(archiveProgressText)
+                //             .font(.caption)
+                //             .foregroundStyle(.secondary)
+                //     }
 
-                Section("カレンダーの色") {
-                    if calendarsPrimaryFirst.isEmpty {
-                        Text("まず一覧を同期してください。")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(calendarsPrimaryFirst) { cal in
-                            NavigationLink {
-                                CalendarColorPickerView(calendar: cal)
-                            } label: {
-                                HStack {
-                                    Text(cal.summary)
-                                    Spacer()
-                                    // カラーチップを表示
-                                    Circle()
-                                        .fill(Color(hex: cal.userColorHex) ?? .blue)
-                                        .frame(width: 24, height: 24)
-                                        .overlay(
-                                            Circle()
-                                                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                                        )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Section("長期キャッシュ") {
-                    if !isImportingArchive {
-                        Button {
-                            archiveTask = Task { await importArchive() }
-                        } label: {
-                            Text("長期キャッシュを取り込む（全期間）")
-                        }
-                    } else {
-                        HStack {
-                            Button("取り込み中…") {}
-                                .disabled(true)
-                            Spacer()
-                            Button("キャンセル") {
-                                cancelArchiveImport()
-                            }
-                            .foregroundStyle(.red)
-                        }
-                    }
-
-                    if let archiveProgressText {
-                        Text(archiveProgressText)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text("過去の振り返り用にカレンダーイベントを端末に保存します。件数が多いと時間がかかります。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                //     Text("表示中の全カレンダーの長期キャッシュを一括で取り込みます。各カレンダーごとの取り込みは、カレンダー設定画面から行えます。")
+                //         .font(.caption)
+                //         .foregroundStyle(.secondary)
+                // }
 
                 Section("同期待ち") {
                     if pendingEntries.isEmpty {

@@ -32,6 +32,14 @@ final class CalendarListSyncService {
           c.summary = item.summary
           c.isPrimary = item.primary
           c.googleColorId = item.colorId
+          
+          // Googleカレンダーのカラーをデフォルトとして設定（userColorHexがデフォルト値の場合）
+          if c.userColorHex == "#3B82F6" || c.userColorHex.isEmpty {
+            if let googleColorHex = GoogleCalendarClient.colorIdToHex(colorId: item.colorId) {
+              c.userColorHex = googleColorHex
+            }
+          }
+          
           // iconNameが空の場合はデフォルト値を設定（既存データのマイグレーション）
           if c.iconName.isEmpty {
             c.iconName = "calendar"
@@ -46,12 +54,20 @@ final class CalendarListSyncService {
           }
           updatedCount += 1
         } else {
+          // 新規カレンダーの場合、Googleカレンダーのカラーをデフォルトとして設定
+          let defaultColorHex: String
+          if let googleColorHex = GoogleCalendarClient.colorIdToHex(colorId: item.colorId) {
+            defaultColorHex = googleColorHex
+          } else {
+            defaultColorHex = "#3B82F6"
+          }
+          
           let new = CachedCalendar(
             calendarId: item.id,
             summary: item.summary,
             isPrimary: item.primary,
             googleColorId: item.colorId,
-            userColorHex: "#3B82F6",
+            userColorHex: defaultColorHex,
             iconName: "calendar",  // デフォルト値
             isEnabled: item.primary,  // 初回はprimaryだけON
             updatedAt: Date()
