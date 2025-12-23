@@ -20,15 +20,13 @@ struct TimelineView: View {
     @State private var searchText: String = ""
     @State private var selectedTag: String? = nil
 
-    // 同期・反映・削除の表示
-    @State private var lastApplyMessage: String?
-    @State private var deleteErrorMessage: String?
+    // Toast表示用
+    @State private var toastMessage: String?
+    @State private var toastType: ToastView.ToastType = .info
 
     // 手動同期用
     @State private var isSyncing: Bool = false
     @State private var lastSyncAt: Date?
-    @State private var syncStatusMessage: String?
-    @State private var syncErrorMessage: String?
 
     // Services（このView内で使えるように用意）
     private let syncService = CalendarSyncService()
@@ -37,7 +35,6 @@ struct TimelineView: View {
 
     // 個別再送状態
     @State private var isResendingIndividual: Bool = false
-    @State private var resendErrorMessage: String?
     @State private var showResendConfirmation: Bool = false
     @State private var entryToResend: JournalEntry?
 
@@ -448,9 +445,11 @@ struct TimelineView: View {
                 modelContext.delete(entry)
                 try modelContext.save()
 
-                deleteErrorMessage = nil
+                toastMessage = "ジャーナルを削除しました"
+                toastType = ToastView.ToastType.success
             } catch {
-                deleteErrorMessage = error.localizedDescription
+                toastMessage = "削除エラー: \(error.localizedDescription)"
+                toastType = ToastView.ToastType.error
             }
         }
     }
@@ -480,9 +479,11 @@ struct TimelineView: View {
                 modelContext.delete(event)
                 try modelContext.save()
 
-                deleteErrorMessage = nil
+                toastMessage = "イベントを削除しました"
+                toastType = ToastView.ToastType.success
             } catch {
-                deleteErrorMessage = error.localizedDescription
+                toastMessage = "削除エラー: \(error.localizedDescription)"
+                toastType = ToastView.ToastType.error
             }
         }
     }
@@ -504,7 +505,6 @@ struct TimelineView: View {
 
         Task {
             isResendingIndividual = true
-            resendErrorMessage = nil
 
             do {
                 let targetCalendarId =
@@ -518,10 +518,11 @@ struct TimelineView: View {
                     modelContext: modelContext
                 )
 
-                resendErrorMessage = nil
-                syncStatusMessage = "再送成功"
+                toastMessage = "再送成功"
+                toastType = ToastView.ToastType.success
             } catch {
-                resendErrorMessage = error.localizedDescription
+                toastMessage = "再送エラー: \(error.localizedDescription)"
+                toastType = ToastView.ToastType.error
             }
 
             isResendingIndividual = false
@@ -532,59 +533,12 @@ struct TimelineView: View {
     var body: some View {
         NavigationStack {
             List {
-                // 同期状態
-                if isSyncing {
-                    Section {
-                        Text(syncStatusMessage ?? "同期中…")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                } else if let status = syncStatusMessage {
-                    Section {
-                        Text(status)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                if let lastSyncAt {
-                    Section {
-                        Text("最終同期: \(lastSyncAt.formatted(date: .abbreviated, time: .shortened))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                if let msg = syncErrorMessage {
-                    Section {
-                        Text("同期エラー: \(msg)")
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                }
-
-                if let msg = deleteErrorMessage {
-                    Section {
-                        Text("削除エラー: \(msg)")
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                }
-
                 if let summary = filterSummaryText {
                     Section {
                         Text(summary)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .padding(.vertical, 4)
-                    }
-                }
-
-                if let msg = lastApplyMessage {
-                    Section {
-                        Text(msg)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -740,19 +694,7 @@ struct TimelineView: View {
                     Text("ジャーナルをカレンダーに再送します。")
                 }
             }
-            .alert(
-                "再送エラー",
-                isPresented: Binding(
-                    get: { resendErrorMessage != nil },
-                    set: { if !$0 { resendErrorMessage = nil } }
-                )
-            ) {
-                Button("OK") {
-                    resendErrorMessage = nil
-                }
-            } message: {
-                Text(resendErrorMessage ?? "不明なエラー")
-            }
+            .toast(message: $toastMessage, type: $toastType, duration: 4.0)
             .task {
                 // 起動時同期（runSyncに統一）
                 await runSync(isManual: false)
@@ -773,15 +715,16 @@ struct TimelineView: View {
         let now = Date()
         if !SyncRateLimiter.canSync(now: now) {
             let remain = SyncRateLimiter.remainingSeconds(now: now)
-            syncStatusMessage = "同期は少し待ってください（あと \(remain) 秒）"
+            toastMessage = "同期は少し待ってください（あと \(remain) 秒）"
+            toastType = ToastView.ToastType.warning
             return
         }
 
         SyncRateLimiter.markSynced(at: Date())
         lastSyncAt = Date()
 
-        syncErrorMessage = nil
-        syncStatusMessage = isManual ? "手動同期中…" : "同期中…"
+        toastMessage = isManual ? "手動同期中…" : "同期中…"
+        toastType = ToastView.ToastType.info
 
         let (timeMin, timeMax) = SyncSettings.windowDates()
 
@@ -799,19 +742,14 @@ struct TimelineView: View {
             let removed = try cleaner.cleanupEventsOutsideWindow(
                 modelContext: modelContext, timeMin: timeMin, timeMax: timeMax)
 
-            syncStatusMessage =
-                "同期完了（更新\(apply.updatedCount) / 削除\(apply.unlinkedCount) / スキップ\(apply.skippedCount) / 競合\(apply.conflictCount) / 掃除\(removed)）"
-
-            // 同期完了メッセージを3秒後にクリア
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 3_000_000_000)  // 3秒
-                if !isSyncing {
-                    syncStatusMessage = nil
-                }
-            }
+            // 最終同期時間を含めたメッセージ
+            let syncTime = lastSyncAt?.formatted(date: .abbreviated, time: .shortened) ?? "不明"
+            toastMessage =
+                "同期完了（更新\(apply.updatedCount) / 削除\(apply.unlinkedCount) / スキップ\(apply.skippedCount) / 競合\(apply.conflictCount) / 掃除\(removed)）\n最終同期: \(syncTime)"
+            toastType = ToastView.ToastType.success
         } catch {
-            syncErrorMessage = error.localizedDescription
-            syncStatusMessage = nil
+            toastMessage = "同期エラー: \(error.localizedDescription)"
+            toastType = ToastView.ToastType.error
         }
     }
 }
