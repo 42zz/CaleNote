@@ -14,64 +14,85 @@ final class JournalCalendarSyncService {
     try await auth.ensureCalendarScopeGranted()
     let token = try await auth.validAccessToken()
 
-    // 予定の長さ（とりあえず1時間）。後でUIで変えればいい
-    let start = entry.eventDate
-    let end =
-      Calendar.current.date(byAdding: .minute, value: 60, to: start)
-      ?? start.addingTimeInterval(3600)
+    // ログ記録開始
+    let syncLog = SyncLog(
+      syncType: "journal_push",
+      calendarIdHash: SyncLog.hashCalendarId(targetCalendarId)
+    )
+    modelContext.insert(syncLog)
 
-    let title = (entry.title?.isEmpty == false) ? entry.title! : "ジャーナル"
-    let description = entry.body
+    do {
+      // 予定の長さ（とりあえず1時間）。後でUIで変えればいい
+      let start = entry.eventDate
+      let end =
+        Calendar.current.date(byAdding: .minute, value: 60, to: start)
+        ?? start.addingTimeInterval(3600)
 
-    let appPrivateProperties: [String: String] = [
-      "app": "calenote",
-      "schema": "1",
-      "journalId": entry.id.uuidString,
-    ]
+      let title = (entry.title?.isEmpty == false) ? entry.title! : "ジャーナル"
+      let description = entry.body
 
-    if let calendarId = entry.linkedCalendarId,
-      let eventId = entry.linkedEventId,
-      calendarId == targetCalendarId
-    {
+      let appPrivateProperties: [String: String] = [
+        "app": "calenote",
+        "schema": "1",
+        "journalId": entry.id.uuidString,
+      ]
 
-      let updated = try await GoogleCalendarClient.updateEvent(
-        accessToken: token,
-        calendarId: calendarId,
-        eventId: eventId,
-        title: title,
-        description: description,
-        start: start,
-        end: end,
-        appPrivateProperties: appPrivateProperties
-      )
+      if let calendarId = entry.linkedCalendarId,
+        let eventId = entry.linkedEventId,
+        calendarId == targetCalendarId
+      {
 
-      // ローカル側の紐付けは維持、失敗フラグを落とす
-      entry.needsCalendarSync = false
-      entry.updatedAt = Date()
+        let updated = try await GoogleCalendarClient.updateEvent(
+          accessToken: token,
+          calendarId: calendarId,
+          eventId: eventId,
+          title: title,
+          description: description,
+          start: start,
+          end: end,
+          appPrivateProperties: appPrivateProperties
+        )
 
-      // ついでにイベントキャッシュも即時更新（同期を待たない）
-      upsertCachedEvent(from: updated, calendarId: calendarId, modelContext: modelContext)
+        // ローカル側の紐付けは維持、失敗フラグを落とす
+        entry.needsCalendarSync = false
+        entry.updatedAt = Date()
 
-    } else {
-      let created = try await GoogleCalendarClient.insertEvent(
-        accessToken: token,
-        calendarId: targetCalendarId,
-        title: title,
-        description: description,
-        start: start,
-        end: end,
-        appPrivateProperties: appPrivateProperties
-      )
+        // ついでにイベントキャッシュも即時更新（同期を待たない）
+        upsertCachedEvent(from: updated, calendarId: calendarId, modelContext: modelContext)
 
-      entry.linkedCalendarId = targetCalendarId
-      entry.linkedEventId = created.id
-      entry.needsCalendarSync = false
-      entry.updatedAt = Date()
+      } else {
+        let created = try await GoogleCalendarClient.insertEvent(
+          accessToken: token,
+          calendarId: targetCalendarId,
+          title: title,
+          description: description,
+          start: start,
+          end: end,
+          appPrivateProperties: appPrivateProperties
+        )
 
-      upsertCachedEvent(from: created, calendarId: targetCalendarId, modelContext: modelContext)
+        entry.linkedCalendarId = targetCalendarId
+        entry.linkedEventId = created.id
+        entry.needsCalendarSync = false
+        entry.updatedAt = Date()
+
+        upsertCachedEvent(from: created, calendarId: targetCalendarId, modelContext: modelContext)
+      }
+
+      // ログ記録（成功）
+      syncLog.endTimestamp = Date()
+      syncLog.updatedCount = 1  // ジャーナル1件を同期
+      syncLog.httpStatusCode = 200
+
+      try modelContext.save()
+    } catch {
+      // ログ記録（エラー）
+      syncLog.endTimestamp = Date()
+      syncLog.errorType = String(describing: type(of: error))
+      syncLog.errorMessage = error.localizedDescription
+      try? modelContext.save()
+      throw error
     }
-
-    try modelContext.save()
   }
 
   private func upsertCachedEvent(

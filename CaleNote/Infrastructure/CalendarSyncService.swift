@@ -3,6 +3,12 @@ import SwiftData
 
 @MainActor
 final class CalendarSyncService {
+
+  struct SyncResult {
+    var updatedCount: Int = 0
+    var deletedCount: Int = 0
+  }
+
   func syncEnabledCalendars(
     auth: GoogleAuthService,
     modelContext: ModelContext,
@@ -37,6 +43,16 @@ final class CalendarSyncService {
     let token = try await auth.validAccessToken()
 
     let existingSyncToken = CalendarSyncState.loadSyncToken(calendarId: calendarId)
+    let isIncremental = existingSyncToken != nil
+
+    // ログ記録開始
+    let syncLog = SyncLog(
+      syncType: isIncremental ? "incremental" : "full",
+      calendarIdHash: SyncLog.hashCalendarId(calendarId)
+    )
+    modelContext.insert(syncLog)
+
+    var had410Fallback = false
 
     do {
       let result = try await GoogleCalendarClient.listEvents(
@@ -47,14 +63,24 @@ final class CalendarSyncService {
         syncToken: existingSyncToken
       )
 
-      applyToCache(events: result.events, calendarId: calendarId, modelContext: modelContext)
+      let counts = applyToCache(events: result.events, calendarId: calendarId, modelContext: modelContext)
 
       if let next = result.nextSyncToken {
         CalendarSyncState.saveSyncToken(next, calendarId: calendarId)
       }
+
+      // ログ記録（成功）
+      syncLog.endTimestamp = Date()
+      syncLog.updatedCount = counts.updatedCount
+      syncLog.deletedCount = counts.deletedCount
+      syncLog.had410Fallback = had410Fallback
+      syncLog.httpStatusCode = 200
+
       try modelContext.save()
 
     } catch CalendarSyncError.syncTokenExpired {
+      had410Fallback = true
+
       clearCache(calendarId: calendarId, modelContext: modelContext)
       CalendarSyncState.saveSyncToken(nil, calendarId: calendarId)
       try modelContext.save()
@@ -67,12 +93,28 @@ final class CalendarSyncService {
         syncToken: nil
       )
 
-      applyToCache(events: result.events, calendarId: calendarId, modelContext: modelContext)
+      let counts = applyToCache(events: result.events, calendarId: calendarId, modelContext: modelContext)
 
       if let next = result.nextSyncToken {
         CalendarSyncState.saveSyncToken(next, calendarId: calendarId)
       }
+
+      // ログ記録（410フォールバック後成功）
+      syncLog.syncType = "full"  // 410エラー後はフル同期に変更
+      syncLog.endTimestamp = Date()
+      syncLog.updatedCount = counts.updatedCount
+      syncLog.deletedCount = counts.deletedCount
+      syncLog.had410Fallback = true
+      syncLog.httpStatusCode = 200
+
       try modelContext.save()
+    } catch {
+      // ログ記録（エラー）
+      syncLog.endTimestamp = Date()
+      syncLog.errorType = String(describing: type(of: error))
+      syncLog.errorMessage = error.localizedDescription
+      try? modelContext.save()
+      throw error
     }
   }
 
@@ -88,6 +130,16 @@ final class CalendarSyncService {
 
     let calendarId = "primary"
     let existingSyncToken = CalendarSyncState.loadSyncToken(calendarId: calendarId)
+    let isIncremental = existingSyncToken != nil
+
+    // ログ記録開始
+    let syncLog = SyncLog(
+      syncType: isIncremental ? "incremental" : "full",
+      calendarIdHash: SyncLog.hashCalendarId(calendarId)
+    )
+    modelContext.insert(syncLog)
+
+    var had410Fallback = false
 
     do {
       let result = try await GoogleCalendarClient.listEvents(
@@ -98,16 +150,25 @@ final class CalendarSyncService {
         syncToken: existingSyncToken
       )
 
-      applyToCache(events: result.events, calendarId: calendarId, modelContext: modelContext)
+      let counts = applyToCache(events: result.events, calendarId: calendarId, modelContext: modelContext)
 
       if let next = result.nextSyncToken {
         CalendarSyncState.saveSyncToken(next, calendarId: calendarId)
       }
 
+      // ログ記録（成功）
+      syncLog.endTimestamp = Date()
+      syncLog.updatedCount = counts.updatedCount
+      syncLog.deletedCount = counts.deletedCount
+      syncLog.had410Fallback = had410Fallback
+      syncLog.httpStatusCode = 200
+
       try modelContext.save()
 
     } catch CalendarSyncError.syncTokenExpired {
-      // 公式推奨: ストレージをクリアしてフル同期やり直し :contentReference[oaicite:4]{index=4}
+      had410Fallback = true
+
+      // 公式推奨: ストレージをクリアしてフル同期やり直し
       clearCache(calendarId: calendarId, modelContext: modelContext)
       CalendarSyncState.saveSyncToken(nil, calendarId: calendarId)
       try modelContext.save()
@@ -121,19 +182,36 @@ final class CalendarSyncService {
         syncToken: nil
       )
 
-      applyToCache(events: result.events, calendarId: calendarId, modelContext: modelContext)
+      let counts = applyToCache(events: result.events, calendarId: calendarId, modelContext: modelContext)
 
       if let next = result.nextSyncToken {
         CalendarSyncState.saveSyncToken(next, calendarId: calendarId)
       }
 
+      // ログ記録（410フォールバック後成功）
+      syncLog.syncType = "full"  // 410エラー後はフル同期に変更
+      syncLog.endTimestamp = Date()
+      syncLog.updatedCount = counts.updatedCount
+      syncLog.deletedCount = counts.deletedCount
+      syncLog.had410Fallback = true
+      syncLog.httpStatusCode = 200
+
       try modelContext.save()
+    } catch {
+      // ログ記録（エラー）
+      syncLog.endTimestamp = Date()
+      syncLog.errorType = String(describing: type(of: error))
+      syncLog.errorMessage = error.localizedDescription
+      try? modelContext.save()
+      throw error
     }
   }
 
   private func applyToCache(
     events: [GoogleCalendarEvent], calendarId: String, modelContext: ModelContext
-  ) {
+  ) -> SyncResult {
+    var result = SyncResult()
+
     for e in events {
       let uid = "\(calendarId):\(e.id)"
 
@@ -145,6 +223,7 @@ final class CalendarSyncService {
 
         // 2) キャッシュも消す（残す必要なし）
         deleteCached(uid: uid, modelContext: modelContext)
+        result.deletedCount += 1
         print("cancelled: \(uid) journalId=\(e.privateProps?["journalId"] ?? "nil")")
         continue
       }
@@ -160,6 +239,7 @@ final class CalendarSyncService {
         cached.updatedAt = e.updated
         cached.cachedAt = Date()
         cached.linkedJournalId = journalId
+        result.updatedCount += 1
       } else {
         let cached = CachedCalendarEvent(
           uid: uid,
@@ -175,8 +255,11 @@ final class CalendarSyncService {
           updatedAt: e.updated,
         )
         modelContext.insert(cached)
+        result.updatedCount += 1
       }
     }
+
+    return result
   }
 
   private func fetchCached(uid: String, modelContext: ModelContext) -> CachedCalendarEvent? {

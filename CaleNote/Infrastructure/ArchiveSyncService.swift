@@ -79,6 +79,13 @@ final class ArchiveSyncService {
             progress.upserted = 0
             progress.deleted = 0
 
+            // ログ記録開始
+            let syncLog = SyncLog(
+                syncType: "archive",
+                calendarIdHash: SyncLog.hashCalendarId(cal.calendarId)
+            )
+            modelContext.insert(syncLog)
+
             // 前回の進捗を復元
             let startIndex = loadProgress(for: cal.calendarId) ?? -1
             if startIndex >= 0 {
@@ -86,55 +93,83 @@ final class ArchiveSyncService {
             }
             onProgress(progress)
 
-            for (index, (timeMin, timeMax)) in ranges.enumerated() {
-                // 既に完了したレンジはスキップ
-                if index <= startIndex {
-                    continue
+            do {
+                for (index, (timeMin, timeMax)) in ranges.enumerated() {
+                    // 既に完了したレンジはスキップ
+                    if index <= startIndex {
+                        continue
+                    }
+
+                    // キャンセルチェック（バッチ開始前）
+                    try Task.checkCancellation()
+
+                    progress.fetchedRanges = index + 1
+                    onProgress(progress)
+
+                    // フル同期として events.list を期間指定で取得（syncTokenは使わない）
+                    let result = try await GoogleCalendarClient.listEvents(
+                        accessToken: token,
+                        calendarId: cal.calendarId,
+                        timeMin: timeMin,
+                        timeMax: timeMax,
+                        syncToken: nil
+                    )
+
+                    // 取得したイベントをアーカイブに反映
+                    let delta = try applyToArchive(
+                        events: result.events,
+                        calendarId: cal.calendarId,
+                        modelContext: modelContext
+                    )
+                    progress.upserted += delta.upserted
+                    progress.deleted += delta.deleted
+                    onProgress(progress)
+
+                    // 端末を守るため、バッチごとに保存
+                    try modelContext.save()
+
+                    // 進捗を保存（このレンジが完了）
+                    saveProgress(calendarId: cal.calendarId, completedRangeIndex: index)
+
+                    // キャンセルチェック（sleep前）
+                    try Task.checkCancellation()
+
+                    // やりすぎ防止の小休止（レート制限の一部）
+                    try await Task.sleep(nanoseconds: 200_000_000) // 0.2s
+
+                    // キャンセルチェック（sleep後）
+                    try Task.checkCancellation()
                 }
 
-                // キャンセルチェック（バッチ開始前）
-                try Task.checkCancellation()
+                // このカレンダーが完了したので進捗をクリア
+                clearProgress(for: cal.calendarId)
 
-                progress.fetchedRanges = index + 1
-                onProgress(progress)
-
-                // フル同期として events.list を期間指定で取得（syncTokenは使わない）
-                let result = try await GoogleCalendarClient.listEvents(
-                    accessToken: token,
-                    calendarId: cal.calendarId,
-                    timeMin: timeMin,
-                    timeMax: timeMax,
-                    syncToken: nil
-                )
-
-                // 取得したイベントをアーカイブに反映
-                let delta = try applyToArchive(
-                    events: result.events,
-                    calendarId: cal.calendarId,
-                    modelContext: modelContext
-                )
-                progress.upserted += delta.upserted
-                progress.deleted += delta.deleted
-                onProgress(progress)
-
-                // 端末を守るため、バッチごとに保存
+                // ログ記録（成功）
+                syncLog.endTimestamp = Date()
+                syncLog.updatedCount = progress.upserted
+                syncLog.deletedCount = progress.deleted
+                syncLog.httpStatusCode = 200
                 try modelContext.save()
 
-                // 進捗を保存（このレンジが完了）
-                saveProgress(calendarId: cal.calendarId, completedRangeIndex: index)
-
-                // キャンセルチェック（sleep前）
-                try Task.checkCancellation()
-
-                // やりすぎ防止の小休止（レート制限の一部）
-                try await Task.sleep(nanoseconds: 200_000_000) // 0.2s
-
-                // キャンセルチェック（sleep後）
-                try Task.checkCancellation()
+            } catch is CancellationError {
+                // ログ記録（キャンセル）
+                syncLog.endTimestamp = Date()
+                syncLog.updatedCount = progress.upserted
+                syncLog.deletedCount = progress.deleted
+                syncLog.errorType = "CancellationError"
+                syncLog.errorMessage = "取り込みがキャンセルされました"
+                try? modelContext.save()
+                throw CancellationError()
+            } catch {
+                // ログ記録（エラー）
+                syncLog.endTimestamp = Date()
+                syncLog.updatedCount = progress.upserted
+                syncLog.deletedCount = progress.deleted
+                syncLog.errorType = String(describing: type(of: error))
+                syncLog.errorMessage = error.localizedDescription
+                try? modelContext.save()
+                throw error
             }
-
-            // このカレンダーが完了したので進捗をクリア
-            clearProgress(for: cal.calendarId)
         }
     }
 

@@ -55,10 +55,12 @@ CaleNote is an iOS journaling app that treats **Google Calendar as the single so
 
 #### Domain Layer (`/CaleNote/Domain/`)
 Core data models with SwiftData persistence:
-- **JournalEntry**: User-created journal entries with sync metadata (`linkedCalendarId`, `linkedEventId`, `needsCalendarSync`)
+- **JournalEntry**: User-created journal entries with sync metadata (`linkedCalendarId`, `linkedEventId`, `needsCalendarSync`) and conflict resolution fields (`hasConflict`, `conflictRemote*`)
 - **CachedCalendarEvent**: Local cache of Google Calendar events with unique ID format `"calendarId:eventId"`
+- **ArchivedCalendarEvent**: Long-term cache of events for historical browsing (2000-01-01 to future 1 year)
 - **CachedCalendar**: Metadata for user's calendars (enabled state, custom colors)
 - **TimelineItem**: Unified view representation for both journals and events
+- **SyncLog**: Developer logging model for debugging sync operations (privacy-conscious: SHA256 hashed calendar IDs, no user content)
 
 #### Infrastructure Layer (`/CaleNote/Infrastructure/`)
 Business logic and external integrations:
@@ -74,12 +76,13 @@ Business logic and external integrations:
   - Date formatting (RFC3339, ISO8601)
 
 **Synchronization Services:**
-- `CalendarSyncService`: Syncs Google Calendar → local cache (CachedCalendarEvent)
-- `JournalCalendarSyncService`: Syncs JournalEntry → Google Calendar events
-- `CalendarToJournalSyncService`: Reflects calendar changes back to linked journals
+- `CalendarSyncService`: Syncs Google Calendar → local cache (CachedCalendarEvent), records sync logs
+- `JournalCalendarSyncService`: Syncs JournalEntry → Google Calendar events, records sync logs
+- `CalendarToJournalSyncService`: Reflects calendar changes back to linked journals, detects conflicts with 30-second tolerance
 - `CalendarListSyncService`: Fetches and caches user's calendar list
 - `CalendarCacheCleaner`: Removes old cached events outside sync window
-- `LongTermCalendarImporter`: (New) Long-term event import functionality
+- `ArchiveSyncService`: Long-term event import with cancellation support and progress persistence
+- `ConflictResolutionService`: Resolves sync conflicts (useLocal/useRemote strategies)
 
 **State Management:**
 - `CalendarSyncState`: Persists syncToken per calendar (UserDefaults)
@@ -110,12 +113,26 @@ SwiftUI views organized by feature:
    - Journal write target calendar selection
    - Sync window configuration
    - Pending sync queue display
+   - Long-term cache import with cancellation support
+   - Hidden developer mode (7 taps on version to enable)
 
 3. **JournalEditorView** (Modal):
    - Create/edit journal entries
    - Title, body content (with tag auto-complete hints)
    - Event date picker
    - Auto-triggers sync to Google Calendar on save
+
+4. **ConflictResolutionView** (Modal):
+   - Side-by-side comparison of local vs calendar version
+   - User selects which version to keep (useLocal/useRemote)
+   - Triggered from JournalDetailView when conflict detected
+
+5. **DeveloperToolsView** (Hidden):
+   - Sync operation logs with timestamps and counts
+   - Privacy-conscious: SHA256 hashed calendar IDs, no user content
+   - JSON export for debugging
+   - Log deletion functionality
+   - Access: 7 taps on version in SettingsView
 
 ## Synchronization Architecture
 
@@ -170,6 +187,16 @@ Updates JournalEntry metadata (event cancelled, title changed, etc.)
 - Google Calendar events store `journalId` in extended properties
 - Bidirectional reference enables sync conflict resolution
 
+### Conflict Detection and Resolution
+- **Detection**: When both local and calendar versions are updated
+  - Requires `linkedEventUpdatedAt` to exist (already synced)
+  - Local `updatedAt` > calendar `updatedAt`
+  - Time difference > 30 seconds (prevents false positives from timestamp drift)
+- **Resolution**: User chooses via ConflictResolutionView
+  - **useLocal**: Re-sync local version to calendar (sets `needsCalendarSync = true`)
+  - **useRemote**: Overwrite local with calendar version
+- **Auto-clear**: Conflict flags cleared when remote changes successfully applied
+
 ## Key Design Patterns
 
 1. **Service Locator:** Services instantiated in views and dependency-injected
@@ -192,7 +219,35 @@ The app uses SwiftData with strict concurrency settings:
 - `SWIFT_APPROACHABLE_CONCURRENCY = YES`
 - `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`
 
-All database models are registered in the model container at app startup (see CaleNoteApp.swift:14-18).
+All database models are registered in the model container at app startup (see CaleNoteApp.swift:14-20).
+
+## Sync Logging for Developers
+
+The app includes a comprehensive sync logging system for debugging and monitoring:
+
+### SyncLog Model
+- **Purpose**: Track all sync operations for debugging
+- **Privacy**: Calendar IDs are SHA256 hashed (first 8 chars only), no user content recorded
+- **Fields**:
+  - `syncType`: "incremental", "full", "archive", "journal_push"
+  - `calendarIdHash`: SHA256 hash of calendar ID (first 8 characters)
+  - `updatedCount`, `deletedCount`, `skippedCount`, `conflictCount`: Result counts
+  - `had410Fallback`: syncToken expired, fell back to full sync
+  - `had429Retry`: Rate limit encountered
+  - `httpStatusCode`, `errorType`, `errorMessage`: Error tracking
+  - `timestamp`, `endTimestamp`: Duration tracking
+
+### Logging Implementation
+All sync services automatically record logs:
+- **CalendarSyncService**: Logs incremental/full syncs, 410 fallback detection
+- **JournalCalendarSyncService**: Logs journal push operations
+- **ArchiveSyncService**: Logs long-term imports, includes cancellation tracking
+- **CalendarToJournalSyncService**: Currently no direct logging (uses CalendarSyncService logs)
+
+### Developer Tools Access
+- Settings → Tap version 7 times → Developer Tools section appears
+- View sync logs, export as JSON, delete all logs
+- Useful for debugging sync issues without compromising user privacy
 
 ## Important Implementation Notes
 
@@ -215,6 +270,15 @@ All database models are registered in the model container at app startup (see Ca
 4. Use `modelContext` for writes
 5. Follow existing patterns for error handling and user feedback
 
+### When Adding Sync Operations
+1. Create `SyncLog` at the start of the operation
+2. Set appropriate `syncType` ("incremental", "full", "archive", "journal_push")
+3. Hash calendar ID using `SyncLog.hashCalendarId()` for privacy
+4. Record counts (`updatedCount`, `deletedCount`, etc.)
+5. Set `endTimestamp` when operation completes
+6. Record errors with `errorType` and `errorMessage` on failure
+7. Never record user content (titles, descriptions) in logs
+
 ### Testing Strategy
 - Unit tests: Use `MockCalendarEventProvider` for test data
 - Test targets: `CaleNoteTests` (unit), `CaleNoteUITests` (UI)
@@ -234,3 +298,40 @@ All database models are registered in the model container at app startup (see Ca
 - OAuth Client ID: `505927366776-2gu092vlu40cj9hg00b40rkdsm1m1vk7.apps.googleusercontent.com`
 - Required scopes: Calendar read/write
 - OAuth callback handled via custom URL scheme (configured in Info.plist)
+
+## Documentation Update Policy
+
+**IMPORTANT**: When making code changes, you MUST update the following documentation files:
+
+### 1. CHANGELOG.md
+Update this file **immediately** after implementing any feature or fix:
+- Add entry under the current version number (or create new version section)
+- Include: date, version, category (Added/Changed/Fixed/Removed)
+- Describe what changed and why
+- Reference affected files and services
+
+### 2. calenote-spec.md
+Update when changes affect user-facing functionality or core architecture:
+- Update relevant sections (機能要件, 画面構成, データモデル, etc.)
+- Increment version number in 更新履歴
+- Keep spec aligned with actual implementation (実装準拠)
+- Document new UI screens, data models, or sync behaviors
+
+### 3. CLAUDE.md (this file)
+Update when changes affect development workflow or architecture:
+- Add new services to Infrastructure layer descriptions
+- Update Features layer when adding new views
+- Add new models to Domain layer
+- Update sync architecture if flow changes
+- Add to "Common Pitfalls" if new gotchas emerge
+
+### Update Checklist for New Features
+When implementing a new feature, update in this order:
+1. ✅ Write code
+2. ✅ Test functionality
+3. ✅ Update CHANGELOG.md (what changed)
+4. ✅ Update calenote-spec.md (user-facing spec)
+5. ✅ Update CLAUDE.md (developer guidance)
+6. ✅ Commit all changes together
+
+**Why this matters**: These docs are the single source of truth for understanding the codebase. Outdated docs lead to confusion, bugs, and wasted developer time.
