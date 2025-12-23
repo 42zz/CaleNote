@@ -60,23 +60,19 @@ final class TimelinePagingState {
         let todayKey = makeDayKey(from: today)
 
         // デバッグ: データベース全体の件数を確認
-        do {
-            let allEventsDescriptor = FetchDescriptor<ArchivedCalendarEvent>()
-            let allEventsCount = (try? modelContext.fetch(allEventsDescriptor).count) ?? 0
-            print("🚀 初期ロード開始: データベース全体のアーカイブイベント数=\(allEventsCount), 有効カレンダー数=\(enabledCalendarIds.count)")
-            
-            if allEventsCount > 0 {
-                // サンプルデータを取得して確認
-                var sampleDescriptor = FetchDescriptor<ArchivedCalendarEvent>()
-                sampleDescriptor.fetchLimit = 5
-                sampleDescriptor.sortBy = [SortDescriptor(\.startDayKey, order: .reverse)]
-                if let samples = try? modelContext.fetch(sampleDescriptor) {
-                    let sampleCalendarIds = Set(samples.map { $0.calendarId })
-                    print("🚀 サンプルカレンダーID: \(sampleCalendarIds)")
-                }
+        let allEventsDescriptor = FetchDescriptor<ArchivedCalendarEvent>()
+        let allEventsCount = (try? modelContext.fetch(allEventsDescriptor).count) ?? 0
+        print("🚀 初期ロード開始: データベース全体のアーカイブイベント数=\(allEventsCount), 有効カレンダー数=\(enabledCalendarIds.count)")
+        
+        if allEventsCount > 0 {
+            // サンプルデータを取得して確認
+            var sampleDescriptor = FetchDescriptor<ArchivedCalendarEvent>()
+            sampleDescriptor.fetchLimit = 5
+            sampleDescriptor.sortBy = [SortDescriptor(\.startDayKey, order: .reverse)]
+            if let samples = try? modelContext.fetch(sampleDescriptor) {
+                let sampleCalendarIds = Set(samples.map { $0.calendarId })
+                print("🚀 サンプルカレンダーID: \(sampleCalendarIds)")
             }
-        } catch {
-            print("🚀 データベース確認エラー: \(error.localizedDescription)")
         }
 
         do {
@@ -96,23 +92,21 @@ final class TimelinePagingState {
                 enabledCalendarIds: enabledCalendarIds
             )
 
-            // バックグラウンドスレッドで重複排除とソート処理を実行
-            let allEvents = await Task.detached(priority: .userInitiated) {
-                // 統合
-                var combined = futureEvents + pastEvents
-                
-                // 重複排除（UIDでグループ化）
-                var uniqueDict: [String: ArchivedCalendarEvent] = [:]
-                for event in combined {
-                    if uniqueDict[event.uid] == nil {
-                        uniqueDict[event.uid] = event
-                    }
+            // 重複排除とソート処理を実行（メインスレッドで処理）
+            // 統合
+            let combined = futureEvents + pastEvents
+            
+            // 重複排除（UIDでグループ化）
+            var uniqueDict: [String: ArchivedCalendarEvent] = [:]
+            for event in combined {
+                if uniqueDict[event.uid] == nil {
+                    uniqueDict[event.uid] = event
                 }
-                
-                // ソート（降順）
-                let uniqueEvents = Array(uniqueDict.values)
-                return uniqueEvents.sorted { $0.startDayKey > $1.startDayKey }
-            }.value
+            }
+            
+            // ソート（降順）
+            let uniqueEvents = Array(uniqueDict.values)
+            let allEvents = uniqueEvents.sorted { $0.startDayKey > $1.startDayKey }
 
             loadedArchivedEvents = allEvents
 
@@ -196,42 +190,39 @@ final class TimelinePagingState {
             }
             
             if !newEvents.isEmpty {
-                // バックグラウンドスレッドで重複排除とマージ処理を実行
+                // 重複排除とマージ処理を実行（メインスレッドで処理）
                 let existingEvents = loadedArchivedEvents
-                let mergedEvents = await Task.detached(priority: .userInitiated) {
-                    // 既存イベントのUID集合を作成（重複チェック用）
-                    let existingUidSet = Set(existingEvents.map { $0.uid })
-                    
-                    // 新しいイベントから重複を除外
-                    let uniqueNewEvents = newEvents.filter { !existingUidSet.contains($0.uid) }
-                    
-                    // 既存配列と新しいイベントをマージ（既にソート済みなので効率的にマージ）
-                    var merged: [ArchivedCalendarEvent] = []
-                    merged.reserveCapacity(existingEvents.count + uniqueNewEvents.count)
-                    
-                    // 既存配列は既に降順ソート済み、新しいイベントも降順ソート済みなので、マージソートを使用
-                    var existingIndex = 0
-                    var newIndex = 0
-                    
-                    while existingIndex < existingEvents.count && newIndex < uniqueNewEvents.count {
-                        if existingEvents[existingIndex].startDayKey > uniqueNewEvents[newIndex].startDayKey {
-                            merged.append(existingEvents[existingIndex])
-                            existingIndex += 1
-                        } else {
-                            merged.append(uniqueNewEvents[newIndex])
-                            newIndex += 1
-                        }
-                    }
-                    
-                    // 残りを追加
-                    merged.append(contentsOf: existingEvents[existingIndex...])
-                    merged.append(contentsOf: uniqueNewEvents[newIndex...])
-                    
-                    return merged
-                }.value
                 
-                // メインスレッドで状態を更新
-                loadedArchivedEvents = mergedEvents
+                // 既存イベントのUID集合を作成（重複チェック用）
+                let existingUidSet = Set(existingEvents.map { $0.uid })
+                
+                // 新しいイベントから重複を除外
+                let uniqueNewEvents = newEvents.filter { !existingUidSet.contains($0.uid) }
+                
+                // 既存配列と新しいイベントをマージ（既にソート済みなので効率的にマージ）
+                var merged: [ArchivedCalendarEvent] = []
+                merged.reserveCapacity(existingEvents.count + uniqueNewEvents.count)
+                
+                // 既存配列は既に降順ソート済み、新しいイベントも降順ソート済みなので、マージソートを使用
+                var existingIndex = 0
+                var newIndex = 0
+                
+                while existingIndex < existingEvents.count && newIndex < uniqueNewEvents.count {
+                    if existingEvents[existingIndex].startDayKey > uniqueNewEvents[newIndex].startDayKey {
+                        merged.append(existingEvents[existingIndex])
+                        existingIndex += 1
+                    } else {
+                        merged.append(uniqueNewEvents[newIndex])
+                        newIndex += 1
+                    }
+                }
+                
+                // 残りを追加
+                merged.append(contentsOf: existingEvents[existingIndex...])
+                merged.append(contentsOf: uniqueNewEvents[newIndex...])
+                
+                // 状態を更新
+                loadedArchivedEvents = merged
 
                 // 境界キーを更新
                 if let earliest = newEvents.min(by: { $0.startDayKey < $1.startDayKey }) {
@@ -273,42 +264,39 @@ final class TimelinePagingState {
             }
             
             if !newEvents.isEmpty {
-                // バックグラウンドスレッドで重複排除とマージ処理を実行
+                // 重複排除とマージ処理を実行（メインスレッドで処理）
                 let existingEvents = loadedArchivedEvents
-                let mergedEvents = await Task.detached(priority: .userInitiated) {
-                    // 既存イベントのUID集合を作成（重複チェック用）
-                    let existingUidSet = Set(existingEvents.map { $0.uid })
-                    
-                    // 新しいイベントから重複を除外
-                    let uniqueNewEvents = newEvents.filter { !existingUidSet.contains($0.uid) }
-                    
-                    // 既存配列と新しいイベントをマージ（既にソート済みなので効率的にマージ）
-                    var merged: [ArchivedCalendarEvent] = []
-                    merged.reserveCapacity(existingEvents.count + uniqueNewEvents.count)
-                    
-                    // 既存配列は既に降順ソート済み、新しいイベントも降順ソート済みなので、マージソートを使用
-                    var existingIndex = 0
-                    var newIndex = 0
-                    
-                    while existingIndex < existingEvents.count && newIndex < uniqueNewEvents.count {
-                        if existingEvents[existingIndex].startDayKey > uniqueNewEvents[newIndex].startDayKey {
-                            merged.append(existingEvents[existingIndex])
-                            existingIndex += 1
-                        } else {
-                            merged.append(uniqueNewEvents[newIndex])
-                            newIndex += 1
-                        }
-                    }
-                    
-                    // 残りを追加
-                    merged.append(contentsOf: existingEvents[existingIndex...])
-                    merged.append(contentsOf: uniqueNewEvents[newIndex...])
-                    
-                    return merged
-                }.value
                 
-                // メインスレッドで状態を更新
-                loadedArchivedEvents = mergedEvents
+                // 既存イベントのUID集合を作成（重複チェック用）
+                let existingUidSet = Set(existingEvents.map { $0.uid })
+                
+                // 新しいイベントから重複を除外
+                let uniqueNewEvents = newEvents.filter { !existingUidSet.contains($0.uid) }
+                
+                // 既存配列と新しいイベントをマージ（既にソート済みなので効率的にマージ）
+                var merged: [ArchivedCalendarEvent] = []
+                merged.reserveCapacity(existingEvents.count + uniqueNewEvents.count)
+                
+                // 既存配列は既に降順ソート済み、新しいイベントも降順ソート済みなので、マージソートを使用
+                var existingIndex = 0
+                var newIndex = 0
+                
+                while existingIndex < existingEvents.count && newIndex < uniqueNewEvents.count {
+                    if existingEvents[existingIndex].startDayKey > uniqueNewEvents[newIndex].startDayKey {
+                        merged.append(existingEvents[existingIndex])
+                        existingIndex += 1
+                    } else {
+                        merged.append(uniqueNewEvents[newIndex])
+                        newIndex += 1
+                    }
+                }
+                
+                // 残りを追加
+                merged.append(contentsOf: existingEvents[existingIndex...])
+                merged.append(contentsOf: uniqueNewEvents[newIndex...])
+                
+                // 状態を更新
+                loadedArchivedEvents = merged
 
                 // 境界キーを更新
                 if let latest = newEvents.max(by: { $0.startDayKey < $1.startDayKey }) {

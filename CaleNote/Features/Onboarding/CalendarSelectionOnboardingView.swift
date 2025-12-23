@@ -68,7 +68,7 @@ struct CalendarSelectionOnboardingView: View {
                 let descriptor = FetchDescriptor<CachedCalendar>(
                     sortBy: [SortDescriptor(\.summary, order: .forward)]
                 )
-                var dbCalendars = (try? modelContext.fetch(descriptor)) ?? []
+                let dbCalendars = (try? modelContext.fetch(descriptor)) ?? []
                 
                 // データベースにカレンダーがない場合は再同期を試みる
                 if dbCalendars.isEmpty {

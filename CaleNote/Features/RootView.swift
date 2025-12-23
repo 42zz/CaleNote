@@ -9,6 +9,7 @@ struct RootView: View {
 
     @State private var needsOnboarding = true
     @State private var isCheckingOnboarding = true
+    @State private var selectedTab: Int = 0
 
     var body: some View {
         Group {
@@ -24,13 +25,15 @@ struct RootView: View {
                 .environmentObject(auth)
             } else {
                 // 通常のTabView
-                TabView {
-                    TimelineView()
+                TabView(selection: $selectedTab) {
+                    TimelineView(selectedTab: $selectedTab)
                         .tabItem { Label("メイン", systemImage: "list.bullet") }
+                        .tag(0)
                         .environmentObject(auth)
 
                     SettingsView()
                         .tabItem { Label("設定", systemImage: "gearshape") }
+                        .tag(1)
                         .environmentObject(auth)
                 }
             }
