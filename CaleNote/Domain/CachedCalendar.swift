@@ -13,6 +13,9 @@ final class CachedCalendar {
   // あなたの「ユーザーが選んだ表示色」
   var userColorHex: String
 
+  // あなたの「ユーザーが選んだアイコン」
+  var iconName: String
+
   // 表示ON/OFF（端末内だけ）
   var isEnabled: Bool
 
@@ -24,6 +27,7 @@ final class CachedCalendar {
     isPrimary: Bool,
     googleColorId: String? = nil,
     userColorHex: String = "#3B82F6",
+    iconName: String = "calendar",
     isEnabled: Bool = false,
     updatedAt: Date = Date()
   ) {
@@ -32,6 +36,7 @@ final class CachedCalendar {
     self.isPrimary = isPrimary
     self.googleColorId = googleColorId
     self.userColorHex = userColorHex
+    self.iconName = iconName
     self.isEnabled = isEnabled
     self.updatedAt = updatedAt
   }

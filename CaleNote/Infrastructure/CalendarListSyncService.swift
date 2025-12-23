@@ -32,6 +32,10 @@ final class CalendarListSyncService {
           c.summary = item.summary
           c.isPrimary = item.primary
           c.googleColorId = item.colorId
+          // iconNameが空の場合はデフォルト値を設定（既存データのマイグレーション）
+          if c.iconName.isEmpty {
+            c.iconName = "calendar"
+          }
           c.updatedAt = Date()
 
           // 初回だけ primary を自動ONにする（好み）
@@ -48,6 +52,7 @@ final class CalendarListSyncService {
             isPrimary: item.primary,
             googleColorId: item.colorId,
             userColorHex: "#3B82F6",
+            iconName: "calendar",  // デフォルト値
             isEnabled: item.primary,  // 初回はprimaryだけON
             updatedAt: Date()
           )

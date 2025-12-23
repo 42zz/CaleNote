@@ -41,6 +41,10 @@ struct TimelineView: View {
     @State private var showResendConfirmation: Bool = false
     @State private var entryToResend: JournalEntry?
 
+    // デフォルト値（統一カードの視覚的整合性のため）
+    private let defaultColorHex: String = "#3B82F6"  // ミュートブルー
+    private let defaultIconName: String = "calendar"
+
     // 最近使ったタグ（上位）
     private var recentTagStats: [TagStat] {
         let stats = buildTagStats(from: entries)
@@ -137,39 +141,68 @@ struct TimelineView: View {
 
     private func journalItems(from entries: [JournalEntry]) -> [TimelineItem] {
         entries.map { entry in
-            TimelineItem(
+            // colorHexはエントリ固有、iconNameは所属カレンダー（linkedCalendarId）の設定を反映
+            let colorHex = entry.colorHex.isEmpty ? defaultColorHex : entry.colorHex
+            
+            // linkedCalendarIdからカレンダーを取得してiconNameを決定
+            let iconName: String
+            if let linkedCalendarId = entry.linkedCalendarId,
+               let calendar = cachedCalendars.first(where: { $0.calendarId == linkedCalendarId }) {
+                iconName = calendar.iconName.isEmpty ? defaultIconName : calendar.iconName
+            } else {
+                // エントリ固有のiconNameを使用、なければデフォルト
+                iconName = entry.iconName.isEmpty ? defaultIconName : entry.iconName
+            }
+            
+            return TimelineItem(
                 id: "journal-\(entry.id.uuidString)",
                 kind: .journal,
                 title: entry.title?.isEmpty == false ? entry.title! : "（タイトルなし）",
                 body: entry.body,
                 date: entry.eventDate,
-                sourceId: entry.id.uuidString
+                sourceId: entry.id.uuidString,
+                colorHex: colorHex,
+                iconName: iconName
             )
         }
     }
 
     private func calendarItems(from cached: [CachedCalendarEvent]) -> [TimelineItem] {
         cached.map { e in
-            TimelineItem(
+            // CachedCalendarのcolorHex/iconNameを確実に反映
+            let calendar = cachedCalendars.first(where: { $0.calendarId == e.calendarId })
+            let colorHex = calendar?.userColorHex ?? defaultColorHex
+            let iconName = calendar?.iconName ?? defaultIconName
+            
+            return TimelineItem(
                 id: "calendar-\(e.uid)",
                 kind: .calendar,
                 title: e.title,
                 body: e.desc,
                 date: e.start,
-                sourceId: e.uid
+                sourceId: e.uid,
+                colorHex: colorHex,
+                iconName: iconName
             )
         }
     }
 
     private func archivedItems(from archived: [ArchivedCalendarEvent]) -> [TimelineItem] {
         archived.map { e in
-            TimelineItem(
+            // CachedCalendarのcolorHex/iconNameを確実に反映
+            let calendar = cachedCalendars.first(where: { $0.calendarId == e.calendarId })
+            let colorHex = calendar?.userColorHex ?? defaultColorHex
+            let iconName = calendar?.iconName ?? defaultIconName
+            
+            return TimelineItem(
                 id: "archived-\(e.uid)",
                 kind: .calendar,
                 title: e.title,
                 body: e.desc,
                 date: e.start,
-                sourceId: e.uid
+                sourceId: e.uid,
+                colorHex: colorHex,
+                iconName: iconName
             )
         }
     }

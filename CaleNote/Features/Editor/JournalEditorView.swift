@@ -82,7 +82,7 @@ struct JournalEditorView: View {
                     }
                 }
 
-                Section("本文（必須）") {
+                Section("本文") {
                     Text("本文に #タグ を含めると、タグとして扱います。例: #振り返り #SwiftUI")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -126,13 +126,6 @@ struct JournalEditorView: View {
         saveErrorMessage = nil
         errorMessage = nil
 
-        let trimmedBody = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedBody.isEmpty {
-            errorMessage = "本文は必須です。"
-            isSaving = false
-            return
-        }
-
         let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let finalTitle = normalizedTitle.isEmpty ? nil : normalizedTitle
 
@@ -145,12 +138,18 @@ struct JournalEditorView: View {
             targetEntry.eventDate = eventDate
             targetEntry.updatedAt = Date()
         } else {
+            // 新規作成時：作成先カレンダーの色を設定
+            let calendarColorHex = targetCalendar?.userColorHex ?? "#3B82F6"
+            let calendarIconName = targetCalendar?.iconName ?? "calendar"
+            
             let newEntry = JournalEntry(
                 title: finalTitle,
                 body: trimmedBody,
                 eventDate: eventDate,
                 createdAt: Date(),
-                updatedAt: Date()
+                updatedAt: Date(),
+                colorHex: calendarColorHex,
+                iconName: calendarIconName
             )
             modelContext.insert(newEntry)
             targetEntry = newEntry

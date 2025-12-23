@@ -5,14 +5,25 @@
 ## [0.9] - 2025-12-23
 
 ### 追加機能
-- ジャーナル編集画面に書き込み先カレンダー表示機能を追加（ナビゲーションバーに小さく表示）
+- ジャーナル編集画面に書き込み先カレンダー表示機能を追加（「基本」セクションのヘッダー右側に表示）
+- 統一カードの視覚的整合性を強化（色・アイコンの反映）
 
 ### 変更内容
 - `JournalEditorView`に書き込み先カレンダー情報を表示
   - 既存エントリ: `linkedCalendarId`から該当カレンダーを表示
   - 新規作成時: `JournalWriteSettings`の選択値を表示
   - カレンダー名、色、アイコンを表示
-  - ナビゲーションバーのタイトル右側に小さく表示
+  - 「基本」セクションのヘッダー右側に小さく表示
+- `TimelineItem`に`colorHex`と`iconName`を追加
+- `CachedCalendar`に`iconName`を追加（デフォルト値: "calendar"）
+- `TimelineView`のタイムライン項目生成時に色・アイコンを設定
+  - カレンダーイベント: `CachedCalendar`の`userColorHex`/`iconName`を反映
+  - ジャーナル: `colorHex`はエントリ固有、`iconName`は所属カレンダー（`linkedCalendarId`）の設定を反映
+- `TimelineRowView`で色・アイコンを表示
+  - 背景色、アイコン、サブテキスト（時間）の整合を確保
+  - 統一カードの視覚的整合性を維持
+- デフォルト値の統一（ミュートブルー: "#3B82F6", アイコン: "calendar"）
+- `CalendarListSyncService`で既存カレンダー更新時に`iconName`が空の場合はデフォルト値を設定
 
 ---
 

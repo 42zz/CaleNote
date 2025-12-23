@@ -13,35 +13,53 @@ struct TimelineRowView: View {
   // 同期バッジタップ時のコールバック
   let onSyncBadgeTap: (() -> Void)?
 
+  // 表示色（統一カードの視覚的整合性のため）
+  private var displayColor: Color {
+    if let color = Color(hex: item.colorHex) {
+      return color
+    }
+    // デフォルト値（ミュートブルー）
+    return Color(hex: "#3B82F6") ?? .blue
+  }
+
   var body: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      HStack {
-        Text(item.title)
-          .font(.headline)
+    HStack(spacing: 12) {
+      // アイコン（背景色とアイコン色で統一）
+      ZStack {
+        Circle()
+          .fill(displayColor.opacity(0.2))
+          .frame(width: 40, height: 40)
 
-        if item.kind == .calendar {
+        Image(systemName: item.iconName)
+          .font(.title3)
+          .foregroundStyle(displayColor)
+      }
+
+      // コンテンツ
+      VStack(alignment: .leading, spacing: 6) {
+        HStack {
+          Text(item.title)
+            .font(.headline)
+
           Spacer()
-          Image(systemName: "calendar")
-            .foregroundStyle(.secondary)
+
+          // 同期状態バッジ（ジャーナルのみ）
+          if item.kind == .journal, let entry = journalEntry {
+            syncStatusBadge(for: entry)
+          }
         }
-      }
 
-      if let bodyText = item.body, !bodyText.isEmpty {
-        Text(bodyText)
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-          .lineLimit(2)
-      }
+        if let bodyText = item.body, !bodyText.isEmpty {
+          Text(bodyText)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+        }
 
-      HStack(spacing: 6) {
+        // サブテキスト（時間・場所の整合）
         Text(item.date, style: .time)
           .font(.caption)
           .foregroundStyle(.secondary)
-
-        // 同期状態バッジ（ジャーナルのみ）
-        if item.kind == .journal, let entry = journalEntry {
-          syncStatusBadge(for: entry)
-        }
       }
     }
     .padding(.vertical, 6)

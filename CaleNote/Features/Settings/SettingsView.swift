@@ -185,9 +185,14 @@ struct SettingsView: View {
                                 HStack {
                                     Text(cal.summary)
                                     Spacer()
-                                    Text(cal.userColorHex)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                    // カラーチップを表示
+                                    Circle()
+                                        .fill(Color(hex: cal.userColorHex) ?? .blue)
+                                        .frame(width: 24, height: 24)
+                                        .overlay(
+                                            Circle()
+                                                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                                        )
                                 }
                             }
                         }
@@ -288,7 +293,7 @@ struct SettingsView: View {
                     HStack {
                         Text("バージョン")
                         Spacer()
-                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
+                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.9")
                             .foregroundStyle(.secondary)
                     }
                     .contentShape(Rectangle())

@@ -14,11 +14,27 @@ struct CalendarColorPickerView: View {
   var body: some View {
     List {
       ForEach(palette, id: \.self) { hex in
-        HStack {
+        HStack(spacing: 12) {
+          // カラーチップ
+          Circle()
+            .fill(Color(hex: hex) ?? .blue)
+            .frame(width: 32, height: 32)
+            .overlay(
+              Circle()
+                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+            )
+          
+          // 色コード（参考用）
           Text(hex)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          
           Spacer()
+          
+          // 選択中のチェックマーク
           if calendar.userColorHex == hex {
             Image(systemName: "checkmark")
+              .foregroundStyle(.blue)
           }
         }
         .contentShape(Rectangle())
