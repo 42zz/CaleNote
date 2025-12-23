@@ -72,7 +72,7 @@ final class CalendarToJournalSyncService {
       // 条件：
       // 1. linkedEventUpdatedAtが設定されている（既に同期済み）
       // 2. ローカルの更新時刻がカレンダーより30秒以上新しい（本当の競合）
-      if let linkedUpdatedAt = entry.linkedEventUpdatedAt,
+      if entry.linkedEventUpdatedAt != nil,
          entry.updatedAt > calendarUpdatedAt,
          entry.updatedAt.timeIntervalSince(calendarUpdatedAt) > 30 {
         if !entry.hasConflict {

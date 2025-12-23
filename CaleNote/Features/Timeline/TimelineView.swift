@@ -35,6 +35,12 @@ struct TimelineView: View {
     private let calendarToJournal = CalendarToJournalSyncService()
     private let journalSync = JournalCalendarSyncService()
 
+    // 個別再送状態
+    @State private var isResendingIndividual: Bool = false
+    @State private var resendErrorMessage: String?
+    @State private var showResendConfirmation: Bool = false
+    @State private var entryToResend: JournalEntry?
+
     // 最近使ったタグ（上位）
     private var recentTagStats: [TagStat] {
         let stats = buildTagStats(from: entries)
@@ -288,6 +294,46 @@ struct TimelineView: View {
         }
     }
 
+    private func handleSyncBadgeTap(for entry: JournalEntry) {
+        if entry.hasConflict {
+            // 競合の場合は詳細画面に遷移してもらう（ここでは何もしない）
+            // NavigationLinkが自動的に遷移する
+            return
+        } else if entry.needsCalendarSync {
+            // 同期失敗の場合は確認ダイアログを表示
+            entryToResend = entry
+            showResendConfirmation = true
+        }
+    }
+
+    private func resendIndividualEntry() {
+        guard let entry = entryToResend else { return }
+
+        Task {
+            isResendingIndividual = true
+            resendErrorMessage = nil
+
+            do {
+                let targetCalendarId = entry.linkedCalendarId ?? JournalWriteSettings.loadWriteCalendarId() ?? "primary"
+
+                try await journalSync.syncOne(
+                    entry: entry,
+                    targetCalendarId: targetCalendarId,
+                    auth: auth,
+                    modelContext: modelContext
+                )
+
+                resendErrorMessage = nil
+                syncStatusMessage = "再送成功"
+            } catch {
+                resendErrorMessage = error.localizedDescription
+            }
+
+            isResendingIndividual = false
+            entryToResend = nil
+        }
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -435,7 +481,10 @@ struct TimelineView: View {
                                     TimelineRowView(
                                         item: item,
                                         journalEntry: entry,
-                                        onDeleteJournal: nil
+                                        onDeleteJournal: nil,
+                                        onSyncBadgeTap: entry != nil ? {
+                                            handleSyncBadgeTap(for: entry!)
+                                        } : nil
                                     )
                                 }
                                 .swipeActions(edge: .trailing) {
@@ -477,6 +526,30 @@ struct TimelineView: View {
             }
             .sheet(isPresented: $isPresentingEditor) {
                 JournalEditorView()
+            }
+            .alert("再送しますか？", isPresented: $showResendConfirmation) {
+                Button("キャンセル", role: .cancel) {
+                    entryToResend = nil
+                }
+                Button("再送") {
+                    resendIndividualEntry()
+                }
+            } message: {
+                if let entry = entryToResend {
+                    Text("「\(entry.title ?? "無題")」をカレンダーに再送します。")
+                } else {
+                    Text("ジャーナルをカレンダーに再送します。")
+                }
+            }
+            .alert("再送エラー", isPresented: Binding(
+                get: { resendErrorMessage != nil },
+                set: { if !$0 { resendErrorMessage = nil } }
+            )) {
+                Button("OK") {
+                    resendErrorMessage = nil
+                }
+            } message: {
+                Text(resendErrorMessage ?? "不明なエラー")
             }
             .task {
                 // 起動時同期（runSyncに統一）

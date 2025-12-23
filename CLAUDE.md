@@ -310,7 +310,7 @@ Update this file **immediately** after implementing any feature or fix:
 - Describe what changed and why
 - Reference affected files and services
 
-### 2. calenote-spec.md
+### 2. README.md
 Update when changes affect user-facing functionality or core architecture:
 - Update relevant sections (機能要件, 画面構成, データモデル, etc.)
 - Increment version number in 更新履歴
@@ -330,7 +330,7 @@ When implementing a new feature, update in this order:
 1. ✅ Write code
 2. ✅ Test functionality
 3. ✅ Update CHANGELOG.md (what changed)
-4. ✅ Update calenote-spec.md (user-facing spec)
+4. ✅ Update README.md (user-facing spec)
 5. ✅ Update CLAUDE.md (developer guidance)
 6. ✅ Commit all changes together
 

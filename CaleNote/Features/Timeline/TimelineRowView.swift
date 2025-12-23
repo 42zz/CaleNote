@@ -10,18 +10,14 @@ struct TimelineRowView: View {
   // 削除処理（必要なら）
   let onDeleteJournal: (() -> Void)?
 
+  // 同期バッジタップ時のコールバック
+  let onSyncBadgeTap: (() -> Void)?
+
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack {
         Text(item.title)
           .font(.headline)
-
-        // 競合バッジ
-        if item.kind == .journal, let entry = journalEntry, entry.hasConflict {
-          Image(systemName: "exclamationmark.triangle.fill")
-            .foregroundStyle(.orange)
-            .font(.caption)
-        }
 
         if item.kind == .calendar {
           Spacer()
@@ -37,9 +33,16 @@ struct TimelineRowView: View {
           .lineLimit(2)
       }
 
-      Text(item.date, style: .time)
-        .font(.caption)
-        .foregroundStyle(.secondary)
+      HStack(spacing: 6) {
+        Text(item.date, style: .time)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        // 同期状態バッジ（ジャーナルのみ）
+        if item.kind == .journal, let entry = journalEntry {
+          syncStatusBadge(for: entry)
+        }
+      }
     }
     .padding(.vertical, 6)
     .swipeActions(edge: .trailing) {
@@ -50,6 +53,33 @@ struct TimelineRowView: View {
           Label("削除", systemImage: "trash")
         }
       }
+    }
+  }
+
+  @ViewBuilder
+  private func syncStatusBadge(for entry: JournalEntry) -> some View {
+    // 優先順位: 競合 > 失敗 > 同期済み
+    if entry.hasConflict {
+      // 競合バッジ
+      Image(systemName: "exclamationmark.triangle.fill")
+        .foregroundStyle(.orange)
+        .font(.caption)
+        .onTapGesture {
+          onSyncBadgeTap?()
+        }
+    } else if entry.needsCalendarSync {
+      // 同期失敗バッジ
+      Image(systemName: "exclamationmark.circle.fill")
+        .foregroundStyle(.yellow)
+        .font(.caption)
+        .onTapGesture {
+          onSyncBadgeTap?()
+        }
+    } else if entry.linkedCalendarId != nil {
+      // 同期済みバッジ
+      Image(systemName: "arrow.triangle.2.circlepath")
+        .foregroundStyle(.blue)
+        .font(.caption)
     }
   }
 }

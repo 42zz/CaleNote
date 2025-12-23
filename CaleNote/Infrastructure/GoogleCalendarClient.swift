@@ -7,7 +7,7 @@ struct RetryStrategy {
     let maxWaitTime: Double  // 秒
     let baseDelay: Double  // 秒
 
-    static let `default` = RetryStrategy(
+    nonisolated static let `default` = RetryStrategy(
         maxRetries: 5,
         maxWaitTime: 60.0,
         baseDelay: 1.0

@@ -47,15 +47,15 @@ struct ArchivedCalendarEventDetailView: View {
                 }
 
                 // アーカイブ表示のバッジ
-                HStack {
-                    Label("長期キャッシュ", systemImage: "archivebox.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.secondary.opacity(0.1))
-                        .cornerRadius(8)
-                }
+                // HStack {
+                //     Label("長期キャッシュ", systemImage: "archivebox.fill")
+                //         .font(.caption)
+                //         .foregroundStyle(.secondary)
+                //         .padding(.horizontal, 8)
+                //         .padding(.vertical, 4)
+                //         .background(Color.secondary.opacity(0.1))
+                //         .cornerRadius(8)
+                // }
 
                 // 日時セクション
                 VStack(alignment: .leading, spacing: 8) {

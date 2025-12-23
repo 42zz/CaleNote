@@ -194,6 +194,43 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("同期待ち") {
+                    if pendingEntries.isEmpty {
+                        Text("同期待ちのジャーナルはありません")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("\(pendingEntries.count)件の同期待ちがあります")
+                            .foregroundStyle(.orange)
+
+                        Button {
+                            Task { await resendAll() }
+                        } label: {
+                            Text("まとめて再送")
+                        }
+
+                        ForEach(pendingEntries.prefix(5)) { entry in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(entry.title ?? "無題")
+                                        .font(.subheadline)
+                                    Text(entry.eventDate, style: .date)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .foregroundStyle(.yellow)
+                            }
+                        }
+
+                        if pendingEntries.count > 5 {
+                            Text("他\(pendingEntries.count - 5)件")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
                 Section("長期キャッシュ") {
                     if !isImportingArchive {
                         Button {

@@ -233,14 +233,17 @@ final class CalendarSyncService {
           deleteJournalIfExists(journalId: journalId, modelContext: modelContext)
         }
 
-        // 2) キャッシュも消す（残す必要なし）
+        // 2) キャッシュも消す（短期・長期両方）
         deleteCached(uid: uid, modelContext: modelContext)
+        deleteArchived(uid: uid, modelContext: modelContext)
         result.deletedCount += 1
         print("cancelled: \(uid) journalId=\(e.privateProps?["journalId"] ?? "nil")")
         continue
       }
 
       let journalId = e.privateProps?["journalId"]
+
+      // 短期キャッシュの更新
       if let cached = fetchCached(uid: uid, modelContext: modelContext) {
         cached.title = e.title
         cached.desc = e.description
@@ -269,6 +272,16 @@ final class CalendarSyncService {
         modelContext.insert(cached)
         result.updatedCount += 1
       }
+
+      // 長期キャッシュも同時に更新（存在する場合のみ）
+      updateArchivedIfExists(
+        uid: uid,
+        calendarId: calendarId,
+        eventId: e.id,
+        journalId: journalId,
+        event: e,
+        modelContext: modelContext
+      )
     }
 
     return result
@@ -303,6 +316,46 @@ final class CalendarSyncService {
 
     if let entry = try? modelContext.fetch(d).first {
       modelContext.delete(entry)
+    }
+  }
+
+  private func deleteArchived(uid: String, modelContext: ModelContext) {
+    let predicate = #Predicate<ArchivedCalendarEvent> { $0.uid == uid }
+    let descriptor = FetchDescriptor(predicate: predicate)
+    if let target = try? modelContext.fetch(descriptor).first {
+      modelContext.delete(target)
+    }
+  }
+
+  private func updateArchivedIfExists(
+    uid: String,
+    calendarId: String,
+    eventId: String,
+    journalId: String?,
+    event: GoogleCalendarEvent,
+    modelContext: ModelContext
+  ) {
+    let predicate = #Predicate<ArchivedCalendarEvent> { $0.uid == uid }
+    let descriptor = FetchDescriptor(predicate: predicate)
+
+    if let archived = try? modelContext.fetch(descriptor).first {
+      // 長期キャッシュが存在する場合は更新
+      archived.title = event.title
+      archived.desc = event.description
+      archived.start = event.start
+      archived.end = event.end
+      archived.isAllDay = event.isAllDay
+      archived.status = event.status
+      archived.updatedAt = event.updated
+      archived.cachedAt = Date()
+      archived.linkedJournalId = journalId
+
+      // startDayKeyも更新（日付が変更された可能性があるため）
+      let calendar = Calendar.current
+      let components = calendar.dateComponents([.year, .month, .day], from: event.start)
+      if let year = components.year, let month = components.month, let day = components.day {
+        archived.startDayKey = year * 10000 + month * 100 + day
+      }
     }
   }
 
