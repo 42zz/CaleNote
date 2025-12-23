@@ -144,9 +144,13 @@ Googleカレンダーを**唯一の真実のソース（Single Source of Truth�
 - カレンダーごとの表示ON/OFF（`CachedCalendar.isEnabled`）
 
 #### 2.4.3 予定の表示
-- タイムライン上に予定を表示（参照のみ）
+- タイムライン上に予定を表示
 - 予定のカード背景色は、設定でカレンダーごとに選択したカラーパレットから適用
 - 予定のカードアイコンは、設定でカレンダーごとに選択したアイコンパレットから適用
+- **予定の編集**: 短期キャッシュ（`CachedCalendarEvent`）と長期キャッシュ（`ArchivedCalendarEvent`）の両方から編集可能
+  - 詳細画面の編集ボタンから`JournalEditorView`を開く
+  - 既にジャーナルと紐付いている場合はそのジャーナルを編集
+  - 紐付いていない場合は新規ジャーナルを作成してリンク
 
 #### 2.4.4 同期範囲（実装準拠）
 - **デフォルト: 過去30日〜未来30日**（`SyncSettings`）
@@ -613,6 +617,12 @@ extendedProperties.private = {
 - `uid`: `"calendarId:eventId"`形式のユニークID
 - `startDayKey`: `YYYYMMDD`形式の日付インデックス（検索高速化用）
 - `linkedJournalId`: `extendedProperties.private.journalId`から取得
+
+**編集機能**:
+- 長期キャッシュのイベントもアプリから編集可能（`ArchivedCalendarEventDetailView`）
+- 詳細画面の編集ボタンから`JournalEditorView`を開く
+- 既にジャーナルと紐付いている場合はそのジャーナルを編集
+- 紐付いていない場合は新規ジャーナルを作成してリンク（`linkedJournalId`を設定）
 
 **注意**: 長期キャッシュの取り込みは時間がかかるため、ユーザーに明示的に操作させる必要がある。
 

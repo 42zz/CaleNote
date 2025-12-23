@@ -137,6 +137,16 @@ struct JournalEditorView: View {
             targetEntry.body = content
             targetEntry.eventDate = eventDate
             targetEntry.updatedAt = Date()
+            
+            // カレンダーの色とアイコンが未設定の場合は更新
+            if let targetCalendar = targetCalendar {
+                if targetEntry.colorHex.isEmpty || targetEntry.colorHex == "#3B82F6" {
+                    targetEntry.colorHex = targetCalendar.userColorHex
+                }
+                if targetEntry.iconName.isEmpty || targetEntry.iconName == "note.text" {
+                    targetEntry.iconName = targetCalendar.iconName
+                }
+            }
         } else {
             // 新規作成時：作成先カレンダーの色を設定
             let calendarColorHex = targetCalendar?.userColorHex ?? "#3B82F6"

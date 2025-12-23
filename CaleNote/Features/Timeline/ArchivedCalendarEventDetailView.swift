@@ -5,6 +5,11 @@ struct ArchivedCalendarEventDetailView: View {
     let event: ArchivedCalendarEvent
     let calendar: CachedCalendar?
 
+    @Environment(\.modelContext) private var modelContext
+    @Query private var cachedCalendars: [CachedCalendar]
+    @State private var isPresentingEditor = false
+    @State private var journalEntryForEdit: JournalEntry?
+
     private var displayColor: Color {
         if let hex = calendar?.userColorHex {
             return Color(hex: hex) ?? .blue
@@ -145,6 +150,61 @@ struct ArchivedCalendarEventDetailView: View {
         }
         .navigationTitle("カレンダーイベント")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    prepareEditJournal()
+                } label: {
+                    Image(systemName: "pencil")
+                }
+            }
+        }
+        .sheet(isPresented: $isPresentingEditor) {
+            if let entry = journalEntryForEdit {
+                JournalEditorView(entry: entry)
+            }
+        }
+    }
+
+    private func prepareEditJournal() {
+        // 既存のジャーナルを取得または新規作成
+        if let journalIdString = event.linkedJournalId,
+           let uuid = UUID(uuidString: journalIdString) {
+            // 紐づいているジャーナルを取得
+            let predicate = #Predicate<JournalEntry> { $0.id == uuid }
+            let descriptor = FetchDescriptor(predicate: predicate)
+            if let existingEntry = try? modelContext.fetch(descriptor).first {
+                journalEntryForEdit = existingEntry
+                isPresentingEditor = true
+                return
+            }
+        }
+
+        // 紐づいているジャーナルがない場合は新規作成
+        // カレンダーの色とアイコンを取得
+        let calendarColorHex = calendar?.userColorHex ?? "#3B82F6"
+        let calendarIconName = calendar?.iconName ?? "calendar"
+        
+        let newEntry = JournalEntry(
+            title: event.title.isEmpty ? nil : event.title,
+            body: event.desc ?? "",
+            eventDate: event.start,
+            colorHex: calendarColorHex,
+            iconName: calendarIconName,
+            linkedCalendarId: event.calendarId,
+            linkedEventId: event.eventId,
+            linkedEventUpdatedAt: event.updatedAt,
+            needsCalendarSync: false
+        )
+        modelContext.insert(newEntry)
+        try? modelContext.save()
+
+        // アーカイブイベント側にもリンクを設定
+        event.linkedJournalId = newEntry.id.uuidString
+        try? modelContext.save()
+
+        journalEntryForEdit = newEntry
+        isPresentingEditor = true
     }
 
     private func formatDate(_ date: Date) -> String {

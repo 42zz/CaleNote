@@ -6,6 +6,7 @@ struct CalendarEventDetailView: View {
     let calendar: CachedCalendar?
 
     @Environment(\.modelContext) private var modelContext
+    @Query private var cachedCalendars: [CachedCalendar]
     @State private var isPresentingEditor = false
     @State private var journalEntryForEdit: JournalEntry?
 
@@ -163,10 +164,16 @@ struct CalendarEventDetailView: View {
         }
 
         // 紐づいているジャーナルがない場合は新規作成
+        // カレンダーの色とアイコンを取得
+        let calendarColorHex = calendar?.userColorHex ?? "#3B82F6"
+        let calendarIconName = calendar?.iconName ?? "calendar"
+        
         let newEntry = JournalEntry(
             title: event.title.isEmpty ? nil : event.title,
             body: event.desc ?? "",
             eventDate: event.start,
+            colorHex: calendarColorHex,
+            iconName: calendarIconName,
             linkedCalendarId: event.calendarId,
             linkedEventId: event.eventId,
             linkedEventUpdatedAt: event.updatedAt,
