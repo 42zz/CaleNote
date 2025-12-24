@@ -362,11 +362,13 @@ struct ParagraphTextView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(paragraphs, id: \.self) { paragraph in
-                Text(paragraph)
+                // URLを自動リンク化したAttributedStringを使用
+                Text(URLLinkifierUtility.linkify(paragraph))
                     .font(.body)
                     .lineSpacing(6)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
+                    .tint(.blue)  // リンク色をOS標準の青に設定
             }
         }
     }
@@ -468,5 +470,40 @@ struct TagExtractionUtility {
         return lines.map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
+    }
+}
+
+// MARK: - URL Linkifier Utility
+
+struct URLLinkifierUtility {
+    /// テキスト内のURLを検出してリンク属性を付与したAttributedStringを返す
+    /// - Parameter text: 元のテキスト
+    /// - Returns: URLがリンク化されたAttributedString
+    static func linkify(_ text: String) -> AttributedString {
+        var attributedString = AttributedString(text)
+
+        // NSDataDetectorでURL検出
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else {
+            return attributedString
+        }
+
+        let nsString = text as NSString
+        let range = NSRange(location: 0, length: nsString.length)
+        let matches = detector.matches(in: text, options: [], range: range)
+
+        // マッチしたURLに対してリンク属性を設定（逆順で処理して範囲の整合性を保つ）
+        for match in matches.reversed() {
+            guard let url = match.url else { continue }
+
+            // NSRangeをSwift Stringのインデックスに変換
+            if let range = Range(match.range, in: text) {
+                // AttributedStringのrangeに変換
+                if let attributedRange = Range(range, in: attributedString) {
+                    attributedString[attributedRange].link = url
+                }
+            }
+        }
+
+        return attributedString
     }
 }

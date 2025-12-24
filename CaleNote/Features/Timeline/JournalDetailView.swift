@@ -124,7 +124,7 @@ struct JournalDetailView: View {
                         Text("編集")
                     }
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.borderedProminent)
                 .tint(Color.blue)
             }
         }

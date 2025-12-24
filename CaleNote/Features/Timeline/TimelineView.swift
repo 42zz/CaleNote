@@ -20,6 +20,7 @@ struct TimelineView: View {
 
     // 初期フォーカス管理
     @State private var hasAutoFocusedToday: Bool = false
+    @State private var needsInitialFocus: Bool = true  // 初回表示または明示的リセット時のみ true
     @State private var selectedDayKey: String? = nil  // 日付ジャンプ用（将来の機能）
 
     // タブ選択によるスクロールトリガー
@@ -854,7 +855,7 @@ struct TimelineView: View {
                 Image(systemName: "plus")
             }
             .disabled(isSyncing)
-            .buttonStyle(.glassProminent)
+            .buttonStyle(.borderedProminent)
             .tint(Color.blue)
         }
     }
@@ -876,6 +877,7 @@ struct TimelineView: View {
 
         // 2. 初期フォーカス状態をリセット（今日へのスクロールを再実行できるようにする）
         hasAutoFocusedToday = false
+        needsInitialFocus = true  // 明示的リセットにより、次回 onAppear で初期フォーカス実行
 
         // 3. 日付選択状態をクリア（今日優先に戻す）
         selectedDayKey = nil
@@ -901,20 +903,39 @@ struct TimelineView: View {
     }
 
     private func handleInitialFocus(proxy: ScrollViewProxy) {
-        // 初期フォーカス: 検索中でない場合のみ実行
+        // 詳細画面が開いている/復帰直後の場合はスキップ（スクロール位置を保持）
+        if isDetailViewPresented {
+            print("🚫 詳細画面復帰のため、初期フォーカスをスキップ")
+            return
+        }
+
+        // 初回表示または明示的リセット時のみ実行
+        guard needsInitialFocus else {
+            print("🚫 既に初期フォーカス済みのため、スキップ")
+            return
+        }
+
+        // 検索中でない場合のみ実行
         let isSearching =
             !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || selectedTag != nil
-        if !hasAutoFocusedToday && !isSearching {
-            // 日付ジャンプで選択された日がある場合はそれを優先、なければ今日
-            let targetKey = selectedDayKey ?? todayKey
-            // 少し遅延を入れてレイアウトが確定してからスクロール
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                withAnimation {
-                    proxy.scrollTo(targetKey, anchor: .top)
-                }
-                hasAutoFocusedToday = true
+
+        guard !isSearching else {
+            print("🚫 検索中のため、初期フォーカスをスキップ")
+            return
+        }
+
+        // 日付ジャンプで選択された日がある場合はそれを優先、なければ今日
+        let targetKey = selectedDayKey ?? todayKey
+        print("🎯 初期フォーカス実行: targetKey=\(targetKey)")
+
+        // 少し遅延を入れてレイアウトが確定してからスクロール
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation {
+                proxy.scrollTo(targetKey, anchor: .top)
             }
+            hasAutoFocusedToday = true
+            needsInitialFocus = false  // 初期フォーカス完了
         }
     }
 

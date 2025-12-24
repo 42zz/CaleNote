@@ -84,7 +84,7 @@ struct CalendarEventDetailView: View {
                     }
                     .font(.subheadline.weight(.semibold))
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.borderedProminent)
                 .tint(Color.blue)
             }
         }

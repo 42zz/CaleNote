@@ -100,7 +100,7 @@ struct ArchivedCalendarEventDetailView: View {
                     }
                     .font(.subheadline.weight(.semibold))
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.borderedProminent)
                 .tint(Color.blue)
             }
         }

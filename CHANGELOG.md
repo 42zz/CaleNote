@@ -14,6 +14,17 @@
   - 設定変更時に自動的に今日へスクロール
   - 検索中はスクロールをスキップして体験を保護
 
+- **詳細画面復帰時のスクロール位置保持**を実装
+  - 過去のエントリー詳細を開いて戻っても、スクロール位置が維持される
+  - needsInitialFocusフラグで初回表示と詳細復帰を明確に区別
+  - 初回表示またはタイムライン初期化時のみ「今日」へフォーカス
+
+- **エントリー詳細でURL自動リンク化**を実装
+  - https:// または http:// で始まるURLを自動検出してタップ可能なリンクに変換
+  - NSDataDetectorを使用した安定したURL検出
+  - タップでSafariが開く
+  - 複数URL対応、末尾の句読点を除外
+
 ### 実装詳細
 - `TimelinePagingState.fetchPastEvents`: カーソルベースのバッチ取得に変更
   - batchSize固定（limit * 5）で毎回検索範囲を過去へシフト
@@ -22,9 +33,19 @@
 
 - `TimelineView.onCalendarsChanged`: タイムライン初期化ロジックを実装
   - pagingState.reset()で長期ページング状態をクリア
-  - hasAutoFocusedToday/selectedDayKeyをリセット
+  - hasAutoFocusedToday/selectedDayKey/needsInitialFocusをリセット
   - scrollToToday()で今日へスクロール（検索中を除く）
   - runSync()で短期キャッシュを最新化
+
+- `TimelineView.handleInitialFocus`: 初期フォーカス条件の厳格化
+  - isDetailViewPresentedガードで詳細画面復帰時はスキップ
+  - needsInitialFocusフラグで初回表示または明示的リセット時のみ実行
+  - 実行後にneedsInitialFocus = falseで2度実行を防止
+
+- `URLLinkifierUtility`: URL自動リンク化ユーティリティを実装
+  - NSDataDetectorでURL検出（iOS標準のリンク検出を利用）
+  - AttributedStringにリンク属性を付与
+  - ParagraphTextViewで自動的にリンク化されたテキストを表示
 
 ### 受け入れ条件達成
 - ✅ 2022年から2006年などの離れた年代でも継続ページング可能
@@ -32,6 +53,13 @@
 - ✅ カレンダー表示設定変更が即座に反映（再起動不要）
 - ✅ 設定変更後は自動的に今日へ戻る
 - ✅ 検索中の体験を保護（スクロールしない）
+- ✅ 過去エントリー詳細から戻ってもスクロール位置が保持される
+- ✅ 初回起動時とタイムライン初期化時は「今日」にフォーカス
+- ✅ タブ再タップなどのユーザー意図操作は従来通り動作
+- ✅ https:// を含む本文でURL部分だけがリンクになりタップで開ける
+- ✅ 複数URLが全てリンク化される
+- ✅ URL末尾の句読点がリンク範囲に含まれない
+- ✅ URLがない本文は従来通りプレーンテキスト表示
 
 ## [0.26] - 2025-12-24
 
