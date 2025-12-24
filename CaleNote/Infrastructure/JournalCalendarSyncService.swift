@@ -22,11 +22,12 @@ final class JournalCalendarSyncService {
     modelContext.insert(syncLog)
 
     do {
-      // 予定の長さ（とりあえず1時間）。後でUIで変えればいい
+      // 予定の長さ（設定画面で指定可能、デフォルト30分）
+      let durationMinutes = JournalWriteSettings.eventDurationMinutes()
       let start = entry.eventDate
       let end =
-        Calendar.current.date(byAdding: .minute, value: 60, to: start)
-        ?? start.addingTimeInterval(3600)
+        Calendar.current.date(byAdding: .minute, value: durationMinutes, to: start)
+        ?? start.addingTimeInterval(TimeInterval(durationMinutes * 60))
 
       let title = (entry.title?.isEmpty == false) ? entry.title! : "ジャーナル"
       let description = entry.body

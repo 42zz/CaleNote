@@ -259,6 +259,8 @@ extendedProperties.private = {
 
 **双方向同期の仕組み**
 - ジャーナル → カレンダー: `JournalCalendarSyncService`が`insertEvent`/`updateEvent`を実行
+  - エントリー作成時にカレンダーに登録するイベントの時間は設定画面で指定可能（デフォルト30分、1〜480分、5分刻み）
+  - イベントの開始時刻は`JournalEntry.eventDate`、終了時刻は開始時刻 + 設定された時間（分）
 - カレンダー → ジャーナル: `CalendarToJournalSyncService`が`CachedCalendarEvent`の変更を`JournalEntry`に反映
 - `description`の編集有無に依存せず、`extendedProperties.private`の`journalId`で紐付けを判定
 - サーバーを介さず双方向同期が成立する理由は、この実装依存仕様による
@@ -726,6 +728,7 @@ extendedProperties.private = {
 **構成要素（実装準拠）**:
 - Google連携: ログイン/ログアウト、ログイン成功後は自動的にカレンダー一覧を同期
 - 表示するカレンダー: カレンダー一覧表示（カラーチップとアイコン付き）、カレンダー名をタップでカレンダー設定画面に遷移、表示状態をインジケーター（✓）で表示、カレンダー一覧の再同期ボタン
+- ジャーナル設定: エントリー作成時にカレンダーに登録するエントリーの時間を設定（1〜480分、5分刻み、デフォルト30分）
 - 同期待ち: `needsCalendarSync == true`のジャーナルを一覧表示、まとめて再送ボタン
 
 **各カレンダーの設定は、カレンダー名をタップして開くカレンダー設定画面（`CalendarSettingsView`）で行う**:
@@ -1065,6 +1068,8 @@ final class CachedCalendar {
 enum JournalWriteSettings {
     static func loadWriteCalendarId() -> String?
     static func saveWriteCalendarId(_ calendarId: String)
+    static func eventDurationMinutes() -> Int  // デフォルト: 30分
+    static func saveEventDurationMinutes(_ minutes: Int)
 }
 
 // 同期対象期間設定

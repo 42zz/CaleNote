@@ -27,6 +27,7 @@ struct SettingsView: View {
     private let journalSync = JournalCalendarSyncService()
     @State private var pastDays: Int = SyncSettings.pastDays()
     @State private var futureDays: Int = SyncSettings.futureDays()
+    @State private var eventDurationMinutes: Int = JournalWriteSettings.eventDurationMinutes()
 
     @State private var developerTapCount: Int = 0
     @State private var isDeveloperModeEnabled: Bool = UserDefaults.standard.bool(
@@ -133,6 +134,32 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("ジャーナル設定") {
+                    Stepper(
+                        value: $eventDurationMinutes,
+                        in: 1...480,
+                        step: 5
+                    ) {
+                        HStack {
+                            Text("エントリーの時間")
+                            Spacer()
+                            Text("\(eventDurationMinutes)分")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .onChange(of: eventDurationMinutes) { oldValue, newValue in
+                        JournalWriteSettings.saveEventDurationMinutes(newValue)
+                    }
+
+                    Text("新規作成時にカレンダーに登録するエントリーの時間を設定します。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("関連する過去のエントリー表示設定") {
+                    RelatedMemorySettingsSection()
+                }
+
                 Section("長期キャッシュ（一括取り込み）") {
                     if !isImportingArchive {
                         Button {
@@ -200,10 +227,6 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("関連する過去の表示設定") {
-                    RelatedMemorySettingsSection()
-                }
-
                 if let errorMessage {
                     Section {
                         Text(errorMessage)
@@ -233,7 +256,7 @@ struct SettingsView: View {
                         Spacer()
                         Text(
                             Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-                                ?? "0.11"
+                                ?? "0.21"
                         )
                         .foregroundStyle(.secondary)
                     }

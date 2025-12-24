@@ -86,7 +86,7 @@ Business logic and external integrations:
 
 **State Management:**
 - `CalendarSyncState`: Persists syncToken per calendar (UserDefaults)
-- `JournalWriteSettings`: Target calendar for new journals
+- `JournalWriteSettings`: Target calendar for new journals, event duration for calendar entries (default: 30 minutes)
 - `SyncSettings`: Configurable sync window (past/future days from today)
 - `SyncRateLimiter`: Prevents API abuse (5-second minimum interval between syncs)
 
@@ -117,6 +117,7 @@ SwiftUI views organized by feature:
    - Google Sign-In/Out
    - Calendar management (enable/disable, color customization)
    - Journal write target calendar selection
+   - Journal settings (event duration for calendar entries, configurable 1-480 minutes in 5-minute increments, default: 30 minutes)
    - Sync window configuration
    - Pending sync queue display
    - Long-term cache import with cancellation support
@@ -127,6 +128,7 @@ SwiftUI views organized by feature:
    - Title, body content (with tag auto-complete hints)
    - Event date picker
    - Auto-triggers sync to Google Calendar on save
+   - Event duration uses setting from JournalWriteSettings (default: 30 minutes)
 
 4. **ConflictResolutionView** (Modal):
    - Side-by-side comparison of local vs calendar version

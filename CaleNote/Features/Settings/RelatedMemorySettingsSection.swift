@@ -5,13 +5,9 @@ struct RelatedMemorySettingsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("詳細画面に表示する関連条件")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
             Toggle(isOn: $settings.sameDayEnabled) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("同じ日（MMDD一致）")
+                    Text("同じ日")
                         .font(.body)
                     Text("過去の同じ月日のエントリーを表示")
                         .font(.caption)
@@ -35,18 +31,18 @@ struct RelatedMemorySettingsSection: View {
                 settings.save()
             }
 
-            Toggle(isOn: $settings.sameHolidayEnabled) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("同じ祝日")
-                        .font(.body)
-                    Text("過去の同じ祝日のエントリーを表示")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .onChange(of: settings.sameHolidayEnabled) { _, _ in
-                settings.save()
-            }
+            // Toggle(isOn: $settings.sameHolidayEnabled) {
+            //     VStack(alignment: .leading, spacing: 4) {
+            //         Text("同じ祝日")
+            //             .font(.body)
+            //         Text("過去の同じ祝日のエントリーを表示")
+            //             .font(.caption)
+            //             .foregroundStyle(.secondary)
+            //     }
+            // }
+            // .onChange(of: settings.sameHolidayEnabled) { _, _ in
+            //     settings.save()
+            // }
 
             Divider()
 

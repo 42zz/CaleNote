@@ -53,6 +53,10 @@ struct DeveloperToolsView: View {
                 }
             }
         }
+        .safeAreaInset(edge: .bottom) {
+            // タブバーの高さ分のスペースを確保
+            Color.clear.frame(height: 80)
+        }
         .navigationTitle("開発者向けツール")
         .sheet(item: $selectedLog) { log in
             LogDetailView(log: log)

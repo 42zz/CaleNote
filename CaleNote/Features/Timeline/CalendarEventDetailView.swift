@@ -139,6 +139,10 @@ struct CalendarEventDetailView: View {
             }
             .padding()
         }
+        .safeAreaInset(edge: .bottom) {
+            // タブバーの高さ分のスペースを確保
+            Color.clear.frame(height: 80)
+        }
         .navigationTitle("カレンダーイベント")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

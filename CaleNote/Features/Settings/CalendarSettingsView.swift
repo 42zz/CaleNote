@@ -238,6 +238,10 @@ struct CalendarSettingsView: View {
             //     }
             // }
         }
+        .safeAreaInset(edge: .bottom) {
+            // タブバーの高さ分のスペースを確保
+            Color.clear.frame(height: 80)
+        }
         .navigationTitle(calendar.summary)
         .navigationBarTitleDisplayMode(.inline)
     }
