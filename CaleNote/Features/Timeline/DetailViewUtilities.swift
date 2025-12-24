@@ -34,6 +34,13 @@ struct DetailViewDateFormatter {
         formatter.locale = Locale(identifier: "ja_JP")
         return formatter.string(from: date)
     }
+    
+    static func formatSyncDateTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy/MM/dd HH:mm"
+        formatter.locale = Locale(identifier: "ja_JP")
+        return formatter.string(from: date)
+    }
 }
 
 // MARK: - Color Extension

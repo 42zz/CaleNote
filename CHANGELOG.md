@@ -2,7 +2,27 @@
 
 このファイルはCaleNoteの仕様変更と実装の履歴を記録します。
 
-## [0.22] - 2025-01-XX
+## [0.23] - 2025-12-24
+
+### 変更内容
+- エントリー詳細画面のメタ情報表示を改善
+  - 「Googleカレンダーと同期済み」表示を「最終同期: YYYY/MM/DD HH:mm」形式に変更
+  - カレンダーイベント詳細画面では`cachedAt`（同期実行時刻）を表示
+  - ジャーナル詳細画面では暫定として`updatedAt`を表示（将来的に同期実行時刻フィールド追加予定）
+- 3つの詳細画面（`JournalDetailView`、`CalendarEventDetailView`、`ArchivedCalendarEventDetailView`）のコンポーネントを統合
+  - `DetailMetadataSection`を拡張して追加メタデータ行を表示可能に
+  - アーカイブイベント詳細画面も`DetailMetadataSection`を使用するように変更
+  - ツールバーの編集ボタンスタイルを統一
+  - 画面構造を統一（ヘッダー、説明、メタ情報、関連メモリー）
+
+### 修正
+- `DetailViewUtilities.swift`に`formatSyncDateTime`関数を追加（YYYY/MM/DD HH:mm形式）
+- `DetailMetadataSection`に`AdditionalMetadataItem`構造体と`additionalMetadata`パラメータを追加
+- コードの重複を削減し、UIの一貫性を向上
+
+---
+
+## [0.22] - 2025-12-24
 
 ### 変更内容
 - 関連エントリー一覧の表示仕様を改善

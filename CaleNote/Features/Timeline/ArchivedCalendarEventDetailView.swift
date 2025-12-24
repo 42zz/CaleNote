@@ -21,12 +21,12 @@ struct ArchivedCalendarEventDetailView: View {
         }
         return .blue
     }
-    
+
     private var tags: [String] {
         guard let desc = event.desc, !desc.isEmpty else { return [] }
         return TagExtractionUtility.extractTags(from: desc)
     }
-    
+
     private var descriptionWithoutTags: String {
         guard let desc = event.desc, !desc.isEmpty else { return "" }
         return TagExtractionUtility.removeTags(from: desc)
@@ -52,75 +52,55 @@ struct ArchivedCalendarEventDetailView: View {
                     displayColor: displayColor
                 )
 
-                Divider()
+                // メタ情報（カレンダー所属・同期状態・追加情報）
+                DetailMetadataSection(
+                    calendarName: correctCalendar?.summary,
+                    syncStatus: (event.status == "confirmed" && !event.eventId.isEmpty)
+                        ? .synced : .none,
+                    displayColor: displayColor,
+                    lastSyncedAt: (event.status == "confirmed" && !event.eventId.isEmpty)
+                        ? event.cachedAt : nil,
+                    additionalMetadata: {
+                        var metadata: [DetailMetadataSection.AdditionalMetadataItem] = []
 
-                // メタデータセクション
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("詳細情報")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-
-                    VStack(spacing: 10) {
-                        MetadataRow(
-                            icon: "calendar.badge.clock",
-                            label: "カレンダー",
-                            value: correctCalendar?.summary ?? event.calendarId
-                        )
-
-                        MetadataRow(
-                            icon: "info.circle",
-                            label: "ステータス",
-                            value: event.status
-                        )
-
-                        if event.linkedJournalId != nil {
-                            MetadataRow(
-                                icon: "link.circle.fill",
-                                label: "連携",
-                                value: "ジャーナルと連携済み",
-                                valueColor: .blue
-                            )
+                        // ステータス
+                        if event.status != "confirmed" {
+                            metadata.append(
+                                .init(
+                                    icon: "xmark.circle.fill",
+                                    label: "同期済み",
+                                    value: "未同期",
+                                    valueColor: .red
+                                ))
                         }
 
-                        MetadataRow(
-                            icon: "clock.arrow.circlepath",
-                            label: "キャッシュ日時",
-                            value: DetailViewDateFormatter.formatDateTime(event.cachedAt)
-                        )
-
-                        if let holidayId = event.holidayId {
-                            MetadataRow(
-                                icon: "flag.fill",
-                                label: "祝日",
-                                value: holidayId,
-                                valueColor: .red
-                            )
-                        }
-                    }
-                }
-
-                Divider()
+                        return metadata
+                    }()
+                )
 
                 // 関連する過去セクション
                 RelatedMemoriesSection(targetDate: event.start)
             }
             .padding()
         }
-        .safeAreaInset(edge: .bottom) {
-            // タブバーの高さ分のスペースを確保
-            Color.clear.frame(height: 80)
-        }
-        .navigationTitle("カレンダーイベント")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    prepareEditJournal()
-                } label: {
-                    Image(systemName: "pencil")
+                Button(action: prepareEditJournal) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "pencil")
+                        Text("編集")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(displayColor))
                 }
+                .buttonStyle(.borderless)
+                .tint(.clear)
             }
         }
         .sheet(isPresented: $isPresentingEditor) {

@@ -58,7 +58,8 @@ struct CalendarEventDetailView: View {
                 DetailMetadataSection(
                     calendarName: correctCalendar?.summary,
                     syncStatus: (event.status == "confirmed" && !event.eventId.isEmpty) ? .synced : .none,
-                    displayColor: displayColor
+                    displayColor: displayColor,
+                    lastSyncedAt: (event.status == "confirmed" && !event.eventId.isEmpty) ? event.cachedAt : nil
                 )
 
                 // 関連する過去セクション

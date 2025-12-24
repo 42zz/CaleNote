@@ -153,6 +153,8 @@ struct DetailMetadataSection: View {
     let calendarName: String?
     let syncStatus: SyncStatus
     let displayColor: Color
+    let lastSyncedAt: Date?
+    let additionalMetadata: [AdditionalMetadataItem]
     
     enum SyncStatus {
         case synced
@@ -161,8 +163,37 @@ struct DetailMetadataSection: View {
         case none
     }
     
+    struct AdditionalMetadataItem {
+        let icon: String
+        let label: String
+        let value: String
+        var valueColor: Color = .primary
+        
+        init(icon: String, label: String, value: String, valueColor: Color = .primary) {
+            self.icon = icon
+            self.label = label
+            self.value = value
+            self.valueColor = valueColor
+        }
+    }
+    
+    init(
+        calendarName: String?,
+        syncStatus: SyncStatus,
+        displayColor: Color,
+        lastSyncedAt: Date? = nil,
+        additionalMetadata: [AdditionalMetadataItem] = []
+    ) {
+        self.calendarName = calendarName
+        self.syncStatus = syncStatus
+        self.displayColor = displayColor
+        self.lastSyncedAt = lastSyncedAt
+        self.additionalMetadata = additionalMetadata
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // 基本メタ情報（カレンダー名・同期状態）
             HStack(spacing: 12) {
                 // カレンダー所属（色ドット＋カレンダー名）
                 if let calendarName = calendarName, !calendarName.isEmpty {
@@ -179,13 +210,18 @@ struct DetailMetadataSection: View {
                 // 同期状態
                 switch syncStatus {
                 case .synced:
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.caption2)
-                        Text("Googleカレンダーと同期済み")
-                            .font(.caption)
+                    if let lastSyncedAt = lastSyncedAt {
+                        HStack(spacing: 4) {
+                            Text("最終同期:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(DetailViewDateFormatter.formatSyncDateTime(lastSyncedAt))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        EmptyView()
                     }
-                    .foregroundStyle(.green)
                 case .pending:
                     HStack(spacing: 4) {
                         Image(systemName: "exclamationmark.circle.fill")
@@ -207,6 +243,21 @@ struct DetailMetadataSection: View {
                 }
                 
                 Spacer()
+            }
+            
+            // 追加メタデータ（アーカイブイベントなどで使用）
+            if !additionalMetadata.isEmpty {
+                VStack(spacing: 10) {
+                    ForEach(Array(additionalMetadata.enumerated()), id: \.offset) { _, item in
+                        MetadataRow(
+                            icon: item.icon,
+                            label: item.label,
+                            value: item.value,
+                            valueColor: item.valueColor
+                        )
+                    }
+                }
+                .padding(.top, 8)
             }
         }
         .padding(.horizontal, 4)

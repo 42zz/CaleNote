@@ -123,19 +123,34 @@ SwiftUI views organized by feature:
    - Long-term cache import with cancellation support
    - Hidden developer mode (7 taps on version to enable)
 
-3. **JournalEditorView** (Modal):
+3. **Detail Views** (Unified Structure):
+   - **JournalDetailView**: Displays journal entry details
+   - **CalendarEventDetailView**: Displays cached calendar event details
+   - **ArchivedCalendarEventDetailView**: Displays archived calendar event details
+   - All three views share unified components:
+     - `DetailHeaderView`: Title and date/time information
+     - `DetailDescriptionSection`: Body text (tags removed) and tag list
+     - `DetailMetadataSection`: Calendar name, sync status, last sync datetime, additional metadata (for archived events)
+     - `RelatedMemoriesSection`: Related entries from past and future
+   - Metadata display:
+     - Sync status shows "最終同期: YYYY/MM/DD HH:mm" format (using `cachedAt` for events, `updatedAt` for journals temporarily)
+     - Additional metadata rows for archived events (status, cache datetime, journal link, holiday ID)
+   - Unified toolbar with edit button (consistent styling across all views)
+   - Conflict resolution button shown in JournalDetailView when `hasConflict == true`
+
+4. **JournalEditorView** (Modal):
    - Create/edit journal entries
    - Title, body content (with tag auto-complete hints)
    - Event date picker
    - Auto-triggers sync to Google Calendar on save
    - Event duration uses setting from JournalWriteSettings (default: 30 minutes)
 
-4. **ConflictResolutionView** (Modal):
+5. **ConflictResolutionView** (Modal):
    - Side-by-side comparison of local vs calendar version
    - User selects which version to keep (useLocal/useRemote)
    - Triggered from JournalDetailView when conflict detected
 
-5. **DeveloperToolsView** (Hidden):
+6. **DeveloperToolsView** (Hidden):
    - Sync operation logs with timestamps and counts
    - Privacy-conscious: SHA256 hashed calendar IDs, no user content
    - JSON export for debugging

@@ -99,7 +99,8 @@ struct JournalDetailView: View {
                 DetailMetadataSection(
                     calendarName: calendarName,
                     syncStatus: syncStatus,
-                    displayColor: displayColor
+                    displayColor: displayColor,
+                    lastSyncedAt: (syncStatus == .synced) ? entry.updatedAt : nil
                 )
 
                 // 関連する過去セクション
@@ -112,25 +113,19 @@ struct JournalDetailView: View {
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    isPresentingEditor = true
-                } label: {
+                Button(action: { isPresentingEditor = true }) {
                     HStack(spacing: 6) {
                         Image(systemName: "pencil")
-                            .font(.subheadline)
                         Text("編集")
-                            .font(.subheadline)
                     }
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(
-                        Capsule()
-                            .fill(displayColor)
-                    )
-                    .frame(minHeight: 44) // アクセシビリティ対応
+                    .background(Capsule().fill(displayColor))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
+                .tint(.clear)
             }
         }
         .sheet(isPresented: $isPresentingEditor) {
