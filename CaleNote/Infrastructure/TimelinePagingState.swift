@@ -91,6 +91,7 @@ final class TimelinePagingState {
     }
 
     /// 過去方向のイベントを取得（startDayKey < fromDayKey の範囲で limit 件）
+    /// カーソル方式: 検索範囲を段階的に過去へ進めることで、有効イベントが疎でも深い過去まで到達可能
     /// 戻り値: (イベント配列, まだデータがあるか, 取得詳細)
     private func fetchPastEvents(
         fromDayKey: Int,
@@ -98,44 +99,62 @@ final class TimelinePagingState {
         modelContext: ModelContext,
         enabledCalendarIds: Set<String>
     ) async throws -> ([ArchivedCalendarEvent], Bool, String) {
-        // 有効カレンダーIDでフィルタしながら、limit件取得するまでループ
-        var fetchLimit = limit * 10
-        let maxFetchLimit = limit * 100
+        // カーソル方式: 毎回検索範囲を過去方向へシフトさせる
+        let batchSize = limit * 5  // 固定バッチサイズ
+        var cursorDayKey = fromDayKey
         var filtered: [ArchivedCalendarEvent] = []
         var fetchDetails = ""
+        var batchCount = 0
+        let maxBatches = 50  // 安全弁（50バッチ = limit*5*50 = 最大7500件相当の探索）
 
-        while filtered.count < limit && fetchLimit <= maxFetchLimit {
+        while filtered.count < limit && batchCount < maxBatches {
+            batchCount += 1
+
+            // 現在のカーソル位置より古い範囲から batchSize 件取得
             let predicate = #Predicate<ArchivedCalendarEvent> { event in
-                event.startDayKey < fromDayKey
+                event.startDayKey < cursorDayKey
             }
             var descriptor = FetchDescriptor(predicate: predicate)
             descriptor.sortBy = [SortDescriptor(\.start, order: .reverse)]
-            descriptor.fetchLimit = fetchLimit
+            descriptor.fetchLimit = batchSize
 
-            let allEvents = try modelContext.fetch(descriptor)
+            let batch = try modelContext.fetch(descriptor)
 
-            // 有効なカレンダーのイベントのみフィルタ
-            filtered = allEvents.filter { enabledCalendarIds.contains($0.calendarId) }
+            // 有効なカレンダーのイベントのみフィルタして追加
+            let filteredBatch = batch.filter { enabledCalendarIds.contains($0.calendarId) }
+            filtered.append(contentsOf: filteredBatch)
 
-            fetchDetails = "fetchLimit=\(fetchLimit), 全取得=\(allEvents.count)件, フィルタ後=\(filtered.count)件"
+            fetchDetails += "バッチ\(batchCount): cursor=\(cursorDayKey), 取得=\(batch.count), フィルタ後=\(filteredBatch.count), 累計=\(filtered.count); "
 
-            // データベースに全データを取得した場合は終了
-            if allEvents.count < fetchLimit {
+            // DB終端チェック
+            if batch.count < batchSize {
                 let result = Array(filtered.prefix(limit))
-                fetchDetails += ", DB終端到達"
-                return (result, false, fetchDetails)  // まだデータがない
+                fetchDetails += "DB終端到達"
+                return (result, false, fetchDetails)
             }
 
-            // まだ足りない場合は再試行
-            if filtered.count < limit {
-                fetchLimit *= 2
-                fetchDetails += ", リトライ中"
+            // 次のカーソル位置を更新（今回取得したバッチの最古日付の1日前）
+            if let oldestInBatch = batch.map({ $0.startDayKey }).min() {
+                cursorDayKey = oldestInBatch - 1
+
+                // カーソルが0以下になったら終了（日付の下限）
+                if cursorDayKey <= 0 {
+                    let result = Array(filtered.prefix(limit))
+                    fetchDetails += "カーソル下限到達"
+                    return (result, false, fetchDetails)
+                }
+            } else {
+                // バッチが空（通常ありえないがガード）
+                let result = Array(filtered.prefix(limit))
+                fetchDetails += "バッチ空"
+                return (result, false, fetchDetails)
             }
         }
 
+        // maxBatchesに達した場合でも、取得できた分を返す
         let result = Array(filtered.prefix(limit))
         let hasMore = filtered.count >= limit
-        fetchDetails += ", hasMore=\(hasMore)"
+        fetchDetails += hasMore ? "limit到達" : "maxBatch到達"
         return (result, hasMore, fetchDetails)
     }
 }

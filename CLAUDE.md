@@ -89,6 +89,10 @@ Business logic and external integrations:
 - `JournalWriteSettings`: Target calendar for new journals, event duration for calendar entries (default: 30 minutes)
 - `SyncSettings`: Configurable sync window (past/future days from today)
 - `SyncRateLimiter`: Prevents API abuse (5-second minimum interval between syncs)
+- `TimelinePagingState`: Manages past-direction pagination for long-term cache
+  - Cursor-based batch fetching (batchSize = limit × 5)
+  - Tracks earliest loaded dayKey and end-of-data state
+  - Resets on calendar settings change for immediate reflection
 
 **Utilities:**
 - `TagExtractor`: Parses hashtags from journal content (`#tag` format)
@@ -103,14 +107,21 @@ SwiftUI views organized by feature:
 
 1. **TimelineView** (Main Tab):
    - Displays merged timeline of journals and calendar events
+   - **Two-tier data source**: Short-term cache (sync window) + Long-term cache (historical data)
+   - **Pagination**: Infinite scroll to the past using cursor-based fetching from ArchivedCalendarEvent
+     - Initial load: 30 items from today
+     - Past pagination triggers at 15 items from bottom edge
+     - Loads 30 items per page with cursor advancing to older dates
+     - Handles sparse valid events by incrementally searching deeper into history
    - Search and tag filtering
    - Manual sync trigger with status/error display
    - Groups items by date (reverse chronological)
    - Tag statistics for quick filtering
    - Initial focus on "today" section with automatic scroll
+   - **Auto-reset on calendar settings change**: Returns to today and clears pagination state
    - Scroll up = future dates, scroll down = past dates
    - Empty section generation for today when no items exist
-   - Auto-focus disabled during search
+   - Auto-focus disabled during search (preserves scroll position)
    - Date jump integration (selectedDayKey priority)
 
 2. **SettingsView** (Settings Tab):

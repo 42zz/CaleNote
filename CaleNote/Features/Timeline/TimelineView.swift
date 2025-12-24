@@ -868,11 +868,36 @@ struct TimelineView: View {
             cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId }
         )
 
-        // 短期キャッシュは同期範囲内のデータが全て取得済みのため、初期ロード不要
-        print("🚀 タイムライン表示準備完了（カレンダー設定: \(enabledCalendarIds.count)個有効）")
+        print("🔄 カレンダー設定変更検知: \(enabledCalendarIds.count)個有効 → タイムライン初期化開始")
 
-        // 起動時同期（runSyncに統一）
+        // 1. 長期ページング状態をリセット（古い選別が残らないように）
+        pagingState.reset()
+        print("📄 長期ページング状態をリセット")
+
+        // 2. 初期フォーカス状態をリセット（今日へのスクロールを再実行できるようにする）
+        hasAutoFocusedToday = false
+
+        // 3. 日付選択状態をクリア（今日優先に戻す）
+        selectedDayKey = nil
+
+        // 4. 検索中かどうかを判定
+        let isSearching =
+            !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || selectedTag != nil
+
+        // 5. 検索中でない場合のみ、今日へスクロール
+        if !isSearching, let proxy = scrollProxy {
+            print("📅 今日へスクロール実行")
+            scrollToToday(proxy: proxy)
+        } else if isSearching {
+            print("🔍 検索中のため、スクロールはスキップ")
+        } else {
+            print("⚠️ scrollProxyが未設定のため、スクロールはスキップ")
+        }
+
+        // 6. 起動時同期（短期キャッシュの最新化）
         await runSync(isManual: false)
+        print("🚀 タイムライン初期化完了")
     }
 
     private func handleInitialFocus(proxy: ScrollViewProxy) {
