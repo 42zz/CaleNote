@@ -51,9 +51,6 @@ struct ArchivedCalendarEventDetailView: View {
 
                 // メタ情報（カレンダー所属・同期状態・追加情報）
                 DetailMetadataSection(
-                    eventDate: event.start,
-                    isAllDay: event.isAllDay,
-                    endDate: event.end,
                     calendarName: correctCalendar?.summary,
                     syncStatus: (event.status == "confirmed" && !event.eventId.isEmpty)
                         ? .synced : .none,
@@ -87,6 +84,14 @@ struct ArchivedCalendarEventDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                NavigationDateTimeView(
+                    eventDate: event.start,
+                    isAllDay: event.isAllDay,
+                    endDate: event.end,
+                    displayColor: displayColor
+                )
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: prepareEditJournal) {
                     HStack(spacing: 6) {

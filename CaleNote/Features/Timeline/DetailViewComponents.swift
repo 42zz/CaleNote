@@ -1,6 +1,128 @@
 import Foundation
 import SwiftUI
 
+// MARK: - DateTime Component
+
+struct DetailDateTimeView: View {
+    let eventDate: Date
+    let isAllDay: Bool
+    let endDate: Date?
+    let displayColor: Color
+
+    init(
+        eventDate: Date,
+        isAllDay: Bool,
+        endDate: Date? = nil,
+        displayColor: Color
+    ) {
+        self.eventDate = eventDate
+        self.isAllDay = isAllDay
+        self.endDate = endDate
+        self.displayColor = displayColor
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if isAllDay {
+                HStack(spacing: 8) {
+                    Image(systemName: "calendar")
+                        .foregroundStyle(displayColor.opacity(0.7))
+                        .font(.caption)
+                    Text(DetailViewDateFormatter.formatDate(eventDate))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 4) {
+                            Text("開始")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Text(DetailViewDateFormatter.formatTime(eventDate))
+                                .font(.caption)
+                        }
+                        Text(DetailViewDateFormatter.formatDateOnly(eventDate))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let end = endDate {
+                        Image(systemName: "arrow.right")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 4) {
+                                Text("終了")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Text(DetailViewDateFormatter.formatTime(end))
+                                    .font(.caption)
+                            }
+                            Text(DetailViewDateFormatter.formatDateOnly(end))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+}
+
+// MARK: - Navigation Title DateTime Component
+
+struct NavigationDateTimeView: View {
+    let eventDate: Date
+    let isAllDay: Bool
+    let endDate: Date?
+    let displayColor: Color
+
+    init(
+        eventDate: Date,
+        isAllDay: Bool,
+        endDate: Date? = nil,
+        displayColor: Color
+    ) {
+        self.eventDate = eventDate
+        self.isAllDay = isAllDay
+        self.endDate = endDate
+        self.displayColor = displayColor
+    }
+
+    var body: some View {
+        VStack(spacing: 2) {
+            if isAllDay {
+                HStack(spacing: 4) {
+                    Text(DetailViewDateFormatter.formatDate(eventDate))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Text(DetailViewDateFormatter.formatDateOnly(eventDate))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text(DetailViewDateFormatter.formatTime(eventDate))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    
+                    if let end = endDate {
+                        Image(systemName: "arrow.right")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text(DetailViewDateFormatter.formatTime(end))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Header Component
 
 struct DetailHeaderView: View {
@@ -89,9 +211,6 @@ struct DetailDescriptionSection: View {
 // MARK: - Metadata Section Component
 
 struct DetailMetadataSection: View {
-    let eventDate: Date
-    let isAllDay: Bool
-    let endDate: Date?
     let calendarName: String?
     let syncStatus: SyncStatus
     let displayColor: Color
@@ -120,18 +239,12 @@ struct DetailMetadataSection: View {
     }
 
     init(
-        eventDate: Date,
-        isAllDay: Bool,
-        endDate: Date?,
         calendarName: String?,
         syncStatus: SyncStatus,
         displayColor: Color,
         lastSyncedAt: Date? = nil,
         additionalMetadata: [AdditionalMetadataItem] = []
     ) {
-        self.eventDate = eventDate
-        self.isAllDay = isAllDay
-        self.endDate = endDate
         self.calendarName = calendarName
         self.syncStatus = syncStatus
         self.displayColor = displayColor
@@ -140,53 +253,6 @@ struct DetailMetadataSection: View {
     }
 
     var body: some View {
-        // 日時情報
-        VStack(alignment: .leading, spacing: 6) {
-            if isAllDay {
-                HStack(spacing: 8) {
-                    Image(systemName: "calendar")
-                        .foregroundStyle(displayColor.opacity(0.7))
-                        .font(.caption)
-                    Text(DetailViewDateFormatter.formatDate(eventDate))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } else {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 4) {
-                            Text("開始")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Text(DetailViewDateFormatter.formatTime(eventDate))
-                                .font(.caption)
-                        }
-                        Text(DetailViewDateFormatter.formatDateOnly(eventDate))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if let end = endDate {
-                        Image(systemName: "arrow.right")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack(spacing: 4) {
-                                Text("終了")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                Text(DetailViewDateFormatter.formatTime(end))
-                                    .font(.caption)
-                            }
-                            Text(DetailViewDateFormatter.formatDateOnly(end))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-        }
         VStack(alignment: .leading, spacing: 8) {
             // 基本メタ情報（カレンダー名・同期状態）
             HStack(spacing: 12) {

@@ -94,9 +94,6 @@ struct JournalDetailView: View {
 
                 // メタ情報（カレンダー所属・同期状態）- 関連エントリー直前に配置
                 DetailMetadataSection(
-                    eventDate: entry.eventDate,
-                    isAllDay: true,
-                    endDate: nil,
                     calendarName: calendarName,
                     syncStatus: syncStatus,
                     displayColor: displayColor,
@@ -112,6 +109,14 @@ struct JournalDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                NavigationDateTimeView(
+                    eventDate: entry.eventDate,
+                    isAllDay: true,
+                    endDate: nil,
+                    displayColor: displayColor
+                )
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: { isPresentingEditor = true }) {
                     HStack(spacing: 6) {
