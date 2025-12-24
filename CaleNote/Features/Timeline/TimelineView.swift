@@ -29,6 +29,7 @@ struct TimelineView: View {
     // タブ選択によるスクロールトリガー
     @Binding var selectedTab: Int
     @Binding var tabTapTrigger: Int
+    @Binding var isDetailViewPresented: Bool
     @State private var lastSelectedTab: Int = 0
     @State private var lastAppearTime: Date = Date()
 
@@ -822,7 +823,8 @@ struct TimelineView: View {
                 isLastItemInLastSection: isLastItemInLastSection,
                 onSyncBadgeTap: entry != nil ? { handleSyncBadgeTap(for: entry!) } : nil,
                 onDeleteJournal: { deleteJournalEntry($0) },
-                onDeleteCalendar: { deleteCalendarEvent($0) }
+                onDeleteCalendar: { deleteCalendarEvent($0) },
+                isDetailViewPresented: $isDetailViewPresented
             )
             .onAppear {
                 // 最初のセクションの最初のアイテムが表示されたら未来側ページをロード

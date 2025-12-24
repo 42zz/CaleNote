@@ -14,15 +14,22 @@ struct TimelineRowLink: View {
     let onSyncBadgeTap: (() -> Void)?
     let onDeleteJournal: ((JournalEntry) -> Void)?
     let onDeleteCalendar: ((CachedCalendarEvent) -> Void)?
+    @Binding var isDetailViewPresented: Bool
 
     var body: some View {
         NavigationLink {
             if let entry {
                 JournalDetailView(entry: entry)
+                    .onAppear { isDetailViewPresented = true }
+                    .onDisappear { isDetailViewPresented = false }
             } else if let calendarEvent {
                 CalendarEventDetailView(event: calendarEvent, calendar: calendar)
+                    .onAppear { isDetailViewPresented = true }
+                    .onDisappear { isDetailViewPresented = false }
             } else if let archivedEvent {
                 ArchivedCalendarEventDetailView(event: archivedEvent, calendar: calendar)
+                    .onAppear { isDetailViewPresented = true }
+                    .onDisappear { isDetailViewPresented = false }
             } else {
                 Text("詳細を表示できません")
             }

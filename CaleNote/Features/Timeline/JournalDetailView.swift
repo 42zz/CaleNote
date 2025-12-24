@@ -9,7 +9,18 @@ struct JournalDetailView: View {
     @Query private var calendars: [CachedCalendar]
 
     private var tags: [String] {
-        TagExtractor.extract(from: entry.body)
+        let extracted = TagExtractor.extract(from: entry.body)
+        // 重複除去と正規化
+        var seen = Set<String>()
+        var unique: [String] = []
+        for tag in extracted {
+            let normalized = tag.trimmingCharacters(in: .whitespaces).lowercased()
+            if !normalized.isEmpty && !seen.contains(normalized) {
+                seen.insert(normalized)
+                unique.append(tag) // 表示用には元のケースを保持
+            }
+        }
+        return unique
     }
 
     private var displayColor: Color {
@@ -30,169 +41,190 @@ struct JournalDetailView: View {
         return Color(hex: colorHex) ?? .blue
     }
 
+    // タグを除去した本文
+    private var bodyWithoutTags: String {
+        var text = entry.body
+        // タグパターンを除去
+        let pattern = #"#([^\s#]+)"#
+        if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+            let range = NSRange(text.startIndex..., in: text)
+            text = regex.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: "")
+        }
+        // 連続する空白を整理（改行は保持）
+        let lines = text.components(separatedBy: "\n")
+        return lines.map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+    }
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // ヘッダー部分（カラーバー）
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 0) {
-                        // カラーバー（左側）
-                        Rectangle()
-                            .fill(displayColor)
-                            .frame(width: 4)
-                            .padding(.trailing, 12)
+            VStack(alignment: .leading, spacing: 24) {
+                // 統合ヘッダー（カード形式 - コンパクト化）
+                VStack(alignment: .leading, spacing: 0) {
+                    // カラーバー（上部 - 所属カレンダー色として意味付け）
+                    Rectangle()
+                        .fill(displayColor)
+                        .frame(height: 3)
+                    
+                    VStack(alignment: .leading, spacing: 10) {
+                        // タイトル（フォントサイズを一段落とす）
+                        Text(entry.title?.isEmpty == false ? entry.title! : "（タイトルなし）")
+                            .font(.title2)
+                            .bold()
+                            .padding(.horizontal, 16)
+                            .padding(.top, 12)
                         
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(entry.title?.isEmpty == false ? entry.title! : "（タイトルなし）")
-                                .font(.title2)
-                                .bold()
-
+                        // 日付情報
+                        HStack(spacing: 8) {
+                            Image(systemName: "calendar")
+                                .foregroundStyle(displayColor.opacity(0.7))
+                                .font(.caption)
                             Text(entry.eventDate, style: .date)
-                                .font(.subheadline)
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 12)
+                    }
+                    .background(Color(UIColor.tertiarySystemBackground).opacity(0.5))
+                    .cornerRadius(10)
+                }
+
+                // 本文セクション（段落構造を視覚化、常に全文表示）
+                VStack(alignment: .leading, spacing: 16) {
+                    // 全文表示（タグ除去済み）
+                    ParagraphTextView(text: bodyWithoutTags)
+                    
+                    // タグセクション（本文の最後に小さめに表示）
+                    if !tags.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("タグ")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .textCase(.uppercase)
+                            
+                            FlowLayout(spacing: 6) {
+                                ForEach(tags, id: \.self) { tag in
+                                    HStack(spacing: 3) {
+                                        Text("#")
+                                            .foregroundStyle(.secondary)
+                                        Text(tag)
+                                    }
+                                    .font(.caption)
+                                    .padding(.vertical, 4)
+                                    .padding(.horizontal, 8)
+                                    .background(
+                                        Capsule()
+                                            .fill(displayColor.opacity(0.1))
+                                    )
+                                }
+                            }
+                        }
+                        .padding(.top, 12)
+                    }
+                }
+                .padding(.horizontal, 4)
+
+                // 競合状態（重要な場合は目立つように）
+                if entry.hasConflict {
+                    Button {
+                        isPresentingConflictResolution = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                            Text("競合を解決")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                        }
+                        .font(.subheadline)
+                        .foregroundStyle(.orange)
+                        .padding()
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(10)
+                    }
+                    .padding(.horizontal, 4)
+                }
+
+                // メタ情報（カレンダー所属・同期状態）- 関連エントリー直前に配置
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 12) {
+                        // カレンダー所属（色ドット＋カレンダー名）
+                        if let calendarId = entry.linkedCalendarId,
+                           let calendar = calendars.first(where: { $0.calendarId == calendarId }),
+                           !calendar.summary.isEmpty {
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(displayColor)
+                                    .frame(width: 6, height: 6)
+                                Text(calendar.summary)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        
+                        // 同期状態
+                        if entry.linkedCalendarId != nil {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.caption2)
+                                Text("Googleカレンダーと同期済み")
+                                    .font(.caption)
+                            }
+                            .foregroundStyle(.green)
+                        } else if entry.needsCalendarSync {
+                            HStack(spacing: 4) {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .font(.caption2)
+                                Text("同期待ち")
+                                    .font(.caption)
+                            }
+                            .foregroundStyle(.orange)
+                        } else {
+                            HStack(spacing: 4) {
+                                Image(systemName: "circle")
+                                    .font(.caption2)
+                                Text("未同期")
+                                    .font(.caption)
+                            }
+                            .foregroundStyle(.secondary)
                         }
                         
                         Spacer()
                     }
                 }
-
-                // タグセクション
-                if !tags.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("タグ")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .textCase(.uppercase)
-
-                        FlowLayout(spacing: 8) {
-                            ForEach(tags, id: \.self) { tag in
-                                HStack(spacing: 4) {
-                                    Text("#")
-                                        .foregroundStyle(.secondary)
-                                    Text(tag)
-                                }
-                                .font(.subheadline)
-                                .padding(.vertical, 6)
-                                .padding(.horizontal, 12)
-                                .background(
-                                    Capsule()
-                                        .fill(displayColor.opacity(0.15))
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Divider()
-
-                // 本文セクション
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("本文")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-
-                    Text(entry.body)
-                        .font(.body)
-                        .textSelection(.enabled)
-                }
-
-                Divider()
-
-                // メタデータセクション
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("詳細情報")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-
-                    VStack(spacing: 10) {
-                        MetadataRow(
-                            icon: "clock",
-                            label: "作成日時",
-                            value: formatDateTime(entry.createdAt)
-                        )
-
-                        MetadataRow(
-                            icon: "clock.arrow.circlepath",
-                            label: "更新日時",
-                            value: formatDateTime(entry.updatedAt)
-                        )
-
-                        if entry.linkedCalendarId != nil {
-                            MetadataRow(
-                                icon: "checkmark.circle.fill",
-                                label: "同期状態",
-                                value: "カレンダーと同期済み",
-                                valueColor: .green
-                            )
-                        } else if entry.needsCalendarSync {
-                            MetadataRow(
-                                icon: "exclamationmark.circle.fill",
-                                label: "同期状態",
-                                value: "同期待ち",
-                                valueColor: .orange
-                            )
-                        } else {
-                            MetadataRow(
-                                icon: "circle",
-                                label: "同期状態",
-                                value: "未同期"
-                            )
-                        }
-
-                        if entry.hasConflict {
-                            MetadataRow(
-                                icon: "exclamationmark.triangle.fill",
-                                label: "競合状態",
-                                value: "解決が必要",
-                                valueColor: .orange
-                            )
-
-                            Button {
-                                isPresentingConflictResolution = true
-                            } label: {
-                                HStack {
-                                    Image(systemName: "wrench.and.screwdriver.fill")
-                                    Text("競合を解決")
-                                }
-                                .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(.orange)
-                        }
-
-                        if let calendarId = entry.linkedCalendarId {
-                            let calendar = calendars.first(where: { $0.calendarId == calendarId })
-                            MetadataRow(
-                                icon: "calendar",
-                                label: "カレンダー",
-                                value: calendar?.summary ?? (calendarId == "primary" ? "プライマリ" : calendarId)
-                            )
-                        }
-                    }
-                }
-
-                Divider()
+                .padding(.horizontal, 4)
 
                 // 関連する過去セクション
                 RelatedMemoriesSection(targetDate: entry.eventDate)
             }
             .padding()
         }
-        .safeAreaInset(edge: .bottom) {
-            // タブバーの高さ分のスペースを確保
-            Color.clear.frame(height: 80)
-        }
-        .navigationTitle("詳細")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     isPresentingEditor = true
                 } label: {
-                    Image(systemName: "pencil")
+                    HStack(spacing: 6) {
+                        Image(systemName: "pencil")
+                            .font(.subheadline)
+                        Text("編集")
+                            .font(.subheadline)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(displayColor)
+                    )
+                    .frame(minHeight: 44) // アクセシビリティ対応
                 }
+                .buttonStyle(.plain)
             }
         }
         .sheet(isPresented: $isPresentingEditor) {
@@ -203,40 +235,28 @@ struct JournalDetailView: View {
         }
     }
 
-    private func formatDateTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        formatter.locale = Locale(identifier: "ja_JP")
-        return formatter.string(from: date)
-    }
 }
 
-// メタデータ行のコンポーネント
-private struct MetadataRow: View {
-    let icon: String
-    let label: String
-    let value: String
-    var valueColor: Color = .primary
-
+// 段落構造を視覚化するテキストビュー
+private struct ParagraphTextView: View {
+    let text: String
+    
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .frame(width: 20)
-
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .frame(width: 80, alignment: .leading)
-
-            Text(value)
-                .font(.subheadline)
-                .foregroundStyle(valueColor)
-
-            Spacer()
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(paragraphs, id: \.self) { paragraph in
+                Text(paragraph)
+                    .font(.body)
+                    .lineSpacing(6)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
+    }
+    
+    private var paragraphs: [String] {
+        text.components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
     }
 }
 

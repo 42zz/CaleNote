@@ -11,6 +11,7 @@ struct RootView: View {
     @State private var isCheckingOnboarding = true
     @State private var selectedTab: Int = 0
     @State private var mainTabTapTrigger: Int = 0
+    @State private var isDetailViewPresented = false
 
     var body: some View {
         Group {
@@ -30,7 +31,8 @@ struct RootView: View {
                     // タブコンテンツ（両方とも常に保持してopacityで切り替え）
                     TimelineView(
                         selectedTab: $selectedTab,
-                        tabTapTrigger: $mainTabTapTrigger
+                        tabTapTrigger: $mainTabTapTrigger,
+                        isDetailViewPresented: $isDetailViewPresented
                     )
                     .environmentObject(auth)
                     .opacity(selectedTab == 0 ? 1 : 0)
@@ -41,8 +43,9 @@ struct RootView: View {
                         .opacity(selectedTab == 1 ? 1 : 0)
                         .zIndex(selectedTab == 1 ? 1 : 0)
 
-                    // カスタムタブバー
-                    HStack(spacing: 0) {
+                    // カスタムタブバー（詳細画面表示時は非表示）
+                    if !isDetailViewPresented {
+                        HStack(spacing: 0) {
                         Button {
                             if selectedTab == 0 {
                                 // 同じタブを再度タップした場合
@@ -76,15 +79,17 @@ struct RootView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
                         }
+                        }
+                        .background(Color(UIColor.systemBackground).opacity(0.95))
+                        .overlay(
+                            Rectangle()
+                                .frame(height: 0.5)
+                                .foregroundColor(Color.gray.opacity(0.3)),
+                            alignment: .top
+                        )
+                        .zIndex(100)
+                        .transition(.move(edge: .bottom))
                     }
-                    .background(Color(UIColor.systemBackground).opacity(0.95))
-                    .overlay(
-                        Rectangle()
-                            .frame(height: 0.5)
-                            .foregroundColor(Color.gray.opacity(0.3)),
-                        alignment: .top
-                    )
-                    .zIndex(100)
                 }
                 .ignoresSafeArea(.keyboard, edges: .bottom)
             }
