@@ -134,7 +134,48 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("ジャーナル設定") {
+                Section("エントリー設定") {
+                    // デフォルトの書き込み先カレンダー選択
+                    let enabledCalendars = calendarsPrimaryFirst.filter { $0.isEnabled }
+                    if enabledCalendars.isEmpty {
+                        Text("表示するカレンダーがありません。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("デフォルトの書き込み先", selection: Binding(
+                            get: {
+                                writeCalendarId ?? defaultWriteCalendarId(from: enabledCalendars)
+                            },
+                            set: { selectedCalendarId in
+                                writeCalendarId = selectedCalendarId
+                                JournalWriteSettings.saveWriteCalendarId(selectedCalendarId)
+                            }
+                        )) {
+                            ForEach(enabledCalendars) { cal in
+                                HStack {
+                                    ZStack {
+                                        Circle()
+                                            .fill(
+                                                Color(hex: cal.userColorHex)?.opacity(0.2)
+                                                    ?? .blue.opacity(0.2)
+                                            )
+                                            .frame(width: 24, height: 24)
+                                        Image(systemName: cal.iconName)
+                                            .font(.caption2)
+                                            .foregroundStyle(Color(hex: cal.userColorHex) ?? .blue)
+                                    }
+                                    Text(cal.summary)
+                                    if cal.isPrimary {
+                                        Text("メイン")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .tag(cal.calendarId)
+                            }
+                        }
+                    }
+
                     Stepper(
                         value: $eventDurationMinutes,
                         in: 1...480,

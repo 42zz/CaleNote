@@ -6,10 +6,10 @@ struct CalendarSettingsView: View {
     @EnvironmentObject private var auth: GoogleAuthService
     @Bindable var calendar: CachedCalendar
 
-    // 全カレンダーを取得（表示トグルと書き込み先の判定に必要）
+    // 全カレンダーを取得（表示トグルの判定に必要）
     @Query private var allCalendars: [CachedCalendar]
 
-    // 現在の書き込み先カレンダーID
+    // 現在の書き込み先カレンダーID（表示OFFになった場合の自動変更に使用）
     @State private var writeCalendarId: String? = JournalWriteSettings.loadWriteCalendarId()
 
     // Googleカレンダーの標準色をベースにしたパレット（5x5 = 25色）
@@ -112,48 +112,6 @@ struct CalendarSettingsView: View {
                             }
                         }
                     ))
-            }
-
-            Section("書き込み先") {
-                let enabledCalendars = allCalendars.filter { $0.isEnabled }
-
-                if !calendar.isEnabled {
-                    Text("表示をONにすると、書き込み先として設定できます。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if enabledCalendars.isEmpty {
-                    Text("表示するカレンダーがありません。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Toggle(
-                        "デフォルトの書き込み先",
-                        isOn: Binding(
-                            get: {
-                                let currentWriteCalendarId =
-                                    writeCalendarId
-                                    ?? defaultWriteCalendarId(from: enabledCalendars)
-                                return calendar.calendarId == currentWriteCalendarId
-                            },
-                            set: { isDefault in
-                                if isDefault {
-                                    // このカレンダーをデフォルトの書き込み先に設定
-                                    writeCalendarId = calendar.calendarId
-                                    JournalWriteSettings.saveWriteCalendarId(calendar.calendarId)
-                                } else {
-                                    // 他の有効なカレンダーをデフォルトに設定
-                                    let otherEnabledCalendars = enabledCalendars.filter {
-                                        $0.calendarId != calendar.calendarId
-                                    }
-                                    if let newDefault = otherEnabledCalendars.first {
-                                        writeCalendarId = newDefault.calendarId
-                                        JournalWriteSettings.saveWriteCalendarId(
-                                            newDefault.calendarId)
-                                    }
-                                }
-                            }
-                        ))
-                }
             }
 
             Section("色") {

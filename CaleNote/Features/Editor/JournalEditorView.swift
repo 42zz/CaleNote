@@ -59,13 +59,15 @@ struct JournalEditorView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("タイトル（任意）", text: $title)
                     DatePicker("日時", selection: $eventDate)
-                } header: {
+                    TextField("タイトル", text: $title)
+                    TextEditor(text: $content)
+                        .frame(minHeight: 180)
+                } footer: {
                     HStack {
-                        Text("基本")
                         Spacer()
                         // 書き込み先カレンダー表示（タップ可能）
+                        Text("書き込み先")
                         Button {
                             isPresentingCalendarPicker = true
                         } label: {
@@ -95,15 +97,6 @@ struct JournalEditorView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                }
-
-                Section("本文") {
-                    Text("本文に #タグ を含めると、タグとして扱います。例: #振り返り #SwiftUI")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    TextEditor(text: $content)
-                        .frame(minHeight: 180)
                 }
 
                 if let errorMessage {

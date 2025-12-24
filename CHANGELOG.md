@@ -9,8 +9,10 @@
 
 ### 変更内容
 - `JournalWriteSettings`にエントリー時間（分）の保存・読み込み機能を追加
-- `SettingsView`に「ジャーナル設定」セクションを追加し、エントリー時間を1〜480分（5分刻み）で設定可能に
+- `SettingsView`に「エントリー設定」セクションを追加し、エントリー時間を1〜480分（5分刻み）で設定可能に
 - `JournalCalendarSyncService`で設定値を読み込んで使用するように変更（60分のハードコードを削除）
+- デフォルトの書き込み先カレンダー設定を、カレンダー詳細画面（`CalendarSettingsView`）から設定画面の「エントリー設定」セクション（`SettingsView`）に移動
+- `CalendarSettingsView`から「書き込み先」セクションを削除
 
 ---
 
