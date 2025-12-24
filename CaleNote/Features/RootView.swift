@@ -10,6 +10,7 @@ struct RootView: View {
     @State private var needsOnboarding = true
     @State private var isCheckingOnboarding = true
     @State private var selectedTab: Int = 0
+    @State private var mainTabTapTrigger: Int = 0
 
     var body: some View {
         Group {
@@ -24,18 +25,68 @@ struct RootView: View {
                 }
                 .environmentObject(auth)
             } else {
-                // 通常のTabView
-                TabView(selection: $selectedTab) {
-                    TimelineView(selectedTab: $selectedTab)
-                        .tabItem { Label("メイン", systemImage: "list.bullet") }
-                        .tag(0)
-                        .environmentObject(auth)
+                // カスタムタブバーを使用して同じタブの再タップを検知
+                ZStack(alignment: .bottom) {
+                    // タブコンテンツ（両方とも常に保持してopacityで切り替え）
+                    TimelineView(
+                        selectedTab: $selectedTab,
+                        tabTapTrigger: $mainTabTapTrigger
+                    )
+                    .environmentObject(auth)
+                    .opacity(selectedTab == 0 ? 1 : 0)
+                    .zIndex(selectedTab == 0 ? 1 : 0)
 
                     SettingsView()
-                        .tabItem { Label("設定", systemImage: "gearshape") }
-                        .tag(1)
                         .environmentObject(auth)
+                        .opacity(selectedTab == 1 ? 1 : 0)
+                        .zIndex(selectedTab == 1 ? 1 : 0)
+
+                    // カスタムタブバー
+                    HStack(spacing: 0) {
+                        Button {
+                            if selectedTab == 0 {
+                                // 同じタブを再度タップした場合
+                                mainTabTapTrigger += 1
+                                print("🔔 メインタブが再度タップされました（トリガー: \(mainTabTapTrigger)）")
+                            } else {
+                                selectedTab = 0
+                            }
+                        } label: {
+                            VStack(spacing: 4) {
+                                Image(systemName: "list.bullet")
+                                    .font(.system(size: 24))
+                                Text("メイン")
+                                    .font(.caption)
+                            }
+                            .foregroundColor(selectedTab == 0 ? .blue : .gray)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                        }
+
+                        Button {
+                            selectedTab = 1
+                        } label: {
+                            VStack(spacing: 4) {
+                                Image(systemName: "gearshape")
+                                    .font(.system(size: 24))
+                                Text("設定")
+                                    .font(.caption)
+                            }
+                            .foregroundColor(selectedTab == 1 ? .blue : .gray)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                        }
+                    }
+                    .background(Color(UIColor.systemBackground).opacity(0.95))
+                    .overlay(
+                        Rectangle()
+                            .frame(height: 0.5)
+                            .foregroundColor(Color.gray.opacity(0.3)),
+                        alignment: .top
+                    )
+                    .zIndex(100)
                 }
+                .ignoresSafeArea(.keyboard, edges: .bottom)
             }
         }
         .task {

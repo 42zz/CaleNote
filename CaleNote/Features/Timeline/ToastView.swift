@@ -92,10 +92,12 @@ struct ToastModifier: ViewModifier {
     func body(content: Content) -> some View {
         ZStack(alignment: .bottom) {
             content
-            
+
             if let message = toastMessage {
                 ToastView(message: message, type: toastType, duration: duration)
+                    .padding(.bottom, 60)  // タブバーの上に表示
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(200)  // タブバーより前面に表示
                     .onAppear {
                         // メッセージを表示したら、duration後に自動でnilにする
                         Task { @MainActor in

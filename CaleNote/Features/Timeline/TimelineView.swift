@@ -25,9 +25,10 @@ struct TimelineView: View {
     @State private var hasAutoFocusedToday: Bool = false
     @State private var selectedDayKey: String? = nil  // 日付ジャンプ用（将来の機能）
     @State private var hasInitialLoadCompleted: Bool = false
-    
+
     // タブ選択によるスクロールトリガー
     @Binding var selectedTab: Int
+    @Binding var tabTapTrigger: Int
     @State private var lastSelectedTab: Int = 0
     @State private var lastAppearTime: Date = Date()
 
@@ -41,6 +42,9 @@ struct TimelineView: View {
 
     // 最後にトリガーした方向を記録（トリム処理用）
     @State private var lastScrollDirection: TimelinePagingState.ScrollDirection = .past
+
+    // スクロール用のプロキシ参照
+    @State private var scrollProxy: ScrollViewProxy?
 
     // Services（このView内で使えるように用意）
     private let syncService = CalendarSyncService()
@@ -614,10 +618,11 @@ struct TimelineView: View {
                 .listStyle(.insetGrouped)
                 .listSectionSpacing(.compact)
                 .safeAreaInset(edge: .bottom) {
-                    // 下タブUIの高さ分のスペースを確保（最後のカードが潰れるのを防ぐ）
-                    Color.clear.frame(height: 90)
+                    // タブバーの高さ分のスペースを確保
+                    Color.clear.frame(height: 60)
                 }
-                .navigationTitle("ジャーナル")
+                .navigationTitle("")
+                .navigationBarTitleDisplayMode(.inline)
                 .searchable(
                     text: $searchText,
                     isPresented: $isSearchPresented,
@@ -651,45 +656,28 @@ struct TimelineView: View {
                     await runSync(isManual: true)
                 }
                 .onAppear {
-                    let currentTime = Date()
-                    let timeSinceLastAppear = currentTime.timeIntervalSince(lastAppearTime)
-                    
-                    // 初期フォーカス処理
+                    // スクロールプロキシを保存
+                    scrollProxy = proxy
+                    // 初期フォーカス処理のみ
                     handleInitialFocus(proxy: proxy)
-                    
-                    // メインタブが既に選択されている状態で、短時間（1秒以内）に再度表示された場合
-                    // → 同じタブをタップしたと判断
-                    if selectedTab == 0 && lastSelectedTab == 0 && timeSinceLastAppear < 1.0 && timeSinceLastAppear > 0.1 {
-                        print("📱 メインタブが再度タップされました（onAppear検知）。今日にスクロールします")
-                        // 検索中でない場合のみスクロール
-                        let isSearching = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedTag != nil
-                        if !isSearching {
-                            scrollToToday(proxy: proxy)
-                        }
-                    }
-                    
-                    // 現在のタブ選択状態を記録
-                    lastSelectedTab = selectedTab
-                    lastAppearTime = currentTime
                 }
                 .onChange(of: selectedDayKey) { _, newValue in
                     scrollToSelectedDay(proxy: proxy, newKey: newValue)
                 }
                 .onChange(of: selectedTab) { oldValue, newValue in
                     print("🔄 タブ変更: \(oldValue) → \(newValue), 現在のタブ: \(selectedTab)")
-                    // メインタブが選択されたとき（他のタブ → メインタブ）に今日にスクロール
-                    if oldValue != 0 && newValue == 0 {
-                        print("📱 メインタブが選択されました（onChange検知）。今日にスクロールします")
-                        // 検索中でない場合のみスクロール
-                        let isSearching = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedTag != nil
-                        if !isSearching {
-                            // 直接スクロールを実行（レイアウト確定を待つ）
-                            scrollToToday(proxy: proxy)
-                        } else {
-                            print("⚠️ 検索中のためスクロールをスキップ")
-                        }
-                    }
+                    // タブ選択状態を記録するのみ（スクロールはonChangeで同じタブ再タップ時のみ）
                     lastSelectedTab = newValue
+                }
+                .onChange(of: tabTapTrigger) { _, newValue in
+                    print("🔔 タブタップトリガー検知: \(newValue)")
+                    // 検索中でない場合のみスクロール
+                    let isSearching = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedTag != nil
+                    if !isSearching {
+                        scrollToToday(proxy: proxy)
+                    } else {
+                        print("⚠️ 検索中のためスクロールをスキップ")
+                    }
                 }
                 .toast(message: $toastMessage, type: $toastType, duration: 4.0)
             }
@@ -700,6 +688,14 @@ struct TimelineView: View {
 
     @ViewBuilder
     private func timelineListContent() -> some View {
+        // 最上部アンカー（スクロール用）
+        // Color.clear
+        //     .frame(height: 0)
+        //     .listRowInsets(EdgeInsets())
+        //     .listRowBackground(Color.clear)
+        //     .listRowSeparator(.hidden)
+        //     .id("timeline-top")
+
         if let summary = filterSummaryText {
             Section {
                 Text(summary)
@@ -864,6 +860,17 @@ struct TimelineView: View {
                 Image(systemName: "magnifyingglass")
             }
         }
+
+        ToolbarItem(placement: .principal) {
+            Button {
+                scrollToTop()
+            } label: {
+                Text("ジャーナル")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+            }
+        }
+
         ToolbarItem(placement: .topBarTrailing) {
             Button {
                 isPresentingEditor = true
@@ -932,18 +939,18 @@ struct TimelineView: View {
         // 今日のセクションにスクロール
         let today = todayKey
         print("📅 今日にスクロール開始: \(today)")
-        
+
         // レイアウトが確定するまで待つ（タブ切り替え時は特に必要）
         Task { @MainActor in
             // 少し待ってからスクロール（レイアウト確定を待つ）
             try? await Task.sleep(nanoseconds: 500_000_000) // 0.5秒
-            
+
             // 今日のセクションが存在するか確認
             let grouped = groupedItems
             let calendar = Calendar.current
             let todayDate = calendar.startOfDay(for: Date())
             let hasTodaySection = grouped.contains { calendar.isDate($0.day, inSameDayAs: todayDate) }
-            
+
             print("📅 今日のセクション確認: hasTodaySection=\(hasTodaySection), grouped.count=\(grouped.count)")
             if hasTodaySection {
                 print("📅 今日のセクションが見つかりました。スクロール実行: \(today)")
@@ -959,6 +966,28 @@ struct TimelineView: View {
             } else {
                 print("⚠️ 今日のセクションが見つかりませんでした。groupedItems: \(grouped.map { dayKey(from: $0.day) })")
             }
+        }
+    }
+
+    private func scrollToTop() {
+        print("⬆️ 最上部にスクロール開始")
+        guard let proxy = scrollProxy else {
+            print("⚠️ scrollProxyが設定されていません")
+            return
+        }
+
+        // 画面の最上部（もう上にスクロールできない位置）にスクロール
+        // groupedItemsの最初のセクション（最も新しい日付）にスクロール
+        let grouped = groupedItems
+        guard let firstSection = grouped.first else {
+            print("⚠️ スクロール対象のセクションがありません")
+            return
+        }
+        
+        let firstSectionKey = dayKey(from: firstSection.day)
+        print("⬆️ 最初のセクションにスクロール: \(firstSectionKey)")
+        withAnimation(.easeInOut(duration: 0.3)) {
+            proxy.scrollTo(firstSectionKey, anchor: .top)
         }
     }
  
@@ -1058,7 +1087,8 @@ struct TimelineView: View {
             print("📄 過去ページロード完了。現在のイベント数: \(pagingState.loadedArchivedEvents.count)")
 
             // ロード完了後、最大件数を超えていればトリム
-            pagingState.trimIfNeeded(scrollDirection: lastScrollDirection)
+            // 注: トリミングはスクロール位置のずれを引き起こす可能性があるため、一旦無効化
+            // pagingState.trimIfNeeded(scrollDirection: lastScrollDirection)
         }
     }
 
@@ -1094,7 +1124,8 @@ struct TimelineView: View {
             print("📅 未来ページロード完了。現在のイベント数: \(pagingState.loadedArchivedEvents.count)")
 
             // ロード完了後、最大件数を超えていればトリム
-            pagingState.trimIfNeeded(scrollDirection: lastScrollDirection)
+            // 注: トリミングはスクロール位置のずれを引き起こす可能性があるため、一旦無効化
+            // pagingState.trimIfNeeded(scrollDirection: lastScrollDirection)
         }
     }
 }

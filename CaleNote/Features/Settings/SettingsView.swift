@@ -253,6 +253,10 @@ struct SettingsView: View {
                     }
                 }
             }
+            .safeAreaInset(edge: .bottom) {
+                // タブバーの高さ分のスペースを確保
+                Color.clear.frame(height: 60)
+            }
             .navigationTitle("設定")
         }
     }
