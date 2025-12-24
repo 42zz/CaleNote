@@ -360,15 +360,27 @@ struct ParagraphTextView: View {
     let text: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(paragraphs, id: \.self) { paragraph in
-                // URLを自動リンク化したAttributedStringを使用
-                Text(URLLinkifierUtility.linkify(paragraph))
-                    .font(.body)
-                    .lineSpacing(6)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .tint(.blue)  // リンク色をOS標準の青に設定
+        // HTMLが含まれている場合は、HTMLを正規化してAttributedStringに変換
+        // HTMLが含まれていない場合は、段落に分割してURLリンク化を適用
+        if text.contains("<") {
+            // HTMLを含む場合: HTMLを正規化（<br>や<a>タグが自動的に処理される）
+            Text(HTMLAttributedStringConverter.convert(text))
+                .font(.body)
+                .lineSpacing(6)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .tint(.blue)  // リンク色をOS標準の青に設定
+        } else {
+            // HTMLを含まない場合: 段落に分割してURLリンク化
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(paragraphs, id: \.self) { paragraph in
+                    Text(URLLinkifierUtility.linkify(paragraph))
+                        .font(.body)
+                        .lineSpacing(6)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .tint(.blue)  // リンク色をOS標準の青に設定
+                }
             }
         }
     }
@@ -470,6 +482,47 @@ struct TagExtractionUtility {
         return lines.map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
+    }
+}
+
+// MARK: - HTML to AttributedString Converter
+
+struct HTMLAttributedStringConverter {
+    /// HTML文字列をAttributedStringに変換する
+    /// HTMLが含まれていない場合は通常のAttributedStringを返す
+    /// - Parameter htmlString: HTMLを含む可能性のある文字列
+    /// - Returns: HTMLが正規化されたAttributedString（リンクも自動的に有効化される）
+    static func convert(_ htmlString: String) -> AttributedString {
+        // HTMLタグが含まれていない場合は通常のテキストとして処理
+        if !htmlString.contains("<") {
+            return AttributedString(htmlString)
+        }
+
+        // HTMLをパースしてAttributedStringに変換
+        guard let data = htmlString.data(using: .utf8) else {
+            // データ変換失敗時はフォールバック
+            return AttributedString(htmlString)
+        }
+
+        let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
+            .documentType: NSAttributedString.DocumentType.html,
+            .characterEncoding: String.Encoding.utf8.rawValue
+        ]
+
+        do {
+            // NSAttributedStringでHTMLをパース
+            let nsAttributedString = try NSAttributedString(
+                data: data,
+                options: options,
+                documentAttributes: nil
+            )
+            
+            // SwiftUI用のAttributedStringに変換
+            return AttributedString(nsAttributedString)
+        } catch {
+            // HTMLパース失敗時はフォールバック（プレーンテキストとして表示）
+            return AttributedString(htmlString)
+        }
     }
 }
 
