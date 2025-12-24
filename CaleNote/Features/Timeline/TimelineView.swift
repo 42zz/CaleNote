@@ -46,6 +46,10 @@ struct TimelineView: View {
     // スクロール用のプロキシ参照
     @State private var scrollProxy: ScrollViewProxy?
 
+    // 詳細画面から戻った直後のページング抑制
+    @State private var recentlyReturnedFromDetail: Bool = false
+    @State private var hasAppearedBefore: Bool = false
+
     // Services（このView内で使えるように用意）
     private let syncService = CalendarSyncService()
     private let calendarToJournal = CalendarToJournalSyncService()
@@ -658,8 +662,25 @@ struct TimelineView: View {
                 .onAppear {
                     // スクロールプロキシを保存
                     scrollProxy = proxy
-                    // 初期フォーカス処理のみ
-                    handleInitialFocus(proxy: proxy)
+
+                    // 詳細画面から戻ってきた場合の処理
+                    if hasAppearedBefore {
+                        // 詳細画面から戻ってきたと判断
+                        print("🔙 詳細画面から戻ってきました。ページングを一時停止します")
+                        recentlyReturnedFromDetail = true
+
+                        // 1秒後にページングを再開
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1秒
+                            print("✅ ページングを再開します")
+                            recentlyReturnedFromDetail = false
+                        }
+                    } else {
+                        // 初回表示
+                        hasAppearedBefore = true
+                        // 初期フォーカス処理
+                        handleInitialFocus(proxy: proxy)
+                    }
                 }
                 .onChange(of: selectedDayKey) { _, newValue in
                     scrollToSelectedDay(proxy: proxy, newKey: newValue)
@@ -806,6 +827,11 @@ struct TimelineView: View {
             .onAppear {
                 // 最初のセクションの最初のアイテムが表示されたら未来側ページをロード
                 if isFirstItemInFirstSection {
+                    // 詳細画面から戻った直後はページングをスキップ
+                    if recentlyReturnedFromDetail {
+                        print("🔙 詳細から戻った直後のため、未来側ページロードをスキップ")
+                        return
+                    }
                     print("👁️ 最初のアイテムが表示されました（未来側ページロード）")
                     loadFuturePageIfNeeded()
                 }
@@ -845,6 +871,11 @@ struct TimelineView: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 .onAppear {
+                    // 詳細画面から戻った直後はページングをスキップ
+                    if recentlyReturnedFromDetail {
+                        print("🔙 詳細から戻った直後のため、過去側ページロードをスキップ")
+                        return
+                    }
                     print("👁️ 過去側番兵が表示されました")
                     loadPastPageIfNeeded()
                 }
@@ -885,6 +916,12 @@ struct TimelineView: View {
 
     @MainActor
     private func onCalendarsChanged() async {
+        // 詳細画面から戻った直後は同期をスキップ
+        if recentlyReturnedFromDetail {
+            print("🔙 詳細から戻った直後のため、初期化と同期をスキップ")
+            return
+        }
+
         // カレンダー設定が変更された場合は再初期化
         let enabledCalendarIds = Set(
             cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId }
