@@ -1,5 +1,5 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 struct ArchivedCalendarEventDetailView: View {
     let event: ArchivedCalendarEvent
@@ -21,94 +21,36 @@ struct ArchivedCalendarEventDetailView: View {
         }
         return .blue
     }
+    
+    private var tags: [String] {
+        guard let desc = event.desc, !desc.isEmpty else { return [] }
+        return TagExtractionUtility.extractTags(from: desc)
+    }
+    
+    private var descriptionWithoutTags: String {
+        guard let desc = event.desc, !desc.isEmpty else { return "" }
+        return TagExtractionUtility.removeTags(from: desc)
+    }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // ヘッダー部分（カラーバー）
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 0) {
-                        // カラーバー（左側）
-                        Rectangle()
-                            .fill(displayColor)
-                            .frame(width: 4)
-                            .padding(.trailing, 12)
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(event.title)
-                                .font(.title2)
-                                .bold()
-
-                            if event.isAllDay {
-                                Text("終日")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                Text(event.start, style: .date)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        
-                        Spacer()
-                    }
-                }
-
-                // アーカイブ表示のバッジ
-                // HStack {
-                //     Label("長期キャッシュ", systemImage: "archivebox.fill")
-                //         .font(.caption)
-                //         .foregroundStyle(.secondary)
-                //         .padding(.horizontal, 8)
-                //         .padding(.vertical, 4)
-                //         .background(Color.secondary.opacity(0.1))
-                //         .cornerRadius(8)
-                // }
-
-                // 日時セクション
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("日時")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        if event.isAllDay {
-                            HStack {
-                                Image(systemName: "calendar")
-                                    .foregroundStyle(.secondary)
-                                Text(formatDate(event.start))
-                            }
-                        } else {
-                            HStack {
-                                Image(systemName: "clock")
-                                    .foregroundStyle(.secondary)
-                                if let end = event.end {
-                                    Text("\(formatDateTime(event.start)) 〜 \(formatDateTime(end))")
-                                } else {
-                                    Text(formatDateTime(event.start))
-                                }
-                            }
-                        }
-                    }
-                    .font(.subheadline)
-                }
+            VStack(alignment: .leading, spacing: 24) {
+                // ヘッダー部分
+                DetailHeaderView(
+                    title: event.title,
+                    eventDate: event.start,
+                    isAllDay: event.isAllDay,
+                    endDate: event.end,
+                    displayColor: displayColor,
+                    showColorBar: false
+                )
 
                 // 説明セクション
-                if let desc = event.desc, !desc.isEmpty {
-                    Divider()
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("説明")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .textCase(.uppercase)
-
-                        Text(desc)
-                            .font(.body)
-                            .textSelection(.enabled)
-                    }
-                }
+                DetailDescriptionSection(
+                    text: descriptionWithoutTags,
+                    tags: tags,
+                    displayColor: displayColor
+                )
 
                 Divider()
 
@@ -144,7 +86,7 @@ struct ArchivedCalendarEventDetailView: View {
                         MetadataRow(
                             icon: "clock.arrow.circlepath",
                             label: "キャッシュ日時",
-                            value: formatDateTime(event.cachedAt)
+                            value: DetailViewDateFormatter.formatDateTime(event.cachedAt)
                         )
 
                         if let holidayId = event.holidayId {
@@ -191,7 +133,8 @@ struct ArchivedCalendarEventDetailView: View {
     private func prepareEditJournal() {
         // 既存のジャーナルを取得または新規作成
         if let journalIdString = event.linkedJournalId,
-           let uuid = UUID(uuidString: journalIdString) {
+            let uuid = UUID(uuidString: journalIdString)
+        {
             // 紐づいているジャーナルを取得
             let predicate = #Predicate<JournalEntry> { $0.id == uuid }
             let descriptor = FetchDescriptor(predicate: predicate)
@@ -206,7 +149,7 @@ struct ArchivedCalendarEventDetailView: View {
         // カレンダーの色とアイコンを取得
         let calendarColorHex = correctCalendar?.userColorHex ?? "#3B82F6"
         let calendarIconName = correctCalendar?.iconName ?? "calendar"
-        
+
         let newEntry = JournalEntry(
             title: event.title.isEmpty ? nil : event.title,
             body: event.desc ?? "",
@@ -229,48 +172,4 @@ struct ArchivedCalendarEventDetailView: View {
         isPresentingEditor = true
     }
 
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .long
-        formatter.timeStyle = .none
-        formatter.locale = Locale(identifier: "ja_JP")
-        return formatter.string(from: date)
-    }
-
-    private func formatDateTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        formatter.locale = Locale(identifier: "ja_JP")
-        return formatter.string(from: date)
-    }
 }
-
-// メタデータ行のコンポーネント
-private struct MetadataRow: View {
-    let icon: String
-    let label: String
-    let value: String
-    var valueColor: Color = .primary
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .frame(width: 20)
-
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .frame(width: 80, alignment: .leading)
-
-            Text(value)
-                .font(.subheadline)
-                .foregroundStyle(valueColor)
-
-            Spacer()
-        }
-    }
-}
-

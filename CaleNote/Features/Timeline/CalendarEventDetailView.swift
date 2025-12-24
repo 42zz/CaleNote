@@ -25,173 +25,41 @@ struct CalendarEventDetailView: View {
     // タグを除去した説明文
     private var descriptionWithoutTags: String {
         guard let desc = event.desc, !desc.isEmpty else { return "" }
-        var text = desc
-        // タグパターンを除去
-        let pattern = #"#([^\s#]+)"#
-        if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
-            let range = NSRange(text.startIndex..., in: text)
-            text = regex.stringByReplacingMatches(
-                in: text, options: [], range: range, withTemplate: "")
-        }
-        // 連続する空白を整理（改行は保持）
-        let lines = text.components(separatedBy: "\n")
-        return lines.map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
+        return TagExtractionUtility.removeTags(from: desc)
     }
 
     // 説明文から抽出したタグ
     private var tags: [String] {
         guard let desc = event.desc, !desc.isEmpty else { return [] }
-        let extracted = TagExtractor.extract(from: desc)
-        // 重複除去と正規化
-        var seen = Set<String>()
-        var unique: [String] = []
-        for tag in extracted {
-            let normalized = tag.trimmingCharacters(in: .whitespaces).lowercased()
-            if !normalized.isEmpty && !seen.contains(normalized) {
-                seen.insert(normalized)
-                unique.append(tag)  // 表示用には元のケースを保持
-            }
-        }
-        return unique
+        return TagExtractionUtility.extractTags(from: desc)
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 // 統合ヘッダー（カード形式 - コンパクト化）
-                VStack(alignment: .leading, spacing: 10) {
-                    // タイトル（フォントサイズを一段落とす）
-                    Text(event.title)
-                        .font(.title2)
-                        .bold()
-                        .padding(.top, 6)
-
-                    // 日時情報
-                    VStack(alignment: .leading, spacing: 6) {
-                        if event.isAllDay {
-                            HStack(spacing: 8) {
-                                Image(systemName: "calendar")
-                                    .foregroundStyle(displayColor.opacity(0.7))
-                                    .font(.caption)
-                                Text("終日")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(formatDate(event.start))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        } else {
-                            HStack(spacing: 12) {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    HStack(spacing: 4) {
-                                        Text("開始")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                        Text(formatTime(event.start))
-                                            .font(.caption)
-                                            .bold()
-                                    }
-                                    Text(formatDateOnly(event.start))
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                if let end = event.end {
-                                    Image(systemName: "arrow.right")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        HStack(spacing: 4) {
-                                            Text("終了")
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                            Text(formatTime(end))
-                                                .font(.caption)
-                                                .bold()
-                                        }
-                                        Text(formatDateOnly(end))
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(.bottom, 12)
-                }
-                .background(Color(UIColor.tertiarySystemBackground).opacity(0.5))
-                .cornerRadius(10)
+                DetailHeaderView(
+                    title: event.title,
+                    eventDate: event.start,
+                    isAllDay: event.isAllDay,
+                    endDate: event.end,
+                    displayColor: displayColor,
+                    showColorBar: false
+                )
 
                 // 説明セクション（本文 - 段落構造を視覚化、常に全文表示）
-                if !descriptionWithoutTags.isEmpty {
-                    VStack(alignment: .leading, spacing: 16) {
-                        // 全文表示（タグ除去済み）
-                        ParagraphTextView(text: descriptionWithoutTags)
-
-                        // タグセクション（本文の最後に小さめに表示）
-                        if !tags.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("タグ")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .textCase(.uppercase)
-
-                                FlowLayout(spacing: 6) {
-                                    ForEach(tags, id: \.self) { tag in
-                                        HStack(spacing: 3) {
-                                            Text("#")
-                                                .foregroundStyle(.secondary)
-                                            Text(tag)
-                                        }
-                                        .font(.caption)
-                                        .padding(.vertical, 4)
-                                        .padding(.horizontal, 8)
-                                        .background(
-                                            Capsule()
-                                                .fill(displayColor.opacity(0.1))
-                                        )
-                                    }
-                                }
-                            }
-                            .padding(.top, 12)
-                        }
-                    }
-                    .padding(.horizontal, 4)
-                }
+                DetailDescriptionSection(
+                    text: descriptionWithoutTags,
+                    tags: tags,
+                    displayColor: displayColor
+                )
 
                 // メタ情報（カレンダー所属・同期状態）- 関連エントリー直前に配置
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 12) {
-                        // カレンダー所属（色ドット＋カレンダー名）
-                        if let calendar = correctCalendar, !calendar.summary.isEmpty {
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(displayColor)
-                                    .frame(width: 6, height: 6)
-                                Text(calendar.summary)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-
-                        // 同期状態
-                        if event.status == "confirmed" && !event.eventId.isEmpty {
-                            HStack(spacing: 4) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.caption2)
-                                Text("Googleカレンダーと同期済み")
-                                    .font(.caption)
-                            }
-                            .foregroundStyle(.green)
-                        }
-
-                        Spacer()
-                    }
-                }
-                .padding(.horizontal, 4)
+                DetailMetadataSection(
+                    calendarName: correctCalendar?.summary,
+                    syncStatus: (event.status == "confirmed" && !event.eventId.isEmpty) ? .synced : .none,
+                    displayColor: displayColor
+                )
 
                 // 関連する過去セクション
                 RelatedMemoriesSection(targetDate: event.start)
@@ -266,109 +134,5 @@ struct CalendarEventDetailView: View {
 
         journalEntryForEdit = newEntry
         isPresentingEditor = true
-    }
-
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .long
-        formatter.timeStyle = .none
-        formatter.locale = Locale(identifier: "ja_JP")
-        return formatter.string(from: date)
-    }
-
-    private func formatDateOnly(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        formatter.locale = Locale(identifier: "ja_JP")
-        return formatter.string(from: date)
-    }
-
-    private func formatTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
-        formatter.locale = Locale(identifier: "ja_JP")
-        return formatter.string(from: date)
-    }
-}
-
-// 段落構造を視覚化するテキストビュー
-private struct ParagraphTextView: View {
-    let text: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(paragraphs, id: \.self) { paragraph in
-                Text(paragraph)
-                    .font(.body)
-                    .lineSpacing(6)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    private var paragraphs: [String] {
-        text.components(separatedBy: "\n")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-    }
-}
-
-// フローレイアウト（タグを折り返し表示するため）
-private struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = FlowResult(
-            in: proposal.replacingUnspecifiedDimensions().width,
-            subviews: subviews,
-            spacing: spacing
-        )
-        return result.size
-    }
-
-    func placeSubviews(
-        in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
-    ) {
-        let result = FlowResult(
-            in: bounds.width,
-            subviews: subviews,
-            spacing: spacing
-        )
-        for (index, subview) in subviews.enumerated() {
-            subview.place(
-                at: CGPoint(
-                    x: bounds.minX + result.positions[index].x,
-                    y: bounds.minY + result.positions[index].y), proposal: .unspecified)
-        }
-    }
-
-    struct FlowResult {
-        var size: CGSize = .zero
-        var positions: [CGPoint] = []
-
-        init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat) {
-            var x: CGFloat = 0
-            var y: CGFloat = 0
-            var lineHeight: CGFloat = 0
-
-            for subview in subviews {
-                let size = subview.sizeThatFits(.unspecified)
-
-                if x + size.width > maxWidth && x > 0 {
-                    x = 0
-                    y += lineHeight + spacing
-                    lineHeight = 0
-                }
-
-                positions.append(CGPoint(x: x, y: y))
-                lineHeight = max(lineHeight, size.height)
-                x += size.width + spacing
-            }
-
-            self.size = CGSize(width: maxWidth, height: y + lineHeight)
-        }
     }
 }
