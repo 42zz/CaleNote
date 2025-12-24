@@ -40,6 +40,9 @@ struct TimelineView: View {
     // スクロール用のプロキシ参照
     @State private var scrollProxy: ScrollViewProxy?
 
+    // 過去側ページング状態管理
+    @State private var pagingState = TimelinePagingState()
+
     // Services（このView内で使えるように用意）
     private let syncService = CalendarSyncService()
     private let calendarToJournal = CalendarToJournalSyncService()
@@ -61,6 +64,10 @@ struct TimelineView: View {
 
     private var cachedEventsByUid: [String: CachedCalendarEvent] {
         Dictionary(uniqueKeysWithValues: cachedCalendarEvents.map { ($0.uid, $0) })
+    }
+
+    private var archivedEventsByUid: [String: ArchivedCalendarEvent] {
+        Dictionary(uniqueKeysWithValues: pagingState.loadedArchivedEvents.map { ($0.uid, $0) })
     }
 
     private var calendarsById: [String: CachedCalendar] {
@@ -442,18 +449,62 @@ struct TimelineView: View {
             return matchesText && matchesTag
         }
 
-        // 7) 変換
-        let calendarItemsLocal: [TimelineItem] = calendarItems(from: filteredCalendarEvents)
+        // 7) 長期キャッシュ（ArchivedCalendarEvent）の処理
+        // 過去側ページングで取得した長期キャッシュを含める
+        let archivedEvents = pagingState.loadedArchivedEvents.filter { ev in
+            enabledCalendarIds.contains(ev.calendarId)
+        }
 
-        // 8) 合成
-        // タイムライン通常表示は短期キャッシュ（CachedCalendarEvent）+ JournalEntry のみを使用
-        // 長期キャッシュ（ArchivedCalendarEvent）は検索・振り返り専用のため、ここでは除外
+        // ジャーナルに紐づくイベントは除外
+        let dedupedArchivedEvents = archivedEvents.filter { ev in
+            if let jid = ev.linkedJournalId {
+                if allJournalIdSet.contains(jid) || visibleJournalIdSet.contains(jid) {
+                    return false
+                }
+            }
+            if journalLinkedEventUids.contains(ev.uid) {
+                return false
+            }
+            return true
+        }
+
+        // 短期キャッシュと重複する場合は短期を優先（uid で排除）
+        let cachedUidSet = Set(filteredCalendarEvents.map { $0.uid })
+        let uniqueArchivedEvents = dedupedArchivedEvents.filter { !cachedUidSet.contains($0.uid) }
+
+        // アーカイブイベントにも検索フィルタとタグフィルタを適用
+        let filteredArchivedEvents = uniqueArchivedEvents.filter { event in
+            let matchesText: Bool = {
+                if query.isEmpty { return true }
+                return event.title.localizedCaseInsensitiveContains(query)
+                    || (event.desc?.localizedCaseInsensitiveContains(query) ?? false)
+            }()
+
+            let matchesTag: Bool = {
+                guard let tag = selectedTag else { return true }
+                guard let desc = event.desc, !desc.isEmpty else { return false }
+                let tags = TagExtractor.extract(from: desc)
+                return tags.contains(tag)
+            }()
+
+            return matchesText && matchesTag
+        }
+
+        // 8) 変換
+        let calendarItemsLocal: [TimelineItem] = calendarItems(from: filteredCalendarEvents)
+        let archivedItemsLocal: [TimelineItem] = archivedItems(from: filteredArchivedEvents)
+
+        // 9) 合成
+        // 2段階データソース：短期キャッシュ + JournalEntry + 長期キャッシュ（uid重複排除済み）
         var merged: [TimelineItem] = []
-        merged.reserveCapacity(journalItemsLocal.count + calendarItemsLocal.count)
+        merged.reserveCapacity(
+            journalItemsLocal.count + calendarItemsLocal.count + archivedItemsLocal.count
+        )
         merged.append(contentsOf: journalItemsLocal)
         merged.append(contentsOf: calendarItemsLocal)
+        merged.append(contentsOf: archivedItemsLocal)
 
-        // ソート（降順）
+        // ソート（降順、日時で安定化）
         merged.sort { $0.date > $1.date }
         return merged
     }
@@ -668,6 +719,9 @@ struct TimelineView: View {
             ForEach(grouped.indices, id: \.self) { index in
                 timelineSection(grouped: grouped, index: index)
             }
+
+            // 過去側センチネル行（過去側ページングのトリガー）
+            pastSentinelRow()
         }
     }
 
@@ -714,10 +768,16 @@ struct TimelineView: View {
                 item.kind == .journal ? entriesById[item.sourceId] : nil
 
             let calendarEvent: CachedCalendarEvent? =
-                item.kind == .calendar ? cachedEventsByUid[item.sourceId] : nil
+                (item.kind == .calendar && !item.id.hasPrefix("archived-"))
+                    ? cachedEventsByUid[item.sourceId] : nil
+
+            let archivedEvent: ArchivedCalendarEvent? =
+                (item.kind == .calendar && item.id.hasPrefix("archived-"))
+                    ? archivedEventsByUid[item.sourceId] : nil
 
             let calendar: CachedCalendar? = {
                 if let ce = calendarEvent { return calendarsById[ce.calendarId] }
+                if let ae = archivedEvent { return calendarsById[ae.calendarId] }
                 return nil
             }()
 
@@ -725,7 +785,7 @@ struct TimelineView: View {
                 item: item,
                 entry: entry,
                 calendarEvent: calendarEvent,
-                archivedEvent: nil,  // タイムライン通常表示では使用しない
+                archivedEvent: archivedEvent,
                 calendar: calendar,
                 isResendingIndividual: isResendingIndividual,
                 resendingEntryId: entryToResend?.id.uuidString,
@@ -741,7 +801,31 @@ struct TimelineView: View {
         }
     }
 
-    // Sentinel rows are no longer needed - pagination removed
+    // 過去側センチネル行（過去側ページングのトリガー）
+    @ViewBuilder
+    private func pastSentinelRow() -> some View {
+        if pagingState.isLoadingPast {
+            HStack {
+                Spacer()
+                ProgressView()
+                    .padding(.vertical, 12)
+                Spacer()
+            }
+            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        } else if !pagingState.hasReachedEarliestData {
+            Color.clear
+                .frame(height: 1)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .onAppear {
+                    print("👁️ 過去側センチネルが表示されました")
+                    loadPastPageIfNeeded()
+                }
+        }
+    }
 
     @ToolbarContentBuilder
     private func timelineToolbar() -> some ToolbarContent {
@@ -943,6 +1027,53 @@ struct TimelineView: View {
         }
     }
 
-    // ページネーション関数は削除
-    // 短期キャッシュは同期範囲内のデータが全て取得済みのため、ページネーション不要
+    /// 過去方向のページをロード
+    /// 短期キャッシュの最古日付より古い長期キャッシュを取得
+    private func loadPastPageIfNeeded() {
+        let enabledCalendarIds = Set(cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId })
+
+        // 長期キャッシュの境界が既に存在する場合は、それを使用
+        let fromDayKey: Int
+        if let pagingBoundary = pagingState.earliestPagingDayKey {
+            // 2回目以降: 長期キャッシュの最古日付より前を取得
+            fromDayKey = pagingBoundary
+            print("📄 過去ページロードトリガー: 長期キャッシュ境界使用 fromDayKey=\(fromDayKey)")
+        } else {
+            // 初回: 短期キャッシュとジャーナルの最古日付を計算
+            let enabledCachedEvents = cachedCalendarEvents.filter { enabledCalendarIds.contains($0.calendarId) }
+            let cachedOldest = enabledCachedEvents.map { makeDayKeyInt(from: $0.start) }.min()
+            let journalOldest = entries.map { makeDayKeyInt(from: $0.eventDate) }.min()
+
+            // 両方の最古日付のうち、より古い方を使用
+            if let cached = cachedOldest, let journal = journalOldest {
+                fromDayKey = min(cached, journal)
+            } else if let cached = cachedOldest {
+                fromDayKey = cached
+            } else if let journal = journalOldest {
+                fromDayKey = journal
+            } else {
+                // データがない場合は今日を基準にする
+                fromDayKey = makeDayKeyInt(from: Date())
+            }
+            print("📄 過去ページロードトリガー: 初回ロード fromDayKey=\(fromDayKey), 短期最古=\(cachedOldest ?? 0), ジャーナル最古=\(journalOldest ?? 0)")
+        }
+
+        Task {
+            await pagingState.loadPastPage(
+                fromDayKey: fromDayKey,
+                modelContext: modelContext,
+                enabledCalendarIds: enabledCalendarIds
+            )
+        }
+    }
+
+    /// 日付からYYYYMMDD形式のInt型dayKeyを生成
+    private func makeDayKeyInt(from date: Date) -> Int {
+        let cal = Calendar.current
+        let year = cal.component(.year, from: date)
+        let month = cal.component(.month, from: date)
+        let day = cal.component(.day, from: date)
+        return year * 10000 + month * 100 + day
+    }
 }
+
