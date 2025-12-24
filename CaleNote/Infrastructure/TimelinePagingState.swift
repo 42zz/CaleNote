@@ -49,8 +49,12 @@ final class TimelinePagingState {
         lastFutureLoadBoundary = nil
     }
 
-    /// 初期ロード（今日を中心に未来側と過去側を両方ロード）
-    func initialLoad(modelContext: ModelContext, enabledCalendarIds: Set<String>) async {
+    /// 初期ロード（今日を中心に未来側と過去側を両方ロード + ジャーナルの日付範囲も考慮）
+    func initialLoad(
+        modelContext: ModelContext,
+        enabledCalendarIds: Set<String>,
+        journalDateRange: (min: Date?, max: Date?)? = nil
+    ) async {
         guard !isLoadingPast && !isLoadingFuture else { return }
 
         isLoadingPast = true
@@ -76,25 +80,93 @@ final class TimelinePagingState {
         }
 
         do {
-            // 未来側をロード（今日を含む）
+            var allLoadedEvents: [ArchivedCalendarEvent] = []
+
+            // より広い範囲を初期ロードで取得（中間の日付が抜けないように）
+            let wideInitialPageSize = AppConfig.Timeline.maxLoadedItems // 600件
+
+            // 1. 今日を中心に未来側をロード（今日を含む）
             let (futureEvents, futureBeforeFilterCount) = try await loadFutureEvents(
                 fromDayKey: todayKey,
-                limit: AppConfig.Timeline.initialPageSize,
+                limit: wideInitialPageSize / 2, // 300件
                 modelContext: modelContext,
                 enabledCalendarIds: enabledCalendarIds
             )
+            allLoadedEvents.append(contentsOf: futureEvents)
 
-            // 過去側をロード（今日は含まない）
+            // 2. 今日を中心に過去側をロード（今日は含まない）
             let (pastEvents, pastBeforeFilterCount) = try await loadPastEvents(
                 fromDayKey: todayKey - 1,  // 今日の前日から
-                limit: AppConfig.Timeline.initialPageSize,
+                limit: wideInitialPageSize / 2, // 300件
+                modelContext: modelContext,
+                enabledCalendarIds: enabledCalendarIds
+            )
+            allLoadedEvents.append(contentsOf: pastEvents)
+
+            // 3. ジャーナルの日付範囲も追加でロード（常にロードして確実性を高める）
+            if let dateRange = journalDateRange {
+                print("📓 ジャーナルの日付範囲を追加ロード: min=\(dateRange.min?.description ?? "nil"), max=\(dateRange.max?.description ?? "nil")")
+
+                // ジャーナルの最小日付より前のデータをロード（常にロード）
+                if let minDate = dateRange.min {
+                    let minDayKey = makeDayKey(from: minDate)
+                    print("📓 ジャーナルの最小日付周辺をロード: \(minDayKey)")
+                    let (journalPastEvents, _) = try await loadEventsAroundDate(
+                        dayKey: minDayKey,
+                        modelContext: modelContext,
+                        enabledCalendarIds: enabledCalendarIds
+                    )
+                    print("📓 ジャーナル最小日付周辺のイベント数: \(journalPastEvents.count)")
+                    allLoadedEvents.append(contentsOf: journalPastEvents)
+                }
+
+                // ジャーナルの最大日付より後のデータをロード（常にロード）
+                if let maxDate = dateRange.max {
+                    let maxDayKey = makeDayKey(from: maxDate)
+                    print("📓 ジャーナルの最大日付周辺をロード: \(maxDayKey)")
+                    let (journalFutureEvents, _) = try await loadEventsAroundDate(
+                        dayKey: maxDayKey,
+                        modelContext: modelContext,
+                        enabledCalendarIds: enabledCalendarIds
+                    )
+                    print("📓 ジャーナル最大日付周辺のイベント数: \(journalFutureEvents.count)")
+                    allLoadedEvents.append(contentsOf: journalFutureEvents)
+                }
+            }
+
+            // 4. アーカイブイベントの日付範囲も追加でロード（常にロードして確実性を高める）
+            // （ジャーナルに紐づかない古いイベントも表示するため）
+            let archiveDateRange = try await findArchivedEventDateRange(
                 modelContext: modelContext,
                 enabledCalendarIds: enabledCalendarIds
             )
 
+            if let archiveMin = archiveDateRange.min {
+                let archiveMinDayKey = archiveMin
+                print("📦 アーカイブの最小日付周辺をロード: \(archiveMinDayKey)")
+                let (archivePastEvents, _) = try await loadEventsAroundDate(
+                    dayKey: archiveMinDayKey,
+                    modelContext: modelContext,
+                    enabledCalendarIds: enabledCalendarIds
+                )
+                print("📦 アーカイブ最小日付周辺のイベント数: \(archivePastEvents.count)")
+                allLoadedEvents.append(contentsOf: archivePastEvents)
+            }
+
+            if let archiveMax = archiveDateRange.max {
+                let archiveMaxDayKey = archiveMax
+                print("📦 アーカイブの最大日付周辺をロード: \(archiveMaxDayKey)")
+                let (archiveFutureEvents, _) = try await loadEventsAroundDate(
+                    dayKey: archiveMaxDayKey,
+                    modelContext: modelContext,
+                    enabledCalendarIds: enabledCalendarIds
+                )
+                print("📦 アーカイブ最大日付周辺のイベント数: \(archiveFutureEvents.count)")
+                allLoadedEvents.append(contentsOf: archiveFutureEvents)
+            }
+
             // 重複排除とソート処理を実行（メインスレッドで処理）
-            // 統合
-            let combined = futureEvents + pastEvents
+            let combined = allLoadedEvents
             
             // 重複排除（UIDでグループ化）
             var uniqueDict: [String: ArchivedCalendarEvent] = [:]
@@ -382,8 +454,9 @@ final class TimelinePagingState {
         }
         var descriptor = FetchDescriptor(predicate: predicate)
         descriptor.sortBy = [SortDescriptor(\.startDayKey, order: .reverse)]
-        // フィルタリングで空になる可能性を考慮して、少し多めに取得
-        descriptor.fetchLimit = limit * 2
+        // フィルタリングで空になる可能性を考慮して、かなり多めに取得
+        // 有効なカレンダーのイベントが少数の場合でも確実に取得できるよう、大きめの倍率を使用
+        descriptor.fetchLimit = limit * 20
 
         let allEvents = try modelContext.fetch(descriptor)
         let beforeFilterCount = allEvents.count
@@ -398,9 +471,9 @@ final class TimelinePagingState {
 
         // 有効なカレンダーのイベントのみをフィルタ
         let filtered = allEvents.filter { enabledCalendarIds.contains($0.calendarId) }
-        
+
         print("📊 フィルタ後件数: \(filtered.count)")
-        
+
         // limit件までに制限
         return (Array(filtered.prefix(limit)), beforeFilterCount)
     }
@@ -418,17 +491,50 @@ final class TimelinePagingState {
         }
         var descriptor = FetchDescriptor(predicate: predicate)
         descriptor.sortBy = [SortDescriptor(\.startDayKey, order: .forward)]
-        // フィルタリングで空になる可能性を考慮して、少し多めに取得
-        descriptor.fetchLimit = limit * 2
+        // フィルタリングで空になる可能性を考慮して、かなり多めに取得
+        // 有効なカレンダーのイベントが少数の場合でも確実に取得できるよう、大きめの倍率を使用
+        descriptor.fetchLimit = limit * 20
 
         let allEvents = try modelContext.fetch(descriptor)
         let beforeFilterCount = allEvents.count
 
         // 有効なカレンダーのイベントのみをフィルタ
         let filtered = allEvents.filter { enabledCalendarIds.contains($0.calendarId) }
-        
+
         // limit件までに制限
         return (Array(filtered.prefix(limit)), beforeFilterCount)
+    }
+
+    /// 指定された日付の前後のイベントをロード（ジャーナルの日付範囲用）
+    /// 戻り値: (フィルタ後のイベント, フィルタ前の件数)
+    private func loadEventsAroundDate(
+        dayKey: Int,
+        modelContext: ModelContext,
+        enabledCalendarIds: Set<String>
+    ) async throws -> ([ArchivedCalendarEvent], Int) {
+        // 前後50件ずつロード
+        let halfRange = 50
+
+        // 過去側
+        let (pastEvents, pastCount) = try await loadPastEvents(
+            fromDayKey: dayKey,
+            limit: halfRange,
+            modelContext: modelContext,
+            enabledCalendarIds: enabledCalendarIds
+        )
+
+        // 未来側（指定日を含む）
+        let (futureEvents, futureCount) = try await loadFutureEvents(
+            fromDayKey: dayKey,
+            limit: halfRange,
+            modelContext: modelContext,
+            enabledCalendarIds: enabledCalendarIds
+        )
+
+        let combined = pastEvents + futureEvents
+        let totalCount = pastCount + futureCount
+
+        return (combined, totalCount)
     }
 
     /// 指定された日付キーより前のデータが存在するか確認（より広い範囲で）
@@ -447,13 +553,40 @@ final class TimelinePagingState {
         descriptor.fetchLimit = checkLimit
 
         let allEvents = try modelContext.fetch(descriptor)
-        
+
         // 有効なカレンダーのイベントが存在するか確認
         let hasEnabledEvents = allEvents.contains { enabledCalendarIds.contains($0.calendarId) }
-        
+
         print("📊 広範囲チェック: 取得件数=\(allEvents.count), 有効イベント存在=\(hasEnabledEvents)")
-        
+
         return hasEnabledEvents
+    }
+
+    /// アーカイブイベントの日付範囲（最小・最大のstartDayKey）を取得
+    private func findArchivedEventDateRange(
+        modelContext: ModelContext,
+        enabledCalendarIds: Set<String>
+    ) async throws -> (min: Int?, max: Int?) {
+        // 有効なカレンダーのイベントのみを対象
+        var descriptor = FetchDescriptor<ArchivedCalendarEvent>()
+        descriptor.sortBy = [SortDescriptor(\.startDayKey, order: .forward)]
+
+        let allEvents = try modelContext.fetch(descriptor)
+
+        // 有効なカレンダーのイベントのみをフィルタ
+        let enabledEvents = allEvents.filter { enabledCalendarIds.contains($0.calendarId) }
+
+        guard !enabledEvents.isEmpty else {
+            print("📦 アーカイブイベントが見つかりません")
+            return (min: nil, max: nil)
+        }
+
+        let minDayKey = enabledEvents.map { $0.startDayKey }.min()
+        let maxDayKey = enabledEvents.map { $0.startDayKey }.max()
+
+        print("📦 アーカイブイベントの日付範囲: min=\(minDayKey ?? 0), max=\(maxDayKey ?? 0), 件数=\(enabledEvents.count)")
+
+        return (min: minDayKey, max: maxDayKey)
     }
 
     /// 日付からYYYYMMDD形式の整数キーを生成

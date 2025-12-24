@@ -12,38 +12,18 @@
 
 ### 変更内容
 - `AppConfig.swift`を新規作成してページネーション設定を集約
-  - `pageSize`: 1回のロードで取得する件数（150件）
-  - `maxLoadedItems`: タイムラインに保持する最大アイテム数（600件）
-  - `initialPageSize`: 初期ロード時に未来側と過去側それぞれに読む件数（100件）
 - `TimelinePagingState.swift`を新規作成してページング状態を管理
-  - カーソル追跡（`earliestLoadedDayKey`, `latestLoadedDayKey`）
-  - ローディングフラグ（`isLoadingPast`, `isLoadingFuture`）
-  - 境界フラグ（`hasReachedEarliestData`, `hasReachedLatestData`）
-  - 双方向ロードメソッド（`loadPastPage`, `loadFuturePage`）
-  - ウィンドウトリミング機能（`trimIfNeeded`）
 - `TimelineView.swift`をページネーション対応に変更
-  - 長期キャッシュの`@Query`を削除し、`TimelinePagingState`から取得
-  - 初期ロードは「今日」を中心に未来側と過去側を両方ロード
-  - 上端と下端に番兵ビューを配置して自動ロードをトリガー
-  - スクロール方向を記録してトリム時に逆側を削除
 
 ### 修正
 - 長期キャッシュ全量ロードによるメモリ消費とクラッシュ問題を解決
 - 大量のアーカイブイベントがある場合のパフォーマンス改善
 - タイムライン一覧の「ジャーナル」ボタンタップ時に画面最上部（もう上にスクロールできない位置）にスクロールするように修正
-  - `TimelineView.scrollToTop()`を修正し、`groupedItems`の最初のセクション（最も新しい日付）にスクロールするように変更
 - エントリー詳細画面から戻った際にページングが発火してスクロール位置がずれる問題を修正
-  - 詳細画面から戻った直後（1秒間）はページングを一時停止するように変更
-  - `recentlyReturnedFromDetail`フラグで詳細画面からの復帰を検知
-  - 番兵ビューのonAppearでこのフラグをチェックしてローディングをスキップ
 - エントリー詳細画面から戻った際に同期処理が走る問題を修正
-  - `onCalendarsChanged()`内で`recentlyReturnedFromDetail`フラグをチェック
-  - 詳細画面から戻った直後（1秒間）は初期化と同期処理をスキップ
 - カスタムタブバーの実装に伴うUI調整
-  - ToastViewがタブバーに隠れる問題を修正（`.padding(.bottom, 60)`と`.zIndex(200)`を追加）
-  - 各Viewに`.safeAreaInset(edge: .bottom)`を追加してタブバー分のスペースを確保
 - ウィンドウトリミング機能を一時的に無効化
-  - トリミング処理がスクロール位置のずれを引き起こすため、コメントアウトで無効化
+- 中間的な日付（例: 2023/4/25）のアーカイブイベントがタイムライン一覧に表示されない問題を修正
 
 ---
 

@@ -927,6 +927,17 @@ struct TimelineView: View {
             cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId }
         )
 
+        // ジャーナルの日付範囲を計算
+        let journalDateRange: (min: Date?, max: Date?)? = {
+            guard !entries.isEmpty else { return nil }
+            let dates = entries.map { $0.eventDate }
+            return (min: dates.min(), max: dates.max())
+        }()
+
+        if let range = journalDateRange {
+            print("📓 ジャーナルの日付範囲: \(range.min?.description ?? "nil") 〜 \(range.max?.description ?? "nil")")
+        }
+
         // ページング状態をリセットして再初期化
         print("🚀 タイムライン初期ロードを開始（カレンダー設定: \(enabledCalendarIds.count)個有効）")
         pagingState.reset()
@@ -934,7 +945,8 @@ struct TimelineView: View {
 
         await pagingState.initialLoad(
             modelContext: modelContext,
-            enabledCalendarIds: enabledCalendarIds
+            enabledCalendarIds: enabledCalendarIds,
+            journalDateRange: journalDateRange
         )
         print("🚀 初期ロード完了。ロード済みイベント数: \(pagingState.loadedArchivedEvents.count)")
         print("🚀 最も古い日付キー: \(pagingState.earliestLoadedDayKey ?? 0)")
