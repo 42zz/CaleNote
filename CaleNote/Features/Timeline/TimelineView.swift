@@ -13,9 +13,6 @@ struct TimelineView: View {
     @Query(sort: \JournalEntry.eventDate, order: .reverse)
     private var entries: [JournalEntry]
 
-    // ページング状態管理
-    @State private var pagingState = TimelinePagingState()
-
     @State private var isPresentingEditor = false
     @State private var searchText: String = ""
     @State private var selectedTag: String? = nil
@@ -24,7 +21,6 @@ struct TimelineView: View {
     // 初期フォーカス管理
     @State private var hasAutoFocusedToday: Bool = false
     @State private var selectedDayKey: String? = nil  // 日付ジャンプ用（将来の機能）
-    @State private var hasInitialLoadCompleted: Bool = false
 
     // タブ選択によるスクロールトリガー
     @Binding var selectedTab: Int
@@ -41,15 +37,8 @@ struct TimelineView: View {
     @State private var isSyncing: Bool = false
     @State private var lastSyncAt: Date?
 
-    // 最後にトリガーした方向を記録（トリム処理用）
-    @State private var lastScrollDirection: TimelinePagingState.ScrollDirection = .past
-
     // スクロール用のプロキシ参照
     @State private var scrollProxy: ScrollViewProxy?
-
-    // 詳細画面から戻った直後のページング抑制
-    @State private var recentlyReturnedFromDetail: Bool = false
-    @State private var hasAppearedBefore: Bool = false
 
     // Services（このView内で使えるように用意）
     private let syncService = CalendarSyncService()
@@ -74,10 +63,6 @@ struct TimelineView: View {
         Dictionary(uniqueKeysWithValues: cachedCalendarEvents.map { ($0.uid, $0) })
     }
 
-    private var archivedEventsByUid: [String: ArchivedCalendarEvent] {
-        Dictionary(uniqueKeysWithValues: pagingState.loadedArchivedEvents.map { ($0.uid, $0) })
-    }
-
     private var calendarsById: [String: CachedCalendar] {
         Dictionary(uniqueKeysWithValues: cachedCalendars.map { ($0.calendarId, $0) })
     }
@@ -95,12 +80,12 @@ struct TimelineView: View {
         let enabledCalendarIds: Set<String> = Set(
             cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId }
         )
-        
+
         // 有効なカレンダーのイベントのみを対象
         let enabledCalendarEvents = cachedCalendarEvents.filter { event in
             enabledCalendarIds.contains(event.calendarId)
         }
-        
+
         // 同期対象期間内のイベントも含めてタグ統計を構築
         let stats = buildTagStats(
             from: entries,
@@ -183,7 +168,7 @@ struct TimelineView: View {
         }
 
         result.sort { $0.day > $1.day }
-        
+
         // 今日セクションが存在しない場合は空セクションを追加
         let today = calendar.startOfDay(for: Date())
         let hasTodaySection = result.contains { calendar.isDate($0.day, inSameDayAs: today) }
@@ -192,7 +177,7 @@ struct TimelineView: View {
             // 日付順を維持するため再ソート
             result.sort { $0.day > $1.day }
         }
-        
+
         return result
     }
 
@@ -202,10 +187,10 @@ struct TimelineView: View {
         cachedEvents: [CachedCalendarEvent]
     ) -> [TagStat] {
         var dict: [String: TagStat] = [:]
-        
+
         // 同期対象期間を取得
         let (timeMin, timeMax) = SyncSettings.windowDates()
-        
+
         // JournalEntryからタグを抽出
         for entry in entries {
             let tags = TagExtractor.extract(from: entry.body)
@@ -226,7 +211,7 @@ struct TimelineView: View {
                 }
             }
         }
-        
+
         // 同期対象期間内のCachedCalendarEventからタグを抽出
         // 注意: JournalEntryと紐付いているイベントは重複カウントを避けるため、
         // linkedJournalIdがnilのイベントのみを対象とする
@@ -235,17 +220,17 @@ struct TimelineView: View {
             guard event.start >= timeMin && event.start <= timeMax else {
                 continue
             }
-            
+
             // JournalEntryと紐付いている場合はスキップ（既にカウント済み）
             if event.linkedJournalId != nil {
                 continue
             }
-            
+
             // descriptionからタグを抽出
             guard let desc = event.desc, !desc.isEmpty else {
                 continue
             }
-            
+
             let tags = TagExtractor.extract(from: desc)
             for tag in tags {
                 if var stat = dict[tag] {
@@ -264,22 +249,24 @@ struct TimelineView: View {
                 }
             }
         }
-        
+
         return Array(dict.values)
     }
 
     private func journalItems(from entries: [JournalEntry]) -> [TimelineItem] {
         // カレンダー辞書を作成して高速検索
-        let calendarDict = Dictionary(uniqueKeysWithValues: cachedCalendars.map { ($0.calendarId, $0) })
-        
+        let calendarDict = Dictionary(
+            uniqueKeysWithValues: cachedCalendars.map { ($0.calendarId, $0) })
+
         return entries.map { entry in
             // colorHexはエントリ固有、ただし空文字列やデフォルト値の場合はカレンダーの色を使用
             let colorHex: String
             if entry.colorHex.isEmpty || entry.colorHex == "#3B82F6" {
                 // カレンダーの色を使用
                 if let linkedCalendarId = entry.linkedCalendarId,
-                   let calendar = calendarDict[linkedCalendarId],
-                   !calendar.userColorHex.isEmpty {
+                    let calendar = calendarDict[linkedCalendarId],
+                    !calendar.userColorHex.isEmpty
+                {
                     colorHex = calendar.userColorHex
                 } else {
                     colorHex = defaultColorHex
@@ -315,8 +302,9 @@ struct TimelineView: View {
 
     private func calendarItems(from cached: [CachedCalendarEvent]) -> [TimelineItem] {
         // カレンダー辞書を作成して高速検索
-        let calendarDict = Dictionary(uniqueKeysWithValues: cachedCalendars.map { ($0.calendarId, $0) })
-        
+        let calendarDict = Dictionary(
+            uniqueKeysWithValues: cachedCalendars.map { ($0.calendarId, $0) })
+
         return cached.map { e in
             // CachedCalendarのcolorHex/iconNameを確実に反映
             let calendar = calendarDict[e.calendarId]
@@ -326,7 +314,7 @@ struct TimelineView: View {
             } else {
                 colorHex = defaultColorHex
             }
-            
+
             let iconName: String
             if let cal = calendar, !cal.iconName.isEmpty {
                 iconName = cal.iconName
@@ -350,8 +338,9 @@ struct TimelineView: View {
 
     private func archivedItems(from archived: [ArchivedCalendarEvent]) -> [TimelineItem] {
         // カレンダー辞書を作成して高速検索
-        let calendarDict = Dictionary(uniqueKeysWithValues: cachedCalendars.map { ($0.calendarId, $0) })
-        
+        let calendarDict = Dictionary(
+            uniqueKeysWithValues: cachedCalendars.map { ($0.calendarId, $0) })
+
         return archived.map { e in
             // CachedCalendarのcolorHex/iconNameを確実に反映
             let calendar = calendarDict[e.calendarId]
@@ -361,7 +350,7 @@ struct TimelineView: View {
             } else {
                 colorHex = defaultColorHex
             }
-            
+
             let iconName: String
             if let cal = calendar, !cal.iconName.isEmpty {
                 iconName = cal.iconName
@@ -390,17 +379,19 @@ struct TimelineView: View {
 
         // 2) 重複排除用の「全ジャーナルID集合」（フィルタに影響されないよう全件）
         let allJournalIdSet: Set<String> = Set(entries.map { $0.id.uuidString })
-        
+
         // 2-1) 表示対象のジャーナルID集合（重複排除に使用）
         let visibleJournalIdSet: Set<String> = Set(visibleJournals.map { $0.id.uuidString })
-        
+
         // 2-2) 表示対象のジャーナルに対応するカレンダーイベントのUID集合（重複排除に使用）
         // linkedEventIdとlinkedCalendarIdを使って、ジャーナルエントリに対応するカレンダーイベントを特定
-        let journalLinkedEventUids: Set<String> = Set(visibleJournals.compactMap { entry in
-            guard let calendarId = entry.linkedCalendarId,
-                  let eventId = entry.linkedEventId else { return nil }
-            return "\(calendarId):\(eventId)"
-        })
+        let journalLinkedEventUids: Set<String> = Set(
+            visibleJournals.compactMap { entry in
+                guard let calendarId = entry.linkedCalendarId,
+                    let eventId = entry.linkedEventId
+                else { return nil }
+                return "\(calendarId):\(eventId)"
+            })
 
         // 3) 有効カレンダーID集合
         let enabledCalendarIds: Set<String> = Set(
@@ -421,12 +412,12 @@ struct TimelineView: View {
                     return false
                 }
             }
-            
+
             // linkedEventIdとlinkedCalendarIdでチェック（より確実）
             if journalLinkedEventUids.contains(ev.uid) {
                 return false
             }
-            
+
             return true
         }
 
@@ -439,7 +430,7 @@ struct TimelineView: View {
                 return event.title.localizedCaseInsensitiveContains(query)
                     || (event.desc?.localizedCaseInsensitiveContains(query) ?? false)
             }()
-            
+
             // タグ検索
             let matchesTag: Bool = {
                 guard let tag = selectedTag else { return true }
@@ -447,74 +438,20 @@ struct TimelineView: View {
                 let tags = TagExtractor.extract(from: desc)
                 return tags.contains(tag)
             }()
-            
+
             return matchesText && matchesTag
         }
 
-        // 7) 長期キャッシュ（ArchivedCalendarEvent）の処理
-        // ページング状態から取得し、有効なカレンダーIDでフィルタリング
-        // （カレンダーの表示設定が変更された場合に備えて、ここでもフィルタリング）
-        let enabledArchivedEvents: [ArchivedCalendarEvent] = pagingState.loadedArchivedEvents.filter { ev in
-            enabledCalendarIds.contains(ev.calendarId)
-        }
-
-        // ジャーナルに紐づくイベントは除外
-        // 全ジャーナルID集合と表示対象ジャーナルID集合の両方をチェック
-        // また、linkedEventIdとlinkedCalendarIdでもチェック
-        let dedupedArchivedEvents: [ArchivedCalendarEvent] = enabledArchivedEvents.filter { ev in
-            // linkedJournalIdでチェック
-            if let jid = ev.linkedJournalId {
-                if allJournalIdSet.contains(jid) || visibleJournalIdSet.contains(jid) {
-                    return false
-                }
-            }
-            
-            // linkedEventIdとlinkedCalendarIdでチェック（より確実）
-            if journalLinkedEventUids.contains(ev.uid) {
-                return false
-            }
-            
-            return true
-        }
-
-        // CachedCalendarEventと重複する場合はCachedCalendarEventを優先（重複排除）
-        let cachedUidSet: Set<String> = Set(filteredCalendarEvents.map { $0.uid })
-        let uniqueArchivedEvents: [ArchivedCalendarEvent] = dedupedArchivedEvents.filter { ev in
-            !cachedUidSet.contains(ev.uid)
-        }
-
-        // アーカイブイベントにも検索フィルタとタグフィルタを適用
-        let filteredArchivedEvents: [ArchivedCalendarEvent] = uniqueArchivedEvents.filter { event in
-            // テキスト検索
-            let matchesText: Bool = {
-                if query.isEmpty { return true }
-                return event.title.localizedCaseInsensitiveContains(query)
-                    || (event.desc?.localizedCaseInsensitiveContains(query) ?? false)
-            }()
-            
-            // タグ検索
-            let matchesTag: Bool = {
-                guard let tag = selectedTag else { return true }
-                guard let desc = event.desc, !desc.isEmpty else { return false }
-                let tags = TagExtractor.extract(from: desc)
-                return tags.contains(tag)
-            }()
-            
-            return matchesText && matchesTag
-        }
-
-        // 8) 変換
+        // 7) 変換
         let calendarItemsLocal: [TimelineItem] = calendarItems(from: filteredCalendarEvents)
-        let archivedItemsLocal: [TimelineItem] = archivedItems(from: filteredArchivedEvents)
 
-        // 9) 合成
-        // 各配列を結合してからソート（フィルタリング後の配列はソート順が保証されない可能性があるため）
+        // 8) 合成
+        // タイムライン通常表示は短期キャッシュ（CachedCalendarEvent）+ JournalEntry のみを使用
+        // 長期キャッシュ（ArchivedCalendarEvent）は検索・振り返り専用のため、ここでは除外
         var merged: [TimelineItem] = []
-        merged.reserveCapacity(
-            journalItemsLocal.count + calendarItemsLocal.count + archivedItemsLocal.count)
+        merged.reserveCapacity(journalItemsLocal.count + calendarItemsLocal.count)
         merged.append(contentsOf: journalItemsLocal)
         merged.append(contentsOf: calendarItemsLocal)
-        merged.append(contentsOf: archivedItemsLocal)
 
         // ソート（降順）
         merged.sort { $0.date > $1.date }
@@ -667,24 +604,8 @@ struct TimelineView: View {
                     // スクロールプロキシを保存
                     scrollProxy = proxy
 
-                    // 詳細画面から戻ってきた場合の処理
-                    if hasAppearedBefore {
-                        // 詳細画面から戻ってきたと判断
-                        print("🔙 詳細画面から戻ってきました。ページングを一時停止します")
-                        recentlyReturnedFromDetail = true
-
-                        // 1秒後にページングを再開
-                        Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1秒
-                            print("✅ ページングを再開します")
-                            recentlyReturnedFromDetail = false
-                        }
-                    } else {
-                        // 初回表示
-                        hasAppearedBefore = true
-                        // 初期フォーカス処理
-                        handleInitialFocus(proxy: proxy)
-                    }
+                    // 初期フォーカス処理
+                    handleInitialFocus(proxy: proxy)
                 }
                 .onChange(of: selectedDayKey) { _, newValue in
                     scrollToSelectedDay(proxy: proxy, newKey: newValue)
@@ -697,7 +618,9 @@ struct TimelineView: View {
                 .onChange(of: tabTapTrigger) { _, newValue in
                     print("🔔 タブタップトリガー検知: \(newValue)")
                     // 検索中でない場合のみスクロール
-                    let isSearching = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedTag != nil
+                    let isSearching =
+                        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || selectedTag != nil
                     if !isSearching {
                         scrollToToday(proxy: proxy)
                     } else {
@@ -749,7 +672,9 @@ struct TimelineView: View {
     }
 
     @ViewBuilder
-    private func timelineSection(grouped: [(day: Date, items: [TimelineItem])], index: Int) -> some View {
+    private func timelineSection(grouped: [(day: Date, items: [TimelineItem])], index: Int)
+        -> some View
+    {
         let section = grouped[index]
         let headerTitle = section.day.formatted(date: .abbreviated, time: .omitted)
         let sectionDayKey = dayKey(from: section.day)
@@ -757,10 +682,6 @@ struct TimelineView: View {
         let isLastSection = index == grouped.index(before: grouped.endIndex)
 
         Section {
-            if isFirstSection && pagingState.isLoadingFuture {
-                futureLoadingRow()
-            }
-
             if section.items.isEmpty {
                 Text("記録がありません")
                     .font(.caption)
@@ -772,10 +693,6 @@ struct TimelineView: View {
                     isFirstSection: isFirstSection,
                     isLastSection: isLastSection
                 )
-            }
-
-            if isLastSection {
-                pastSentinelRow()
             }
         } header: {
             Text(headerTitle)
@@ -791,26 +708,16 @@ struct TimelineView: View {
     ) -> some View {
         ForEach(items.indices, id: \.self) { itemIndex in
             let item = items[itemIndex]
-            let isFirstItem = itemIndex == items.startIndex
-            let isLastItem = itemIndex == items.index(before: items.endIndex)
-            let isFirstItemInFirstSection = isFirstSection && isFirstItem
-            let isLastItemInLastSection = isLastSection && isLastItem
 
             // 辞書参照でlookup（型推論とパフォーマンスの改善）
             let entry: JournalEntry? =
                 item.kind == .journal ? entriesById[item.sourceId] : nil
 
             let calendarEvent: CachedCalendarEvent? =
-                (item.kind == .calendar && !item.id.hasPrefix("archived-"))
-                ? cachedEventsByUid[item.sourceId] : nil
-
-            let archivedEvent: ArchivedCalendarEvent? =
-                (item.kind == .calendar && item.id.hasPrefix("archived-"))
-                ? archivedEventsByUid[item.sourceId] : nil
+                item.kind == .calendar ? cachedEventsByUid[item.sourceId] : nil
 
             let calendar: CachedCalendar? = {
                 if let ce = calendarEvent { return calendarsById[ce.calendarId] }
-                if let ae = archivedEvent { return calendarsById[ae.calendarId] }
                 return nil
             }()
 
@@ -818,74 +725,23 @@ struct TimelineView: View {
                 item: item,
                 entry: entry,
                 calendarEvent: calendarEvent,
-                archivedEvent: archivedEvent,
+                archivedEvent: nil,  // タイムライン通常表示では使用しない
                 calendar: calendar,
                 isResendingIndividual: isResendingIndividual,
                 resendingEntryId: entryToResend?.id.uuidString,
-                isFirstItemInFirstSection: isFirstItemInFirstSection,
-                isLastItemInLastSection: isLastItemInLastSection,
+                isFirstItemInFirstSection: false,  // 使用しない
+                isLastItemInLastSection: false,  // 使用しない
                 onSyncBadgeTap: entry != nil ? { handleSyncBadgeTap(for: entry!) } : nil,
                 onDeleteJournal: { deleteJournalEntry($0) },
                 onDeleteCalendar: { deleteCalendarEvent($0) },
                 isDetailViewPresented: $isDetailViewPresented
             )
-            .onAppear {
-                // 最初のセクションの最初のアイテムが表示されたら未来側ページをロード
-                if isFirstItemInFirstSection {
-                    // 詳細画面から戻った直後はページングをスキップ
-                    if recentlyReturnedFromDetail {
-                        print("🔙 詳細から戻った直後のため、未来側ページロードをスキップ")
-                        return
-                    }
-                    print("👁️ 最初のアイテムが表示されました（未来側ページロード）")
-                    loadFuturePageIfNeeded()
-                }
-            }
+            // ページネーショントリガーは削除
+            // 短期キャッシュは同期範囲内のデータが全て取得済みのため、ページネーション不要
         }
     }
 
-    @ViewBuilder
-    private func futureLoadingRow() -> some View {
-        HStack {
-            Spacer()
-            ProgressView()
-                .padding(.vertical, 12)
-            Spacer()
-        }
-        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
-    }
-
-    @ViewBuilder
-    private func pastSentinelRow() -> some View {
-        if pagingState.isLoadingPast {
-            HStack {
-                Spacer()
-                ProgressView()
-                    .padding(.vertical, 12)
-                Spacer()
-            }
-            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-        } else {
-            Color.clear
-                .frame(height: 1)
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .onAppear {
-                    // 詳細画面から戻った直後はページングをスキップ
-                    if recentlyReturnedFromDetail {
-                        print("🔙 詳細から戻った直後のため、過去側ページロードをスキップ")
-                        return
-                    }
-                    print("👁️ 過去側番兵が表示されました")
-                    loadPastPageIfNeeded()
-                }
-        }
-    }
+    // Sentinel rows are no longer needed - pagination removed
 
     @ToolbarContentBuilder
     private func timelineToolbar() -> some ToolbarContent {
@@ -914,6 +770,8 @@ struct TimelineView: View {
                 Image(systemName: "plus")
             }
             .disabled(isSyncing)
+            .buttonStyle(.glassProminent)
+            .tint(Color.blue)
         }
     }
 
@@ -921,42 +779,13 @@ struct TimelineView: View {
 
     @MainActor
     private func onCalendarsChanged() async {
-        // 詳細画面から戻った直後は同期をスキップ
-        if recentlyReturnedFromDetail {
-            print("🔙 詳細から戻った直後のため、初期化と同期をスキップ")
-            return
-        }
-
         // カレンダー設定が変更された場合は再初期化
         let enabledCalendarIds = Set(
             cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId }
         )
 
-        // ジャーナルの日付範囲を計算
-        let journalDateRange: (min: Date?, max: Date?)? = {
-            guard !entries.isEmpty else { return nil }
-            let dates = entries.map { $0.eventDate }
-            return (min: dates.min(), max: dates.max())
-        }()
-
-        if let range = journalDateRange {
-            print("📓 ジャーナルの日付範囲: \(range.min?.description ?? "nil") 〜 \(range.max?.description ?? "nil")")
-        }
-
-        // ページング状態をリセットして再初期化
-        print("🚀 タイムライン初期ロードを開始（カレンダー設定: \(enabledCalendarIds.count)個有効）")
-        pagingState.reset()
-        hasInitialLoadCompleted = false
-
-        await pagingState.initialLoad(
-            modelContext: modelContext,
-            enabledCalendarIds: enabledCalendarIds,
-            journalDateRange: journalDateRange
-        )
-        print("🚀 初期ロード完了。ロード済みイベント数: \(pagingState.loadedArchivedEvents.count)")
-        print("🚀 最も古い日付キー: \(pagingState.earliestLoadedDayKey ?? 0)")
-        print("🚀 最も新しい日付キー: \(pagingState.latestLoadedDayKey ?? 0)")
-        hasInitialLoadCompleted = true
+        // 短期キャッシュは同期範囲内のデータが全て取得済みのため、初期ロード不要
+        print("🚀 タイムライン表示準備完了（カレンダー設定: \(enabledCalendarIds.count)個有効）")
 
         // 起動時同期（runSyncに統一）
         await runSync(isManual: false)
@@ -964,7 +793,9 @@ struct TimelineView: View {
 
     private func handleInitialFocus(proxy: ScrollViewProxy) {
         // 初期フォーカス: 検索中でない場合のみ実行
-        let isSearching = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedTag != nil
+        let isSearching =
+            !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || selectedTag != nil
         if !hasAutoFocusedToday && !isSearching {
             // 日付ジャンプで選択された日がある場合はそれを優先、なければ今日
             let targetKey = selectedDayKey ?? todayKey
@@ -997,15 +828,18 @@ struct TimelineView: View {
         // レイアウトが確定するまで待つ（タブ切り替え時は特に必要）
         Task { @MainActor in
             // 少し待ってからスクロール（レイアウト確定を待つ）
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5秒
+            try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5秒
 
             // 今日のセクションが存在するか確認
             let grouped = groupedItems
             let calendar = Calendar.current
             let todayDate = calendar.startOfDay(for: Date())
-            let hasTodaySection = grouped.contains { calendar.isDate($0.day, inSameDayAs: todayDate) }
+            let hasTodaySection = grouped.contains {
+                calendar.isDate($0.day, inSameDayAs: todayDate)
+            }
 
-            print("📅 今日のセクション確認: hasTodaySection=\(hasTodaySection), grouped.count=\(grouped.count)")
+            print(
+                "📅 今日のセクション確認: hasTodaySection=\(hasTodaySection), grouped.count=\(grouped.count)")
             if hasTodaySection {
                 print("📅 今日のセクションが見つかりました。スクロール実行: \(today)")
                 // 複数回試行して確実にスクロールする
@@ -1013,7 +847,7 @@ struct TimelineView: View {
                     proxy.scrollTo(today, anchor: .top)
                 }
                 // 念のため少し待ってからもう一度試行
-                try? await Task.sleep(nanoseconds: 200_000_000) // 0.2秒
+                try? await Task.sleep(nanoseconds: 200_000_000)  // 0.2秒
                 withAnimation(.easeInOut(duration: 0.3)) {
                     proxy.scrollTo(today, anchor: .top)
                 }
@@ -1037,14 +871,14 @@ struct TimelineView: View {
             print("⚠️ スクロール対象のセクションがありません")
             return
         }
-        
+
         let firstSectionKey = dayKey(from: firstSection.day)
         print("⬆️ 最初のセクションにスクロール: \(firstSectionKey)")
         withAnimation(.easeInOut(duration: 0.3)) {
             proxy.scrollTo(firstSectionKey, anchor: .top)
         }
     }
- 
+
     @MainActor
     private func runSync(isManual: Bool) async {
         if isSyncing { return }
@@ -1109,77 +943,6 @@ struct TimelineView: View {
         }
     }
 
-    /// 過去方向のページをロード（下スクロール時）
-    private func loadPastPageIfNeeded() {
-        guard hasInitialLoadCompleted else {
-            print("⚠️ 初期ロード未完了のため過去ページをスキップ")
-            return
-        }
-        guard !pagingState.isLoadingPast else {
-            print("⚠️ 既にロード中のため過去ページをスキップ")
-            return
-        }
-        guard !pagingState.hasReachedEarliestData else {
-            print("⚠️ 過去データの最後に到達済み")
-            return
-        }
-
-        print("📄 過去方向のページロードを開始")
-        // スクロール方向を記録
-        lastScrollDirection = .past
-
-        Task {
-            let enabledCalendarIds = Set(
-                cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId }
-            )
-            print("📄 有効なカレンダー数: \(enabledCalendarIds.count)")
-
-            await pagingState.loadPastPage(
-                modelContext: modelContext,
-                enabledCalendarIds: enabledCalendarIds
-            )
-            print("📄 過去ページロード完了。現在のイベント数: \(pagingState.loadedArchivedEvents.count)")
-
-            // ロード完了後、最大件数を超えていればトリム
-            // 注: トリミングはスクロール位置のずれを引き起こす可能性があるため、一旦無効化
-            // pagingState.trimIfNeeded(scrollDirection: lastScrollDirection)
-        }
-    }
-
-    /// 未来方向のページをロード（上スクロール時）
-    private func loadFuturePageIfNeeded() {
-        guard hasInitialLoadCompleted else {
-            print("⚠️ 初期ロード未完了のため未来ページをスキップ")
-            return
-        }
-        guard !pagingState.isLoadingFuture else {
-            print("⚠️ 既にロード中のため未来ページをスキップ")
-            return
-        }
-        guard !pagingState.hasReachedLatestData else {
-            print("⚠️ 未来データの最後に到達済み")
-            return
-        }
-
-        print("📅 未来方向のページロードを開始")
-        // スクロール方向を記録
-        lastScrollDirection = .future
-
-        Task {
-            let enabledCalendarIds = Set(
-                cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId }
-            )
-            print("📅 有効なカレンダー数: \(enabledCalendarIds.count)")
-
-            await pagingState.loadFuturePage(
-                modelContext: modelContext,
-                enabledCalendarIds: enabledCalendarIds
-            )
-            print("📅 未来ページロード完了。現在のイベント数: \(pagingState.loadedArchivedEvents.count)")
-
-            // ロード完了後、最大件数を超えていればトリム
-            // 注: トリミングはスクロール位置のずれを引き起こす可能性があるため、一旦無効化
-            // pagingState.trimIfNeeded(scrollDirection: lastScrollDirection)
-        }
-    }
+    // ページネーション関数は削除
+    // 短期キャッシュは同期範囲内のデータが全て取得済みのため、ページネーション不要
 }

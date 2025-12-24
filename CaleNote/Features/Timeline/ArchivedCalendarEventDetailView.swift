@@ -38,9 +38,6 @@ struct ArchivedCalendarEventDetailView: View {
                 // ヘッダー部分
                 DetailHeaderView(
                     title: event.title,
-                    eventDate: event.start,
-                    isAllDay: event.isAllDay,
-                    endDate: event.end,
                     displayColor: displayColor,
                     showColorBar: false
                 )
@@ -54,6 +51,9 @@ struct ArchivedCalendarEventDetailView: View {
 
                 // メタ情報（カレンダー所属・同期状態・追加情報）
                 DetailMetadataSection(
+                    eventDate: event.start,
+                    isAllDay: event.isAllDay,
+                    endDate: event.end,
                     calendarName: correctCalendar?.summary,
                     syncStatus: (event.status == "confirmed" && !event.eventId.isEmpty)
                         ? .synced : .none,
@@ -94,13 +94,9 @@ struct ArchivedCalendarEventDetailView: View {
                         Text("編集")
                     }
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Capsule().fill(displayColor))
                 }
-                .buttonStyle(.borderless)
-                .tint(.clear)
+                .buttonStyle(.glassProminent)
+                .tint(Color.blue)
             }
         }
         .sheet(isPresented: $isPresentingEditor) {

@@ -60,9 +60,6 @@ struct JournalDetailView: View {
                 // 統合ヘッダー（カード形式 - コンパクト化）
                 DetailHeaderView(
                     title: entry.title?.isEmpty == false ? entry.title! : "（タイトルなし）",
-                    eventDate: entry.eventDate,
-                    isAllDay: true,
-                    endDate: nil,
                     displayColor: displayColor,
                     showColorBar: false
                 )
@@ -97,6 +94,9 @@ struct JournalDetailView: View {
 
                 // メタ情報（カレンダー所属・同期状態）- 関連エントリー直前に配置
                 DetailMetadataSection(
+                    eventDate: entry.eventDate,
+                    isAllDay: true,
+                    endDate: nil,
                     calendarName: calendarName,
                     syncStatus: syncStatus,
                     displayColor: displayColor,
@@ -118,14 +118,9 @@ struct JournalDetailView: View {
                         Image(systemName: "pencil")
                         Text("編集")
                     }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Capsule().fill(displayColor))
                 }
-                .buttonStyle(.borderless)
-                .tint(.clear)
+                .buttonStyle(.glassProminent)
+                .tint(Color.blue)
             }
         }
         .sheet(isPresented: $isPresentingEditor) {

@@ -1,32 +1,23 @@
-import SwiftUI
 import Foundation
+import SwiftUI
 
 // MARK: - Header Component
 
 struct DetailHeaderView: View {
     let title: String
-    let eventDate: Date
-    let isAllDay: Bool
-    let endDate: Date?
     let displayColor: Color
     let showColorBar: Bool
-    
+
     init(
         title: String,
-        eventDate: Date,
-        isAllDay: Bool = false,
-        endDate: Date? = nil,
         displayColor: Color,
         showColorBar: Bool = false
     ) {
         self.title = title
-        self.eventDate = eventDate
-        self.isAllDay = isAllDay
-        self.endDate = endDate
         self.displayColor = displayColor
         self.showColorBar = showColorBar
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if showColorBar {
@@ -34,65 +25,13 @@ struct DetailHeaderView: View {
                     .fill(displayColor)
                     .frame(height: 3)
             }
-            
+
             VStack(alignment: .leading, spacing: 10) {
                 Text(title)
                     .font(.title2)
                     .bold()
                     .padding(.horizontal, showColorBar ? 16 : 0)
                     .padding(.top, showColorBar ? 12 : (showColorBar ? 0 : 6))
-                
-                // 日時情報
-                VStack(alignment: .leading, spacing: 6) {
-                    if isAllDay {
-                        HStack(spacing: 8) {
-                            Image(systemName: "calendar")
-                                .foregroundStyle(displayColor.opacity(0.7))
-                                .font(.caption)
-                            Text(DetailViewDateFormatter.formatDate(eventDate))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    } else {
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                HStack(spacing: 4) {
-                                    Text("開始")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                    Text(DetailViewDateFormatter.formatTime(eventDate))
-                                        .font(.caption)
-                                        .bold()
-                                }
-                                Text(DetailViewDateFormatter.formatDateOnly(eventDate))
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            
-                            if let end = endDate {
-                                Image(systemName: "arrow.right")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                
-                                VStack(alignment: .leading, spacing: 3) {
-                                    HStack(spacing: 4) {
-                                        Text("終了")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                        Text(DetailViewDateFormatter.formatTime(end))
-                                            .font(.caption)
-                                            .bold()
-                                    }
-                                    Text(DetailViewDateFormatter.formatDateOnly(end))
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, showColorBar ? 16 : 0)
-                .padding(.bottom, 12)
             }
             .background(Color(UIColor.tertiarySystemBackground).opacity(0.5))
             .cornerRadius(10)
@@ -106,7 +45,7 @@ struct DetailDescriptionSection: View {
     let text: String
     let tags: [String]
     let displayColor: Color
-    
+
     var body: some View {
         // テキストまたはタグのいずれかがあれば表示
         if !text.isEmpty || !tags.isEmpty {
@@ -114,14 +53,14 @@ struct DetailDescriptionSection: View {
                 if !text.isEmpty {
                     ParagraphTextView(text: text)
                 }
-                
+
                 if !tags.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("タグ")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .textCase(.uppercase)
-                        
+
                         FlowLayout(spacing: 6) {
                             ForEach(tags, id: \.self) { tag in
                                 HStack(spacing: 3) {
@@ -150,25 +89,28 @@ struct DetailDescriptionSection: View {
 // MARK: - Metadata Section Component
 
 struct DetailMetadataSection: View {
+    let eventDate: Date
+    let isAllDay: Bool
+    let endDate: Date?
     let calendarName: String?
     let syncStatus: SyncStatus
     let displayColor: Color
     let lastSyncedAt: Date?
     let additionalMetadata: [AdditionalMetadataItem]
-    
+
     enum SyncStatus {
         case synced
         case pending
         case notSynced
         case none
     }
-    
+
     struct AdditionalMetadataItem {
         let icon: String
         let label: String
         let value: String
         var valueColor: Color = .primary
-        
+
         init(icon: String, label: String, value: String, valueColor: Color = .primary) {
             self.icon = icon
             self.label = label
@@ -176,22 +118,75 @@ struct DetailMetadataSection: View {
             self.valueColor = valueColor
         }
     }
-    
+
     init(
+        eventDate: Date,
+        isAllDay: Bool,
+        endDate: Date?,
         calendarName: String?,
         syncStatus: SyncStatus,
         displayColor: Color,
         lastSyncedAt: Date? = nil,
         additionalMetadata: [AdditionalMetadataItem] = []
     ) {
+        self.eventDate = eventDate
+        self.isAllDay = isAllDay
+        self.endDate = endDate
         self.calendarName = calendarName
         self.syncStatus = syncStatus
         self.displayColor = displayColor
         self.lastSyncedAt = lastSyncedAt
         self.additionalMetadata = additionalMetadata
     }
-    
+
     var body: some View {
+        // 日時情報
+        VStack(alignment: .leading, spacing: 6) {
+            if isAllDay {
+                HStack(spacing: 8) {
+                    Image(systemName: "calendar")
+                        .foregroundStyle(displayColor.opacity(0.7))
+                        .font(.caption)
+                    Text(DetailViewDateFormatter.formatDate(eventDate))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 4) {
+                            Text("開始")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Text(DetailViewDateFormatter.formatTime(eventDate))
+                                .font(.caption)
+                        }
+                        Text(DetailViewDateFormatter.formatDateOnly(eventDate))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let end = endDate {
+                        Image(systemName: "arrow.right")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 4) {
+                                Text("終了")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Text(DetailViewDateFormatter.formatTime(end))
+                                    .font(.caption)
+                            }
+                            Text(DetailViewDateFormatter.formatDateOnly(end))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
         VStack(alignment: .leading, spacing: 8) {
             // 基本メタ情報（カレンダー名・同期状態）
             HStack(spacing: 12) {
@@ -206,7 +201,7 @@ struct DetailMetadataSection: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                
+
                 // 同期状態
                 switch syncStatus {
                 case .synced:
@@ -241,10 +236,10 @@ struct DetailMetadataSection: View {
                 case .none:
                     EmptyView()
                 }
-                
+
                 Spacer()
             }
-            
+
             // 追加メタデータ（アーカイブイベントなどで使用）
             if !additionalMetadata.isEmpty {
                 VStack(spacing: 10) {
@@ -271,23 +266,23 @@ struct MetadataRow: View {
     let label: String
     let value: String
     var valueColor: Color = .primary
-    
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .frame(width: 20)
-            
+
             Text(label)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .frame(width: 80, alignment: .leading)
-            
+
             Text(value)
                 .font(.subheadline)
                 .foregroundStyle(valueColor)
-            
+
             Spacer()
         }
     }
@@ -297,7 +292,7 @@ struct MetadataRow: View {
 
 struct ParagraphTextView: View {
     let text: String
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(paragraphs, id: \.self) { paragraph in
@@ -309,7 +304,7 @@ struct ParagraphTextView: View {
             }
         }
     }
-    
+
     private var paragraphs: [String] {
         text.components(separatedBy: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -321,7 +316,7 @@ struct ParagraphTextView: View {
 
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
-    
+
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let result = FlowResult(
             in: proposal.replacingUnspecifiedDimensions().width,
@@ -330,7 +325,7 @@ struct FlowLayout: Layout {
         )
         return result.size
     }
-    
+
     func placeSubviews(
         in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
     ) {
@@ -346,30 +341,30 @@ struct FlowLayout: Layout {
                     y: bounds.minY + result.positions[index].y), proposal: .unspecified)
         }
     }
-    
+
     struct FlowResult {
         var size: CGSize = .zero
         var positions: [CGPoint] = []
-        
+
         init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat) {
             var x: CGFloat = 0
             var y: CGFloat = 0
             var lineHeight: CGFloat = 0
-            
+
             for subview in subviews {
                 let size = subview.sizeThatFits(.unspecified)
-                
+
                 if x + size.width > maxWidth && x > 0 {
                     x = 0
                     y += lineHeight + spacing
                     lineHeight = 0
                 }
-                
+
                 positions.append(CGPoint(x: x, y: y))
                 lineHeight = max(lineHeight, size.height)
                 x += size.width + spacing
             }
-            
+
             self.size = CGSize(width: maxWidth, height: y + lineHeight)
         }
     }
@@ -392,7 +387,7 @@ struct TagExtractionUtility {
         }
         return unique
     }
-    
+
     static func removeTags(from text: String) -> String {
         var text = text
         // タグパターンを除去
@@ -409,4 +404,3 @@ struct TagExtractionUtility {
             .joined(separator: "\n")
     }
 }
-

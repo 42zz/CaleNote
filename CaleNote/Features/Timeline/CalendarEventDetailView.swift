@@ -40,9 +40,6 @@ struct CalendarEventDetailView: View {
                 // 統合ヘッダー（カード形式 - コンパクト化）
                 DetailHeaderView(
                     title: event.title,
-                    eventDate: event.start,
-                    isAllDay: event.isAllDay,
-                    endDate: event.end,
                     displayColor: displayColor,
                     showColorBar: false
                 )
@@ -56,6 +53,9 @@ struct CalendarEventDetailView: View {
 
                 // メタ情報（カレンダー所属・同期状態）- 関連エントリー直前に配置
                 DetailMetadataSection(
+                    eventDate: event.start,
+                    isAllDay: event.isAllDay,
+                    endDate: event.end,
                     calendarName: correctCalendar?.summary,
                     syncStatus: (event.status == "confirmed" && !event.eventId.isEmpty) ? .synced : .none,
                     displayColor: displayColor,
@@ -78,13 +78,9 @@ struct CalendarEventDetailView: View {
                         Text("編集")
                     }
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Capsule().fill(displayColor))
                 }
-                .buttonStyle(.borderless)  // plainよりborderlessの方が効くことがある
-                .tint(.clear)  // Toolbarの「色付きボタン化」を抑止
+                .buttonStyle(.glassProminent)
+                .tint(Color.blue)
             }
         }
 

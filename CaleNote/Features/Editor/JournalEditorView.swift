@@ -116,6 +116,8 @@ struct JournalEditorView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("キャンセル") { dismiss() }
+                    .buttonStyle(.glassProminent)
+                    .tint(Color.red)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
@@ -132,6 +134,8 @@ struct JournalEditorView: View {
                         }
                     }
                     .disabled(isSaving)
+                    .buttonStyle(.glassProminent)
+                    .tint(Color.blue)
                 }
             }
         }
