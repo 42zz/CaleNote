@@ -121,16 +121,8 @@ struct RelatedMemoriesSection: View {
                 // 該当なし
                 VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.title2)
-                            .foregroundStyle(.secondary)
-                        
                         Text("関連する過去のエントリーは見つかりませんでした")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        
-                        Text("条件を変更するか、タイムラインで検索してみてください")
-                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }

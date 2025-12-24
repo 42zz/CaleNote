@@ -59,7 +59,7 @@ Core data models with SwiftData persistence:
 - **CachedCalendarEvent**: Local cache of Google Calendar events with unique ID format `"calendarId:eventId"`
 - **ArchivedCalendarEvent**: Long-term cache of events for historical browsing (2000-01-01 to future 1 year)
 - **CachedCalendar**: Metadata for user's calendars (enabled state, custom colors)
-- **TimelineItem**: Unified view representation for both journals and events
+- **TimelineItem**: Unified view representation for both journals and events with `isAllDay` flag for all-day event display
 - **SyncLog**: Developer logging model for debugging sync operations (privacy-conscious: SHA256 hashed calendar IDs, no user content)
 
 #### Infrastructure Layer (`/CaleNote/Infrastructure/`)

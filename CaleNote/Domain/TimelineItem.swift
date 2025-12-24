@@ -17,4 +17,7 @@ struct TimelineItem: Identifiable {
   // 視覚的統一のための色・アイコン
   let colorHex: String  // 背景色・アイコン色に使用
   let iconName: String  // システムアイコン名
+  
+  // 終日イベントかどうか
+  let isAllDay: Bool
 }

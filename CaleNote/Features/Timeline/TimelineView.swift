@@ -307,7 +307,8 @@ struct TimelineView: View {
                 date: entry.eventDate,
                 sourceId: entry.id.uuidString,
                 colorHex: colorHex,
-                iconName: iconName
+                iconName: iconName,
+                isAllDay: false  // ジャーナルは終日ではない
             )
         }
     }
@@ -341,7 +342,8 @@ struct TimelineView: View {
                 date: e.start,
                 sourceId: e.uid,
                 colorHex: colorHex,
-                iconName: iconName
+                iconName: iconName,
+                isAllDay: e.isAllDay
             )
         }
     }
@@ -375,7 +377,8 @@ struct TimelineView: View {
                 date: e.start,
                 sourceId: e.uid,
                 colorHex: colorHex,
-                iconName: iconName
+                iconName: iconName,
+                isAllDay: e.isAllDay
             )
         }
     }

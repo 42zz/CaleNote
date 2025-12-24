@@ -54,9 +54,15 @@ struct TimelineRowView: View {
         }
 
         // サブテキスト（時間・場所の整合）
-        Text(item.date, style: .time)
-          .font(.caption)
-          .foregroundStyle(.secondary)
+        if item.isAllDay {
+          Text("終日")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          Text(item.date, style: .time)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
       }
       .padding(.horizontal, 12)
     }
