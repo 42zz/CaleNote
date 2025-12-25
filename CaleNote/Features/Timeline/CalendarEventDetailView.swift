@@ -9,30 +9,16 @@ struct CalendarEventDetailView: View {
     @Query private var cachedCalendars: [CachedCalendar]
     @State private var isPresentingEditor = false
     @State private var journalEntryForEdit: JournalEntry?
+    @State private var enabledCalendarIds: Set<String> = []
+    @State private var hasArchivedEvents = false
+    @State private var tags: [String] = []
+    @State private var descriptionWithoutTagsCache: String = ""
 
-    // event.calendarIdから正しいカレンダーを取得
-    private var correctCalendar: CachedCalendar? {
-        cachedCalendars.first { $0.calendarId == event.calendarId }
-    }
-
-    private var displayColor: Color {
-        if let hex = correctCalendar?.userColorHex {
-            return Color(hex: hex) ?? .blue
-        }
-        return .blue
-    }
-
-    // タグを除去した説明文
-    private var descriptionWithoutTags: String {
-        guard let desc = event.desc, !desc.isEmpty else { return "" }
-        return TagExtractionUtility.removeTags(from: desc)
-    }
-
-    // 説明文から抽出したタグ
-    private var tags: [String] {
-        guard let desc = event.desc, !desc.isEmpty else { return [] }
-        return TagExtractionUtility.extractTags(from: desc)
-    }
+    // キャッシュ化されたcomputed properties（body再評価で毎回計算しない）
+    @State private var correctCalendar: CachedCalendar? = nil
+    @State private var displayColor: Color = .blue
+    @State private var calendarColorHex: String = "#3B82F6"
+    @State private var calendarIconName: String = "calendar"
 
     var body: some View {
         ScrollView {
@@ -46,7 +32,7 @@ struct CalendarEventDetailView: View {
 
                 // 説明セクション（本文 - 段落構造を視覚化、常に全文表示）
                 DetailDescriptionSection(
-                    text: descriptionWithoutTags,
+                    text: descriptionWithoutTagsCache,
                     tags: tags,
                     displayColor: displayColor
                 )
@@ -60,13 +46,31 @@ struct CalendarEventDetailView: View {
                 )
 
                 // 関連する過去セクション
-                RelatedMemoriesSection(targetDate: event.start)
+                RelatedMemoriesSection(
+                    targetDate: event.start,
+                    enabledCalendarIds: enabledCalendarIds,
+                    hasArchivedEvents: hasArchivedEvents
+                )
             }
             .padding()
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
+        .onAppear {
+            // enabledCalendarIds の初期化を最優先で実行（RelatedMemoriesSection が依存するため）
+            updateEnabledCalendarIds()
+            // 重い処理は Task 内で実行
+            updateCachedData()
+        }
+        .onChange(of: cachedCalendars) { _, _ in
+            // カレンダーリスト変更時は即座に更新
+            updateEnabledCalendarIds()
+        }
+        .onChange(of: event.desc) { _, _ in
+            // 説明文変更時のみキャッシュ更新
+            updateCachedData()
+        }
         .toolbar {
             ToolbarItem(placement: .principal) {
                 NavigationDateTimeView(
@@ -112,10 +116,7 @@ struct CalendarEventDetailView: View {
         }
 
         // 紐づいているジャーナルがない場合は新規作成
-        // カレンダーの色とアイコンを取得
-        let calendarColorHex = correctCalendar?.userColorHex ?? "#3B82F6"
-        let calendarIconName = correctCalendar?.iconName ?? "calendar"
-
+        // カレンダーの色とアイコンを使用（キャッシュ済み）
         let newEntry = JournalEntry(
             title: event.title.isEmpty ? nil : event.title,
             body: event.desc ?? "",
@@ -136,5 +137,60 @@ struct CalendarEventDetailView: View {
 
         journalEntryForEdit = newEntry
         isPresentingEditor = true
+    }
+
+    private func updateEnabledCalendarIds() {
+        let newIds = Set(cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId })
+        // 差分がある場合のみ更新
+        if newIds != enabledCalendarIds {
+            enabledCalendarIds = newIds
+            print("📝 CalendarEventDetailView: enabledCalendarIds更新 件数=\(newIds.count)")
+        }
+    }
+
+    private func updateCachedData() {
+        // 重い処理をTask内で実行してメインスレッドブロックを防ぐ
+        Task { @MainActor in
+            // correctCalendar計算（body評価で毎回first { }しない）
+            correctCalendar = cachedCalendars.first { $0.calendarId == event.calendarId }
+
+            // displayColor計算
+            if let hex = correctCalendar?.userColorHex {
+                displayColor = Color(hex: hex) ?? .blue
+            } else {
+                displayColor = .blue
+            }
+
+            // prepareEditJournalで使う値をキャッシュ
+            calendarColorHex = correctCalendar?.userColorHex ?? "#3B82F6"
+            calendarIconName = correctCalendar?.iconName ?? "calendar"
+
+            // タグ抽出（@Stateにキャッシュして毎回計算しない）
+            guard let desc = event.desc, !desc.isEmpty else {
+                tags = []
+                descriptionWithoutTagsCache = ""
+                hasArchivedEvents = false
+                return
+            }
+
+            let newTags = TagExtractionUtility.extractTags(from: desc)
+            if newTags != tags {
+                tags = newTags
+            }
+
+            // タグ除去済み本文（@Stateにキャッシュして毎回計算しない）
+            let newDescWithoutTags = TagExtractionUtility.removeTags(from: desc)
+            if newDescWithoutTags != descriptionWithoutTagsCache {
+                descriptionWithoutTagsCache = newDescWithoutTags
+            }
+
+            // hasArchivedEventsの確認（軽量なカウントクエリ）
+            let descriptor = FetchDescriptor<ArchivedCalendarEvent>()
+            if let count = try? modelContext.fetchCount(descriptor), count > 0 {
+                hasArchivedEvents = true
+            } else {
+                hasArchivedEvents = false
+            }
+        }
     }
 }

@@ -12,6 +12,7 @@ struct RootView: View {
     @State private var isCheckingOnboarding = true
     @State private var selectedTab: Int = 0
     @State private var mainTabTapTrigger: Int = 0
+    @State private var settingsResetTrigger: Int = 0  // 設定タブTOPへ戻すトリガー
     @State private var isDetailViewPresented = false
     @State private var syncRetryTrigger: Int = 0  // エラー時の再試行トリガー
 
@@ -44,6 +45,7 @@ struct RootView: View {
 
                     SettingsView()
                         .environmentObject(auth)
+                        .id(settingsResetTrigger)  // トリガー変更時にNavigationStackをリセット
                         .opacity(selectedTab == 1 ? 1 : 0)
                         .zIndex(selectedTab == 1 ? 1 : 0)
 
@@ -71,7 +73,13 @@ struct RootView: View {
                         }
 
                         Button {
-                            selectedTab = 1
+                            if selectedTab == 1 {
+                                // 設定タブを再度タップした場合、TOPに戻す
+                                settingsResetTrigger += 1
+                                print("🔔 設定タブが再度タップされました（リセットトリガー: \(settingsResetTrigger)）")
+                            } else {
+                                selectedTab = 1
+                            }
                         } label: {
                             VStack(spacing: 4) {
                                 Image(systemName: "gearshape")

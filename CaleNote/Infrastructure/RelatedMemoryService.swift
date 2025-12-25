@@ -37,7 +37,12 @@ final class RelatedMemoryService {
         enabledCalendarIds: Set<String> = Set()  // 空の場合は全カレンダーを対象
     ) throws -> [RelatedMemoryItem] {
 
-        guard settings.hasAnyEnabled else { return [] }
+        print("🔍 RelatedMemoryService.findRelatedMemories: 開始 date=\(date) enabledCalendarIds件数=\(enabledCalendarIds.count)")
+
+        guard settings.hasAnyEnabled else {
+            print("⚠️ RelatedMemoryService: settings無効")
+            return []
+        }
 
         let calendar = Calendar.current
         let components = calendar.dateComponents([.year, .month, .day], from: date)
@@ -45,20 +50,26 @@ final class RelatedMemoryService {
         guard let currentYear = components.year,
               let currentMonth = components.month,
               let currentDay = components.day else {
+            print("⚠️ RelatedMemoryService: 日付コンポーネント取得失敗")
             return []
         }
+
+        print("📅 RelatedMemoryService: targetDate=\(currentYear)/\(currentMonth)/\(currentDay)")
+        print("📅 RelatedMemoryService: settings - 同日:\(settings.sameDayEnabled) 同週同曜:\(settings.sameWeekdayEnabled) 同祝日:\(settings.sameHolidayEnabled)")
 
         var matchedEvents: [String: (ArchivedCalendarEvent, Set<RelatedMemoryItem.MatchReason>)] = [:]
 
         // 1. 同じ日（MMDD一致）
         if settings.sameDayEnabled {
             let monthDayKey = currentMonth * 100 + currentDay
+            print("🔍 RelatedMemoryService: 同日検索開始 monthDayKey=\(monthDayKey)")
             let sameDayEvents = try fetchEventsByMonthDay(
                 monthDayKey: monthDayKey,
                 currentYear: currentYear,
                 modelContext: modelContext,
                 enabledCalendarIds: enabledCalendarIds
             )
+            print("📊 RelatedMemoryService: 同日検索結果 件数=\(sameDayEvents.count)")
 
             for event in sameDayEvents {
                 if var existing = matchedEvents[event.uid] {
@@ -144,26 +155,44 @@ final class RelatedMemoryService {
         modelContext: ModelContext,
         enabledCalendarIds: Set<String>
     ) throws -> [ArchivedCalendarEvent] {
-        // startMonthDayKeyがオプショナルになったため、nilの値も含めて検索
-        // その後、computedMonthDayKeyでフィルタリング
-        let descriptor = FetchDescriptor<ArchivedCalendarEvent>()
-        let allEvents = try modelContext.fetch(descriptor)
+        print("🔍 fetchEventsByMonthDay: monthDayKey=\(monthDayKey) currentYear=\(currentYear) enabledCalendarIds件数=\(enabledCalendarIds.count)")
 
-        // 同じ年月日を除外し、monthDayKeyに一致するものをフィルタ
-        let calendar = Calendar.current
-        return allEvents.filter { event in
-            // 有効なカレンダーのイベントのみを対象
-            if !enabledCalendarIds.isEmpty && !enabledCalendarIds.contains(event.calendarId) {
-                return false
-            }
-            
-            // computedMonthDayKeyを使用して比較
-            guard event.computedMonthDayKey == monthDayKey else { return false }
-
-            // 年が異なる場合のみ含める（同じ年の同じ月日は除外）
-            let eventYear = calendar.component(.year, from: event.start)
-            return eventYear != currentYear
+        // 過去20年 + 未来5年の範囲で検索（必要に応じて調整）
+        let searchYears = (-20...5).compactMap { offset -> Int? in
+            let year = currentYear + offset
+            guard year > 0, year != currentYear else { return nil }
+            return year
         }
+
+        print("📅 fetchEventsByMonthDay: 検索対象年数=\(searchYears.count)")
+
+        var results: [ArchivedCalendarEvent] = []
+        var totalFetched = 0
+        var totalFiltered = 0
+
+        for year in searchYears {
+            let dayKey = year * 10000 + monthDayKey
+
+            let predicate = #Predicate<ArchivedCalendarEvent> { event in
+                event.startDayKey == dayKey
+            }
+            var descriptor = FetchDescriptor(predicate: predicate)
+            descriptor.fetchLimit = 100  // 1日あたりの最大件数を制限
+
+            let events = try modelContext.fetch(descriptor)
+            totalFetched += events.count
+
+            // 有効なカレンダーのイベントのみをフィルタリング
+            let filteredEvents = events.filter { event in
+                enabledCalendarIds.isEmpty || enabledCalendarIds.contains(event.calendarId)
+            }
+            totalFiltered += filteredEvents.count
+            results.append(contentsOf: filteredEvents)
+        }
+
+        print("📊 fetchEventsByMonthDay: 合計 fetch件数=\(totalFetched) filter後件数=\(totalFiltered)")
+
+        return results
     }
 
     private func fetchEventsBySameWeekday(

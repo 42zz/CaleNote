@@ -760,8 +760,8 @@ struct TimelineView: View {
         let sectionDayKey = dayKey(from: section.day)
         let formattedDate = section.day.formatted(date: .abbreviated, time: .omitted)
         let isYesterday = sectionDayKey == yesterdayKey
-        let isToday = sectionDayKey == todayKey
         let isTomorrow = sectionDayKey == tomorrowKey
+        let isToday = sectionDayKey == todayKey
 
         let headerTitle = isYesterday ? "昨日 (\(formattedDate))"
             : isToday ? "今日 (\(formattedDate))"
