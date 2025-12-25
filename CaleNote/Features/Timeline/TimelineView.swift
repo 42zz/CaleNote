@@ -163,6 +163,24 @@ struct TimelineView: View {
         dayKey(from: Date())
     }
 
+    /// 昨日の日付キーを取得
+    private var yesterdayKey: String {
+        let calendar = Calendar.current
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: Date()) {
+            return dayKey(from: yesterday)
+        }
+        return ""
+    }
+
+    /// 明日の日付キーを取得
+    private var tomorrowKey: String {
+        let calendar = Calendar.current
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) {
+            return dayKey(from: tomorrow)
+        }
+        return ""
+    }
+
     private var groupedItems: [(day: Date, items: [TimelineItem])] {
         let calendar = Calendar.current
         let items = timelineItems
@@ -739,8 +757,18 @@ struct TimelineView: View {
         -> some View
     {
         let section = grouped[index]
-        let headerTitle = section.day.formatted(date: .abbreviated, time: .omitted)
         let sectionDayKey = dayKey(from: section.day)
+        let formattedDate = section.day.formatted(date: .abbreviated, time: .omitted)
+        let isYesterday = sectionDayKey == yesterdayKey
+        let isToday = sectionDayKey == todayKey
+        let isTomorrow = sectionDayKey == tomorrowKey
+
+        let headerTitle = isYesterday ? "昨日 (\(formattedDate))"
+            : isToday ? "今日 (\(formattedDate))"
+            : isTomorrow ? "明日 (\(formattedDate))"
+            : formattedDate
+
+        let isHighlighted = isYesterday || isToday || isTomorrow
         let isFirstSection = index == grouped.startIndex
         let isLastSection = index == grouped.index(before: grouped.endIndex)
 
@@ -758,7 +786,7 @@ struct TimelineView: View {
                 )
             }
         } header: {
-            Text(headerTitle)
+            TimelineSectionHeader(title: headerTitle, isHighlighted: isHighlighted)
         }
         .id(sectionDayKey)
     }
@@ -1123,6 +1151,39 @@ struct TimelineView: View {
         let month = cal.component(.month, from: date)
         let day = cal.component(.day, from: date)
         return year * 10000 + month * 100 + day
+    }
+}
+
+// MARK: - Timeline Section Header
+
+/// タイムラインセクションのヘッダービュー
+/// 「昨日」「今日」「明日」の場合は強調表示する
+struct TimelineSectionHeader: View {
+    let title: String
+    let isHighlighted: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            // 特別な日付（昨日・今日・明日）の場合は左側に小さなドット表示
+            if isHighlighted {
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 6, height: 6)
+            }
+
+            Text(title)
+                .font(isHighlighted ? .headline : .subheadline)
+                .fontWeight(isHighlighted ? .semibold : .regular)
+                .foregroundStyle(isHighlighted ? Color.accentColor : Color.primary)
+        }
+        .padding(0)
+        .padding(.vertical, isHighlighted ? 4 : 0)
+        // .background(
+        //     isHighlighted ?
+        //         Capsule()
+        //             .fill(Color.accentColor.opacity(0.1))
+        //         : nil
+        // )
     }
 }
 
