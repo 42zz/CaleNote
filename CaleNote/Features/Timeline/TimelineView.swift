@@ -27,12 +27,12 @@ struct TimelineView: View {
     @Binding var selectedTab: Int
     @Binding var tabTapTrigger: Int
     @Binding var isDetailViewPresented: Bool
+    @Binding var syncRetryTrigger: Int  // エラー時の再試行トリガー
     @State private var lastSelectedTab: Int = 0
     @State private var lastAppearTime: Date = Date()
 
-    // Toast表示用
-    @State private var toastMessage: String?
-    @State private var toastType: ToastView.ToastType = .info
+    // 同期ステータス管理（RootViewから注入）
+    @ObservedObject var syncStatusStore: SyncStatusStore
 
     // 手動同期用
     @State private var isSyncing: Bool = false
@@ -53,6 +53,10 @@ struct TimelineView: View {
     @State private var isResendingIndividual: Bool = false
     @State private var showResendConfirmation: Bool = false
     @State private var entryToResend: JournalEntry?
+
+    // Toast表示用
+    @State private var toastMessage: String? = nil
+    @State private var toastType: ToastView.ToastType = .info
 
     // デフォルト値（統一カードの視覚的整合性のため）
     private let defaultColorHex: String = "#3B82F6"  // ミュートブルー
@@ -594,11 +598,9 @@ struct TimelineView: View {
                     modelContext: modelContext
                 )
 
-                toastMessage = "再送成功"
-                toastType = ToastView.ToastType.success
+                syncStatusStore.setSuccess(details: "再送成功")
             } catch {
-                toastMessage = "再送エラー: \(error.localizedDescription)"
-                toastType = ToastView.ToastType.error
+                syncStatusStore.setError("再送エラー: \(error.localizedDescription)")
             }
 
             isResendingIndividual = false
@@ -677,6 +679,12 @@ struct TimelineView: View {
                         scrollToToday(proxy: proxy)
                     } else {
                         print("⚠️ 検索中のためスクロールをスキップ")
+                    }
+                }
+                .onChange(of: syncRetryTrigger) { _, newValue in
+                    print("🔄 同期リトライトリガー検知: \(newValue)")
+                    Task {
+                        await runSync(isManual: true)
                     }
                 }
                 .toast(message: $toastMessage, type: $toastType, duration: 4.0)
@@ -1020,8 +1028,7 @@ struct TimelineView: View {
             // 初期起動時はエラーメッセージを表示しない（正常な状態）
             if isManual {
                 // 手動同期の場合は、ログインが必要であることを通知
-                toastMessage = "ログインが必要です（設定からログインしてください）"
-                toastType = ToastView.ToastType.info
+                syncStatusStore.setError("ログインが必要です")
             }
             return
         }
@@ -1029,16 +1036,15 @@ struct TimelineView: View {
         let now = Date()
         if !SyncRateLimiter.canSync(now: now) {
             let remain = SyncRateLimiter.remainingSeconds(now: now)
-            toastMessage = "同期は少し待ってください（あと \(remain) 秒）"
-            toastType = ToastView.ToastType.warning
+            syncStatusStore.setError("同期は少し待ってください（あと \(remain) 秒）")
             return
         }
 
         SyncRateLimiter.markSynced(at: Date())
         lastSyncAt = Date()
 
-        toastMessage = isManual ? "手動同期中…" : "同期中…"
-        toastType = ToastView.ToastType.info
+        // 同期開始
+        syncStatusStore.setSyncing()
 
         let (timeMin, timeMax) = SyncSettings.windowDates()
 
@@ -1056,11 +1062,9 @@ struct TimelineView: View {
             let removed = try cleaner.cleanupEventsOutsideWindow(
                 modelContext: modelContext, timeMin: timeMin, timeMax: timeMax)
 
-            // 最終同期時間を含めたメッセージ
-            let syncTime = lastSyncAt?.formatted(date: .abbreviated, time: .shortened) ?? "不明"
-            toastMessage =
-                "同期完了（更新\(apply.updatedCount) / 削除\(apply.unlinkedCount) / スキップ\(apply.skippedCount) / 競合\(apply.conflictCount) / 掃除\(removed)）\n最終同期: \(syncTime)"
-            toastType = ToastView.ToastType.success
+            // 成功時の詳細情報
+            let details = "更新\(apply.updatedCount) / 削除\(apply.unlinkedCount) / スキップ\(apply.skippedCount) / 競合\(apply.conflictCount) / 掃除\(removed)"
+            syncStatusStore.setSuccess(details: details)
         } catch {
             // エラーメッセージから「未ログインです」を除外（初期起動時の正常な状態）
             let errorDesc = error.localizedDescription
@@ -1068,8 +1072,7 @@ struct TimelineView: View {
                 // 初期起動時で未ログインの場合はエラーを表示しない
                 return
             }
-            toastMessage = "同期エラー: \(errorDesc)"
-            toastType = ToastView.ToastType.error
+            syncStatusStore.setError("同期エラー: \(errorDesc)")
         }
     }
 

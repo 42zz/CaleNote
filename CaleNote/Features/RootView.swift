@@ -3,6 +3,7 @@ import SwiftData
 
 struct RootView: View {
     @StateObject private var auth = GoogleAuthService()
+    @StateObject private var syncStatusStore = SyncStatusStore()
     @Environment(\.modelContext) private var modelContext
 
     @Query private var cachedCalendars: [CachedCalendar]
@@ -12,6 +13,7 @@ struct RootView: View {
     @State private var selectedTab: Int = 0
     @State private var mainTabTapTrigger: Int = 0
     @State private var isDetailViewPresented = false
+    @State private var syncRetryTrigger: Int = 0  // エラー時の再試行トリガー
 
     var body: some View {
         Group {
@@ -32,7 +34,9 @@ struct RootView: View {
                     TimelineView(
                         selectedTab: $selectedTab,
                         tabTapTrigger: $mainTabTapTrigger,
-                        isDetailViewPresented: $isDetailViewPresented
+                        isDetailViewPresented: $isDetailViewPresented,
+                        syncRetryTrigger: $syncRetryTrigger,
+                        syncStatusStore: syncStatusStore
                     )
                     .environmentObject(auth)
                     .opacity(selectedTab == 0 ? 1 : 0)
@@ -90,6 +94,13 @@ struct RootView: View {
                         .zIndex(100)
                         .transition(.move(edge: .bottom))
                     }
+
+                    // 同期ステータスインジケーター（右下に表示）
+                    SyncStatusIndicator(statusStore: syncStatusStore) {
+                        // エラー時の再試行アクション
+                        syncRetryTrigger += 1
+                    }
+                    .zIndex(99)  // タブバーの下、コンテンツの上
                 }
                 .ignoresSafeArea(.keyboard, edges: .bottom)
             }

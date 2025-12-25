@@ -25,6 +25,13 @@
   - タップでSafariが開く
   - 複数URL対応、末尾の句読点を除外
 
+- **同期ステータスアイコン表示システム**を実装（トースト通知を置き換え）
+  - 右下に控えめなステータスアイコンを表示（idle / syncing / success / error）
+  - 成功時は1.5秒後に自動的にフェードアウト
+  - エラー時はタップで再試行可能
+  - アイコンをタップすると詳細情報を展開表示
+  - 画面を遮らない非侵襲的なUI
+
 ### 実装詳細
 - `TimelinePagingState.fetchPastEvents`: カーソルベースのバッチ取得に変更
   - batchSize固定（limit * 5）で毎回検索範囲を過去へシフト
@@ -47,11 +54,39 @@
   - AttributedStringにリンク属性を付与
   - ParagraphTextViewで自動的にリンク化されたテキストを表示
 
+- `SyncStatusStore`: 同期ステータス管理ストアを実装
+  - @MainActor ObservableObjectで同期状態を管理
+  - setSyncing() / setSuccess() / setError() / reset() の4つのAPI
+  - 成功時は1.5秒後に自動的にidleに遷移
+  - 詳細メッセージ（更新件数など）を保持
+
+- `SyncStatusIndicator`: 右下ステータスアイコンビューを実装
+  - タブバーの上80pxに配置（タブバー高さ60 + マージン20）
+  - syncing: 青いProgressViewアイコン
+  - success: 緑のチェックマークアイコン
+  - error: 赤のエラーアイコン（タップで再試行）
+  - タップで詳細情報を展開表示（isExpanded状態管理）
+
+- `TimelineView.runSync`: トースト通知からステータスアイコンに移行
+  - syncStatusStore.setSyncing()で同期開始を通知
+  - syncStatusStore.setSuccess()で同期成功を通知（詳細情報付き）
+  - syncStatusStore.setError()で同期エラーを通知
+  - 削除操作のトーストは維持（ユーザー直接操作のため）
+
+- `RootView`: 同期ステータスインジケーターをアプリ全体に統合
+  - @StateObject syncStatusStoreを作成してTimelineViewに注入
+  - SyncStatusIndicatorをZStackのoverlayとして配置（zIndex=99）
+  - エラー時の再試行トリガー（syncRetryTrigger）をバインディングで接続
+
 ### 受け入れ条件達成
 - ✅ 2022年から2006年などの離れた年代でも継続ページング可能
 - ✅ 無効カレンダーのイベントが大量にあっても有効イベントに到達
 - ✅ カレンダー表示設定変更が即座に反映（再起動不要）
 - ✅ 設定変更後は自動的に今日へ戻る
+- ✅ 同期成功時の大きい通知が表示されない（ステータスアイコンのみ）
+- ✅ 同期状態が右下の控えめなアイコンで確認可能
+- ✅ エラー時はタップで再試行できる
+- ✅ アイコンをタップすると詳細情報を確認できる
 - ✅ 検索中の体験を保護（スクロールしない）
 - ✅ 過去エントリー詳細から戻ってもスクロール位置が保持される
 - ✅ 初回起動時とタイムライン初期化時は「今日」にフォーカス
