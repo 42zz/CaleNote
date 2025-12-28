@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 @main
 struct CaleNoteApp: App {
@@ -6,5 +7,8 @@ struct CaleNoteApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(for: [
+            ScheduleEntry.self
+        ])
     }
 }
