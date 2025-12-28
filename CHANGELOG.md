@@ -2,6 +2,17 @@
 
 このファイルはCaleNoteの仕様変更と実装の履歴を記録します。
 
+## [Unreleased]
+
+### Added
+- Comprehensive error handling system (#16)
+  - Custom error types (CaleNoteError, NetworkError, APIError, LocalDataError)
+  - Retry policy with exponential backoff
+  - RetryExecutor for automatic retry logic
+  - ErrorHandler service for centralized error management
+  - Localized error messages and recovery suggestions
+  - Error logging with OSLog
+
 ## [0.27] - 2025-12-24
 
 ### 改善内容
