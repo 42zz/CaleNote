@@ -37,9 +37,18 @@ The project uses Xcode's standard iOS development workflow. Open `CaleNote.xcode
 ## High-Level Architecture
 
 ### Core Concept
-CaleNote is an iOS journaling app that treats **Google Calendar as the single source of truth**. Local SwiftData storage serves as the primary cache. Users write journal entries that synchronize bidirectionally with Google Calendar events.
+CaleNote is an iOS app that treats **Google Calendar as the single source of truth (SSoT)**. The app allows users to create schedule entries (both events and journal entries) that synchronize bidirectionally with Google Calendar events. From a user experience perspective, events and journal entries are treated as a unified "schedule entry" concept.
 
-### Layered Architecture
+### Design Principles
+
+Based on APP_SPECIFICATION.md, the app follows these core principles:
+
+1. **Google Calendar as SSoT**: Complete bidirectional synchronization with Google Calendar as the single source of truth
+2. **Immediate UI Response**: Local-first updates with asynchronous synchronization
+3. **Index-Driven Design**: Avoid raw data scanning, use dedicated indexes
+4. **Zero Learning Curve**: UI and navigation should not require new concepts
+
+### Target Architecture
 
 ```
 ┌─────────────────────────────────────────┐
@@ -53,235 +62,160 @@ CaleNote is an iOS journaling app that treats **Google Calendar as the single so
 └─────────────────────────────────────────┘
 ```
 
-#### Domain Layer (`/CaleNote/Domain/`)
-Core data models with SwiftData persistence:
-- **JournalEntry**: User-created journal entries with sync metadata (`linkedCalendarId`, `linkedEventId`, `needsCalendarSync`) and conflict resolution fields (`hasConflict`, `conflictRemote*`)
-- **CachedCalendarEvent**: Local cache of Google Calendar events with unique ID format `"calendarId:eventId"`
-- **ArchivedCalendarEvent**: Long-term cache of events for historical browsing (2000-01-01 to future 1 year)
-- **CachedCalendar**: Metadata for user's calendars (enabled state, custom colors)
-- **TimelineItem**: Unified view representation for both journals and events with `isAllDay` flag for all-day event display
-- **SyncLog**: Developer logging model for debugging sync operations (privacy-conscious: SHA256 hashed calendar IDs, no user content)
+## Data Model Design
 
-#### Infrastructure Layer (`/CaleNote/Infrastructure/`)
-Business logic and external integrations:
+### Schedule Entry (Core Concept)
 
-**Authentication:**
-- `GoogleAuthService`: OAuth flow, token management, scope handling
+The minimum data unit in CaleNote is a "Schedule Entry". From a user experience perspective, it's treated as a single unified concept without distinguishing between events and journal entries.
 
-**API Client:**
-- `GoogleCalendarClient`: Direct Google Calendar API calls
-  - Handles incremental sync with `syncToken`
-  - Event CRUD operations (`insertEvent`, `updateEvent`, `deleteEvent`)
-  - Calendar list fetching
-  - Date formatting (RFC3339, ISO8601)
+Internally, each schedule entry should maintain:
 
-**Synchronization Services:**
-- `CalendarSyncService`: Syncs Google Calendar → local cache (CachedCalendarEvent), records sync logs
-- `JournalCalendarSyncService`: Syncs JournalEntry → Google Calendar events, records sync logs
-- `CalendarToJournalSyncService`: Reflects calendar changes back to linked journals, detects conflicts with 30-second tolerance
-- `CalendarListSyncService`: Fetches and caches user's calendar list
-- `CalendarCacheCleaner`: Removes old cached events outside sync window
-- `ArchiveSyncService`: Long-term event import with cancellation support and progress persistence
-- `ConflictResolutionService`: Resolves sync conflicts (useLocal/useRemote strategies)
+* `source` (google / calenote)
+* `managedByCaleNote` (boolean)
+* `googleEventId`
+* `startAt` / `endAt`
+* `title` / `body`
+* `tags`
+* `syncStatus` (synced / pending / failed)
+* `lastSyncedAt`
 
-**State Management:**
-- `CalendarSyncState`: Persists syncToken per calendar (UserDefaults)
-- `JournalWriteSettings`: Target calendar for new journals, event duration for calendar entries (default: 30 minutes)
-- `SyncSettings`: Configurable sync window (past/future days from today)
-- `SyncRateLimiter`: Prevents API abuse (5-second minimum interval between syncs)
-- `TimelinePagingState`: Manages past-direction pagination for long-term cache
-  - Cursor-based batch fetching (batchSize = limit × 5)
-  - Tracks earliest loaded dayKey and end-of-data state
-  - Resets on calendar settings change for immediate reflection
+### Google Calendar Event Mapping
 
-**Utilities:**
-- `TagExtractor`: Parses hashtags from journal content (`#tag` format)
-- `TagStats`: Tracks tag usage frequency and recency
-- `MockCalendarEventProvider`: Test data generation
-- `SyncErrorReporter`: Reports sync failures to Crashlytics (failure type, calendar ID hash, HTTP code, 410 fallback status, sync phase)
+All schedule entries correspond 1-to-1 with Google Calendar events. Entries created in CaleNote should include metadata identifying them as CaleNote-managed events when saved to Google Calendar.
 
-#### Features Layer (`/CaleNote/Features/`)
-SwiftUI views organized by feature:
+Local data serves as cache for fast display, but the ultimate source of truth is always Google Calendar.
 
-**Navigation:** Tab-based interface with two main tabs
+## Current Project State
 
-1. **TimelineView** (Main Tab):
-   - Displays merged timeline of journals and calendar events
-   - **Two-tier data source**: Short-term cache (sync window) + Long-term cache (historical data)
-   - **Pagination**: Infinite scroll to the past using cursor-based fetching from ArchivedCalendarEvent
-     - Initial load: 30 items from today
-     - Past pagination triggers at 15 items from bottom edge
-     - Loads 30 items per page with cursor advancing to older dates
-     - Handles sparse valid events by incrementally searching deeper into history
-   - Search and tag filtering
-   - Manual sync trigger with status/error display
-   - Groups items by date (reverse chronological)
-   - Tag statistics for quick filtering
-   - Initial focus on "today" section with automatic scroll
-   - **Auto-reset on calendar settings change**: Returns to today and clears pagination state
-   - Scroll up = future dates, scroll down = past dates
-   - Empty section generation for today when no items exist
-   - Auto-focus disabled during search (preserves scroll position)
-   - Date jump integration (selectedDayKey priority)
+**Status**: Reset to minimal structure (2025/01/XX)
 
-2. **SettingsView** (Settings Tab):
-   - Google Sign-In/Out
-   - Calendar management (enable/disable, color customization)
-   - Journal write target calendar selection
-   - Journal settings (event duration for calendar entries, configurable 1-480 minutes in 5-minute increments, default: 30 minutes)
-   - Sync window configuration
-   - Pending sync queue display
-   - Long-term cache import with cancellation support
-   - Hidden developer mode (7 taps on version to enable)
+The project has been reset and is ready for fresh development. Current structure:
 
-3. **Detail Views** (Unified Structure):
-   - **JournalDetailView**: Displays journal entry details
-   - **CalendarEventDetailView**: Displays cached calendar event details
-   - **ArchivedCalendarEventDetailView**: Displays archived calendar event details
-   - All three views share unified components:
-     - `DetailHeaderView`: Title and date/time information
-     - `DetailDescriptionSection`: Body text (tags removed) and tag list
-     - `DetailMetadataSection`: Calendar name, sync status, last sync datetime, additional metadata (for archived events)
-     - `RelatedMemoriesSection`: Related entries from past and future
-   - Metadata display:
-     - Sync status shows "最終同期: YYYY/MM/DD HH:mm" format (using `cachedAt` for events, `updatedAt` for journals temporarily)
-     - Additional metadata rows for archived events (status, cache datetime, journal link, holiday ID)
-   - Unified toolbar with edit button (consistent styling across all views)
-   - Conflict resolution button shown in JournalDetailView when `hasConflict == true`
+* **App Layer**: `CaleNoteApp.swift` - Minimal app entry point with `ContentView`
+* **Features Layer**: `ContentView.swift` - Basic placeholder view
+* **Domain Layer**: Empty (to be implemented)
+* **Infrastructure Layer**: Empty (to be implemented)
 
-4. **JournalEditorView** (Modal):
-   - Create/edit journal entries
-   - Title, body content (with tag auto-complete hints)
-   - Event date picker
-   - Auto-triggers sync to Google Calendar on save
-   - Event duration uses setting from JournalWriteSettings (default: 30 minutes)
+## Implementation Guidelines
 
-5. **ConflictResolutionView** (Modal):
-   - Side-by-side comparison of local vs calendar version
-   - User selects which version to keep (useLocal/useRemote)
-   - Triggered from JournalDetailView when conflict detected
+### When Creating Data Models
 
-6. **DeveloperToolsView** (Hidden):
-   - Sync operation logs with timestamps and counts
-   - Privacy-conscious: SHA256 hashed calendar IDs, no user content
-   - JSON export for debugging
-   - Log deletion functionality
-   - Access: 7 taps on version in SettingsView
+1. Create models in `/CaleNote/Domain/` directory
+2. Use SwiftData for persistence
+3. Follow the Schedule Entry data model specification above
+4. Register models in `CaleNoteApp.swift` model container
+5. Consider index requirements for search performance (200ms target for title/tag search)
 
-## Synchronization Architecture
+### When Creating Services
 
-### Bidirectional Sync Flow
+1. Create services in `/CaleNote/Infrastructure/` directory
+2. Organize by responsibility:
+   - **Authentication**: Google Sign-In integration
+   - **API Client**: Direct Google Calendar API calls
+   - **Synchronization**: Bidirectional sync services
+   - **State Management**: User settings, sync state
+   - **Utilities**: Tag extraction, search indexing, etc.
+3. Use async/await for all API calls and DB operations
+4. Implement proper error handling and retry logic
+5. Consider rate limiting for API calls
 
-**Journal → Calendar:**
-```
-User saves JournalEntry
-  ↓
-needsCalendarSync = true
-  ↓
-JournalCalendarSyncService.syncOne()
-  ↓
-GoogleCalendarClient.insertEvent() / updateEvent()
-  ↓
-JournalEntry stores linkedEventId and linkedCalendarId
-```
+### When Creating UI Views
 
-**Calendar → Local Cache:**
-```
-User triggers sync (manual or auto)
-  ↓
-CalendarListSyncService.sync() (fetch calendar list)
-  ↓
-CalendarSyncService.syncOneCalendar() (for each enabled calendar)
-  ↓
-GoogleCalendarClient.listEvents(syncToken: previousToken)
-  ↓
-Apply changes to CachedCalendarEvent
-  ↓
-Store new syncToken for next incremental sync
-```
+1. Create views in `/CaleNote/Features/` directory
+2. Organize by feature area (Timeline, Editor, Settings, etc.)
+3. Follow Google Calendar app UI patterns as benchmark
+4. Implement immediate local updates, then async sync
+5. Show sync status indicators for pending/failed operations
+6. Use SwiftUI `@Query` for SwiftData reads
+7. Use `modelContext` for writes
 
-**Calendar → Journal Reflection:**
-```
-Calendar event changes detected
-  ↓
-CalendarToJournalSyncService processes linked events
-  ↓
-Updates JournalEntry metadata (event cancelled, title changed, etc.)
-```
+### Synchronization Requirements
 
-### Incremental Sync Strategy
-- Uses Google Calendar API `syncToken` for delta updates
-- Falls back to full sync on token expiration (HTTP 410 GONE)
-- Configurable sync window (X days past, Y days future from today)
-- Rate limiting prevents excessive API calls (5-second cooldown)
-- Sync state persisted per calendar in UserDefaults
+Based on APP_SPECIFICATION.md:
 
-### Event Linking Mechanism
-- JournalEntry stores `linkedCalendarId` and `linkedEventId`
-- Google Calendar events store `journalId` in extended properties
-- Bidirectional reference enables sync conflict resolution
+* **Immediate Local Updates**: App operations should reflect immediately in local database
+* **Asynchronous Sync**: Google Calendar synchronization should happen in background
+* **Bidirectional Sync**: Changes from Google Calendar should be reflected in app
+* **Sync State Management**: Each entry should track sync status (synced/pending/failed)
+* **Recovery**: Failed syncs should be retryable from timeline and settings
 
-### Conflict Detection and Resolution
-- **Detection**: When both local and calendar versions are updated
-  - Requires `linkedEventUpdatedAt` to exist (already synced)
-  - Local `updatedAt` > calendar `updatedAt`
-  - Time difference > 30 seconds (prevents false positives from timestamp drift)
-- **Resolution**: User chooses via ConflictResolutionView
-  - **useLocal**: Re-sync local version to calendar (sets `needsCalendarSync = true`)
-  - **useRemote**: Overwrite local with calendar version
-- **Auto-clear**: Conflict flags cleared when remote changes successfully applied
+### Search Requirements
 
-## Key Design Patterns
+* **Performance Target**: Title prefix match and tag search must respond within 200ms
+* **Index-Driven**: Use dedicated search index, avoid raw data scanning
+* **Body Search**: Implement as staged/delayed execution, exclude from initial results
 
-1. **Service Locator:** Services instantiated in views and dependency-injected
-2. **Environment Injection:** `GoogleAuthService` passed via `@EnvironmentObject`
-3. **Async/Await:** All API calls and DB operations use Swift concurrency
-4. **Predicate-Based Queries:** SwiftData `@Query` with dynamic filtering
-5. **State Management:** `@State`, `@StateObject`, `@Published` for reactive UI
+### Related Entries (振り返り)
+
+When implementing entry detail views, include related entries from past and future:
+
+* **Matching Criteria**:
+  - Same month/day (MMDD match)
+  - Same weekday in same week
+  - Same holiday
+* **Implementation**: Use dedicated Related Index, avoid raw searches
 
 ## Technology Stack
 
 - **Framework:** SwiftUI (iOS 17.0+)
 - **Persistence:** SwiftData (Apple's modern ORM)
-- **Authentication:** Google Sign-In SDK (SPM dependency)
+- **Authentication:** Google Sign-In SDK (to be added)
 - **Networking:** URLSession (native)
-- **Concurrency:** Swift async/await with strict concurrency checking enabled
+- **Concurrency:** Swift async/await with strict concurrency checking
 
 ## SwiftData Configuration
 
-The app uses SwiftData with strict concurrency settings:
+When implementing SwiftData:
+
+* Enable strict concurrency settings:
 - `SWIFT_APPROACHABLE_CONCURRENCY = YES`
 - `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`
+* Register all models in the model container at app startup
+* Use `@Query` for reads, `modelContext` for writes
 
-All database models are registered in the model container at app startup (see CaleNoteApp.swift:14-20).
+## UI/UX Guidelines
 
-## Sync Logging for Developers
+Based on APP_SPECIFICATION.md:
 
-The app includes a comprehensive sync logging system for debugging and monitoring:
+* **Benchmark**: Google Calendar app's UI patterns and interaction flow
+* **Navigation**: 
+  - Top: Display toggle, month view, search, today focus
+  - Left: Sidebar (calendar selection, settings, feedback)
+  - Main: Vertical timeline
+* **Timeline View**:
+  - Group entries by date
+  - Display entries in chronological order within each day
+  - Mix Google Calendar events and CaleNote entries in same list
+  - Show sync status badges for incomplete syncs
+* **Entry Creation**: FAB (+) button in bottom right
+* **Zero Learning Curve**: Don't introduce new concepts that require user learning
 
-### SyncLog Model
-- **Purpose**: Track all sync operations for debugging
-- **Privacy**: Calendar IDs are SHA256 hashed (first 8 chars only), no user content recorded
-- **Fields**:
-  - `syncType`: "incremental", "full", "archive", "journal_push"
-  - `calendarIdHash`: SHA256 hash of calendar ID (first 8 characters)
-  - `updatedCount`, `deletedCount`, `skippedCount`, `conflictCount`: Result counts
-  - `had410Fallback`: syncToken expired, fell back to full sync
-  - `had429Retry`: Rate limit encountered
-  - `httpStatusCode`, `errorType`, `errorMessage`: Error tracking
-  - `timestamp`, `endTimestamp`: Duration tracking
+## Performance Requirements
 
-### Logging Implementation
-All sync services automatically record logs:
-- **CalendarSyncService**: Logs incremental/full syncs, 410 fallback detection
-- **JournalCalendarSyncService**: Logs journal push operations
-- **ArchiveSyncService**: Logs long-term imports, includes cancellation tracking
-- **CalendarToJournalSyncService**: Currently no direct logging (uses CalendarSyncService logs)
+* **Launch Time**: Initial display within 1 second (perceived)
+* **Smooth Operation**: No frame drops during scroll/search
+* **Data Recovery**: Local data corruption should be recoverable from Google Calendar
 
-### Developer Tools Access
-- Settings → Tap version 7 times → Developer Tools section appears
-- View sync logs, export as JSON, delete all logs
-- Useful for debugging sync issues without compromising user privacy
+## Google Calendar API Integration
+
+When implementing Google Calendar integration:
+
+* **OAuth**: Use Google Sign-In SDK for authentication
+* **Scopes**: Calendar read/write permissions
+* **API Client**: Create `GoogleCalendarClient` for direct API calls
+* **Sync Strategy**: 
+  - Use incremental sync with `syncToken` when possible
+  - Fall back to full sync on token expiration (HTTP 410)
+  - Implement configurable sync window (X days past, Y days future)
+* **Rate Limiting**: Implement rate limiting to prevent API abuse
+
+## Key Design Patterns
+
+1. **Service Locator**: Services instantiated in views and dependency-injected
+2. **Environment Injection**: Pass services via `@EnvironmentObject` or `@StateObject`
+3. **Async/Await**: All API calls and DB operations use Swift concurrency
+4. **Predicate-Based Queries**: SwiftData `@Query` with dynamic filtering
+5. **State Management**: `@State`, `@StateObject`, `@Published` for reactive UI
 
 ## Important Implementation Notes
 
@@ -292,7 +226,7 @@ All sync services automatically record logs:
 4. Update UI components in Features
 
 ### When Adding API Functionality
-1. Add methods to `GoogleCalendarClient`
+1. Add methods to API client service
 2. Handle errors and edge cases (token expiration, network failures)
 3. Update relevant sync services
 4. Consider rate limiting implications
@@ -304,36 +238,19 @@ All sync services automatically record logs:
 4. Use `modelContext` for writes
 5. Follow existing patterns for error handling and user feedback
 
-### When Adding Sync Operations
-1. Create `SyncLog` at the start of the operation
-2. Set appropriate `syncType` ("incremental", "full", "archive", "journal_push")
-3. Hash calendar ID using `SyncLog.hashCalendarId()` for privacy
-4. Record counts (`updatedCount`, `deletedCount`, etc.)
-5. Set `endTimestamp` when operation completes
-6. Record errors with `errorType` and `errorMessage` on failure
-7. Never record user content (titles, descriptions) in logs
-8. Call `SyncErrorReporter.reportSyncFailure()` in catch blocks to send failures to Crashlytics
-9. Extract HTTP status code using `SyncErrorReporter.extractHttpStatusCode()` and include in both `SyncLog` and Crashlytics report
-
 ### Testing Strategy
-- Unit tests: Use `MockCalendarEventProvider` for test data
+- Unit tests: Create mock providers for test data
 - Test targets: `CaleNoteTests` (unit), `CaleNoteUITests` (UI)
 - Focus on sync logic and API error handling in tests
 
 ## Common Pitfalls to Avoid
 
-1. **Don't bypass sync services:** Always use JournalCalendarSyncService to update Google Calendar
-2. **Don't ignore needsCalendarSync flag:** Failed syncs should be retried
-3. **Don't forget rate limiting:** Use SyncRateLimiter for user-triggered syncs
-4. **Don't assume syncToken validity:** Always handle HTTP 410 GONE (token expired)
-5. **Don't modify CachedCalendarEvent directly:** Only CalendarSyncService should write to this model
-6. **Don't hardcode calendar IDs:** Always use user-selected target calendar from JournalWriteSettings
-
-## Google Calendar API Configuration
-
-- OAuth Client ID: `505927366776-2gu092vlu40cj9hg00b40rkdsm1m1vk7.apps.googleusercontent.com`
-- Required scopes: Calendar read/write
-- OAuth callback handled via custom URL scheme (configured in Info.plist)
+1. **Don't bypass sync services**: Always use proper sync services to update Google Calendar
+2. **Don't ignore sync status**: Failed syncs should be retried
+3. **Don't forget rate limiting**: Implement rate limiting for user-triggered syncs
+4. **Don't assume syncToken validity**: Always handle HTTP 410 GONE (token expired)
+5. **Don't scan raw data**: Use indexes for search operations
+6. **Don't introduce new concepts**: Follow Google Calendar app patterns
 
 ## Documentation Update Policy
 
@@ -349,8 +266,7 @@ Update this file **immediately** after implementing any feature or fix:
 ### 2. README.md
 Update when changes affect user-facing functionality or core architecture:
 - Update relevant sections (機能要件, 画面構成, データモデル, etc.)
-- Increment version number in 更新履歴
-- Keep spec aligned with actual implementation (実装準拠)
+- Keep spec aligned with actual implementation
 - Document new UI screens, data models, or sync behaviors
 
 ### 3. CLAUDE.md (this file)

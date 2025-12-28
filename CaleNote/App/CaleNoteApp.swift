@@ -1,23 +1,14 @@
-import GoogleSignIn
-import SwiftData
 import SwiftUI
+import SwiftData
 
 @main
 struct CaleNoteApp: App {
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .onOpenURL { url in
-                    GIDSignIn.sharedInstance.handle(url)
-                }
+            ContentView()
         }
         .modelContainer(for: [
-            JournalEntry.self,
-            CachedCalendarEvent.self,   // 短期
-            ArchivedCalendarEvent.self, // 長期
-            CachedCalendar.self,
-            SyncLog.self                // 開発者向けログ
+            ScheduleEntry.self
         ])
-
     }
 }
