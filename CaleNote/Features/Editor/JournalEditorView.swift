@@ -20,9 +20,6 @@ struct JournalEditorView: View {
     private let entry: ScheduleEntry?
     private let initialDate: Date
 
-    @Query(sort: \ScheduleEntry.startAt, order: .reverse)
-    private var allEntries: [ScheduleEntry]
-
     @State private var title: String
     @State private var bodyText: String
     @State private var startAt: Date
@@ -33,15 +30,7 @@ struct JournalEditorView: View {
     
     // Tag suggestions
     private var suggestedTags: [String] {
-        var tagCounts: [String: Int] = [:]
-        for entry in allEntries {
-            for tag in entry.tags {
-                tagCounts[tag, default: 0] += 1
-            }
-        }
-        return tagCounts.sorted { $0.value > $1.value }
-            .prefix(10)
-            .map { $0.key }
+        searchIndex.tagSuggestions(limit: 10)
     }
 
     // Current partial tag for autocomplete
@@ -128,7 +117,7 @@ struct JournalEditorView: View {
 
         let finalTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let endAt = isAllDay ? startAt : startAt.addingTimeInterval(3600) // Default 1 hour
-        let extractedTags = TagExtractor.extract(from: bodyText)
+        let extractedTags = TagParser.extract(from: [title, bodyText])
 
         Task {
             do {
