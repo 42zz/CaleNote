@@ -18,6 +18,7 @@ struct MainNavigationView: View {
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var auth: GoogleAuthService
     @EnvironmentObject private var syncService: CalendarSyncService
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // MARK: - Query
 
@@ -197,6 +198,8 @@ struct MainNavigationView: View {
         }
         .padding(.trailing, 16)
         .padding(.bottom, 16)
+        .accessibilityLabel("新規エントリーを作成")
+        .accessibilityHint("新しい予定や記録を追加します")
     }
 
     // MARK: - Helper Methods
@@ -226,7 +229,7 @@ struct MainNavigationView: View {
         guard let targetDate else { return }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            withAnimation {
+            AccessibilityAnimation.perform(reduceMotion: reduceMotion) {
                 proxy.scrollTo(targetDate, anchor: .top)
             }
         }
@@ -246,7 +249,7 @@ struct MainNavigationView: View {
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            withAnimation {
+            AccessibilityAnimation.perform(reduceMotion: reduceMotion) {
                 proxy.scrollTo(targetSection.date, anchor: .top)
             }
         }

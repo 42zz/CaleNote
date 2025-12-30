@@ -12,6 +12,7 @@ struct TimelineRowView: View {
     // MARK: - Environment
 
     @EnvironmentObject private var calendarListService: CalendarListService
+    @Environment(\.accessibilityContrast) private var accessibilityContrast
 
     // MARK: - Properties
 
@@ -63,9 +64,41 @@ struct TimelineRowView: View {
         }
     }
 
+    private var syncStatusText: String {
+        switch entry.syncStatus {
+        case ScheduleEntry.SyncStatus.pending.rawValue:
+            return "同期待ち"
+        case ScheduleEntry.SyncStatus.failed.rawValue:
+            return "同期失敗"
+        default:
+            return "同期済み"
+        }
+    }
+
     /// ソースバッジ
     private var sourceIcon: String {
         entry.managedByCaleNote ? "note.text" : "calendar"
+    }
+
+    private var sourceText: String {
+        entry.managedByCaleNote ? "CaleNote" : "Googleカレンダー"
+    }
+
+    private var accessibilityLabelText: String {
+        var parts: [String] = [entry.title]
+        if entry.isAllDay {
+            parts.append("終日")
+        } else {
+            parts.append("開始 \(timeText)")
+            parts.append("終了 \(endTimeText)")
+        }
+        if let body = entry.body, !body.isEmpty {
+            parts.append("本文あり")
+        }
+        if !entry.tags.isEmpty {
+            parts.append("タグ \(entry.tags.prefix(3).map { "#\($0)" }.joined(separator: " "))")
+        }
+        return parts.joined(separator: "、")
     }
 
     // MARK: - Body
@@ -94,7 +127,8 @@ struct TimelineRowView: View {
                         .foregroundColor(.secondary.opacity(0.7))
                 }
             }
-            .frame(width: 50)
+            .frame(minWidth: 50, alignment: .trailing)
+            .layoutPriority(1)
 
             // エントリー内容
             VStack(alignment: .leading, spacing: 4) {
@@ -124,7 +158,6 @@ struct TimelineRowView: View {
                     Text(body)
                         .font(.caption)
                         .foregroundColor(.secondary)
-                        .lineLimit(2)
                 }
 
                 // タグ
@@ -139,7 +172,11 @@ struct TimelineRowView: View {
                                     .padding(.vertical, 2)
                                     .background(
                                         Capsule()
-                                            .fill(Color.accentColor.opacity(0.1))
+                                            .fill(Color.accentColor.opacity(accessibilityContrast == .high ? 0.25 : 0.1))
+                                    )
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(Color.accentColor, lineWidth: accessibilityContrast == .high ? 1 : 0)
                                     )
                             }
 
@@ -155,5 +192,8 @@ struct TimelineRowView: View {
         }
         .padding(.vertical, 8)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabelText)
+        .accessibilityValue("\(syncStatusText)、ソース \(sourceText)")
     }
 }

@@ -46,10 +46,14 @@ struct SettingsView: View {
                             }
                         }
                     }
+                    .accessibilityLabel("再認証")
+                    .accessibilityHint("Googleアカウントの再認証を行います")
                     Button("Sign Out") {
                         auth.signOut()
                     }
                     .foregroundColor(.red)
+                    .accessibilityLabel("サインアウト")
+                    .accessibilityHint("Googleアカウントからサインアウトします")
                 } else {
                     Button("Sign In with Google") {
                         Task {
@@ -60,6 +64,8 @@ struct SettingsView: View {
                             }
                         }
                     }
+                    .accessibilityLabel("Googleでサインイン")
+                    .accessibilityHint("Googleアカウントでサインインします")
                 }
             }
             
@@ -67,6 +73,7 @@ struct SettingsView: View {
                 TextField("Target Calendar ID", text: $targetCalendarId)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
+                    .accessibilityLabel("書き込み先カレンダーID")
                 
                 Text("Current target for writes: \(targetCalendarId)")
                     .font(.caption)
@@ -172,10 +179,14 @@ struct SettingsView: View {
                     }
                 }
                 .disabled(syncService.isSyncing)
+                .accessibilityLabel("フル同期を実行")
+                .accessibilityHint("Googleカレンダーとすべてのデータを再同期します")
                 
                 Button("Reset Tokens") {
                     syncService.resetSyncTokens()
                 }
+                .accessibilityLabel("同期トークンをリセット")
+                .accessibilityHint("次回の同期で全件取得します")
             }
 
             Section("App Info") {
