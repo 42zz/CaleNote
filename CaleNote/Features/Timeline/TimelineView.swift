@@ -5,6 +5,7 @@
 //  Created by Claude Code on 2025/12/30.
 //
 
+import Combine
 import SwiftUI
 import SwiftData
 
@@ -13,6 +14,7 @@ struct TimelineView: View {
     // MARK: - Environment
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var auth: GoogleAuthService
     @EnvironmentObject private var syncService: CalendarSyncService
     @EnvironmentObject private var calendarListService: CalendarListService
@@ -46,6 +48,12 @@ struct TimelineView: View {
 
     /// 表示設定
     @AppStorage("timelineShowTags") private var showTags = true
+
+    /// 表示中のセクション日付
+    @State private var visibleSectionDates: Set<Date> = []
+
+    /// ScrollViewReader のプロキシ参照
+    @State private var scrollProxy: ScrollViewProxy?
 
     // MARK: - Computed Properties
 
@@ -122,6 +130,14 @@ struct TimelineView: View {
                 // 定期的な同期を開始（必要に応じて）
                 syncService.startBackgroundSync()
             }
+            .onChange(of: scenePhase) { phase in
+                if phase == .active {
+                    refreshForDayChange(shouldScroll: true)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+                refreshForDayChange(shouldScroll: true)
+            }
         }
     }
 
@@ -130,7 +146,7 @@ struct TimelineView: View {
     private var timelineList: some View {
         ScrollViewReader { proxy in
             List {
-                ForEach(Array(groupedEntries.enumerated()), id: \.offset) { index, section in
+                ForEach(Array(groupedEntries.enumerated()), id: \.offset) { _, section in
                     Section {
                         ForEach(section.entries) { entry in
                             NavigationLink {
@@ -146,12 +162,19 @@ struct TimelineView: View {
                         )
                     }
                     .id(section.date)
+                    .onAppear {
+                        visibleSectionDates.insert(section.date)
+                    }
+                    .onDisappear {
+                        visibleSectionDates.remove(section.date)
+                    }
                 }
             }
             .listStyle(.plain)
             .onAppear {
                 // 初回表示時に今日のセクションにスクロール
-                scrollToToday(proxy: proxy)
+                scrollProxy = proxy
+                scrollToToday(forceToday: true)
             }
         }
     }
@@ -207,7 +230,7 @@ struct TimelineView: View {
         // 今日へフォーカスボタン
         ToolbarItem(placement: .navigationBarTrailing) {
             Button {
-                // TODO: 今日のセクションにスクロール
+                scrollToToday(forceToday: false)
             } label: {
                 Image(systemName: "calendar.circle")
             }
@@ -243,15 +266,33 @@ struct TimelineView: View {
     }
 
     /// 今日のセクションにスクロール
-    private func scrollToToday(proxy: ScrollViewProxy) {
+    private func scrollToToday(forceToday: Bool) {
+        today = Date()
+        guard let proxy = scrollProxy else { return }
         guard let todaySection = groupedEntries.first(where: { isTodaySection($0.date) }) else {
             return
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        let shouldScrollToTop = !forceToday && visibleSectionDates.contains(todaySection.date)
+        let targetDate = shouldScrollToTop ? groupedEntries.first?.date : todaySection.date
+        guard let targetDate else { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             withAnimation {
-                proxy.scrollTo(todaySection.date, anchor: .top)
+                proxy.scrollTo(targetDate, anchor: .top)
             }
+        }
+    }
+
+    /// 日付変更時の更新処理
+    private func refreshForDayChange(shouldScroll: Bool) {
+        let now = Date()
+        let calendar = Calendar.current
+        let didChange = !calendar.isDate(now, inSameDayAs: today)
+        today = now
+
+        if didChange, shouldScroll {
+            scrollToToday(forceToday: true)
         }
     }
 }
