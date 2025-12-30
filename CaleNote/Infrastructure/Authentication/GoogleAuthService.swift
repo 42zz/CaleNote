@@ -44,7 +44,9 @@ final class GoogleAuthService: ObservableObject {
 
     private init() {
         // 前回のサインイン状態を復元
-        restorePreviousSignIn()
+        Task {
+            await restorePreviousSignIn()
+        }
     }
 
     // MARK: - Authentication Methods
@@ -101,22 +103,16 @@ final class GoogleAuthService: ObservableObject {
     }
 
     /// 前回のサインイン状態を復元
-    func restorePreviousSignIn() {
+    func restorePreviousSignIn() async {
         logger.info("Restoring previous sign-in state")
 
-        GIDSignIn.sharedInstance.restorePreviousSignIn { [weak self] user, error in
-            Task { @MainActor in
-                if let error = error {
-                    self?.logger.warning("Failed to restore previous sign-in: \(error.localizedDescription)")
-                    return
-                }
-
-                if let user = user {
-                    self?.currentUser = user
-                    self?.isAuthenticated = true
-                    self?.logger.info("Previous sign-in restored: \(user.userID ?? "unknown")")
-                }
-            }
+        do {
+            let user = try await GIDSignIn.sharedInstance.restorePreviousSignIn()
+            self.currentUser = user
+            self.isAuthenticated = true
+            self.logger.info("Previous sign-in restored: \(user.userID ?? "unknown")")
+        } catch {
+            self.logger.warning("Failed to restore previous sign-in: \(error.localizedDescription)")
         }
     }
 

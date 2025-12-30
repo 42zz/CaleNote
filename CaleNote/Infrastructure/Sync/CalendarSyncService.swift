@@ -59,8 +59,8 @@ final class CalendarSyncService: ObservableObject {
         authService: GoogleAuthService,
         errorHandler: ErrorHandler,
         modelContext: ModelContext,
-        calendarSettings: CalendarSettings = .shared,
-        rateLimiter: SyncRateLimiter = .shared
+        calendarSettings: CalendarSettings,
+        rateLimiter: SyncRateLimiter
     ) {
         self.apiClient = apiClient
         self.authService = authService

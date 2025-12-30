@@ -8,7 +8,7 @@
 import Foundation
 
 /// リトライポリシーの設定
-struct RetryPolicy {
+struct RetryPolicy: Sendable {
     /// 最大リトライ回数
     let maxRetries: Int
 
