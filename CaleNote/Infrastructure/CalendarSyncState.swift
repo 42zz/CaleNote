@@ -17,4 +17,10 @@ enum CalendarSyncState {
       UserDefaults.standard.removeObject(forKey: k)
     }
   }
+
+  static func clearAllTokens(calendarIds: [String]) {
+    for calendarId in calendarIds {
+      UserDefaults.standard.removeObject(forKey: key(calendarId: calendarId))
+    }
+  }
 }

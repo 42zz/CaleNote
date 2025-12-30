@@ -32,6 +32,7 @@ struct SettingsView: View {
     @State private var developerTapCount: Int = 0
     @State private var isDeveloperModeEnabled: Bool = UserDefaults.standard.bool(
         forKey: "isDeveloperModeEnabled")
+    @State private var weekStartDay: Int = DisplaySettings.weekStartDay()
 
     private var calendarsPrimaryFirst: [CachedCalendar] {
         calendars.sorted { a, b in
@@ -201,6 +202,54 @@ struct SettingsView: View {
                     RelatedMemorySettingsSection()
                 }
 
+                Section("表示設定") {
+                    Picker("週の開始曜日", selection: $weekStartDay) {
+                        Text("日曜日").tag(0)
+                        Text("月曜日").tag(1)
+                    }
+                    .onChange(of: weekStartDay) { oldValue, newValue in
+                        DisplaySettings.saveWeekStartDay(newValue)
+                    }
+                }
+
+                Section("同期範囲") {
+                    Stepper(
+                        value: $pastDays,
+                        in: 1...365,
+                        step: 7
+                    ) {
+                        HStack {
+                            Text("過去")
+                            Spacer()
+                            Text("\(pastDays)日")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .onChange(of: pastDays) { oldValue, newValue in
+                        SyncSettings.save(pastDays: newValue, futureDays: futureDays)
+                    }
+
+                    Stepper(
+                        value: $futureDays,
+                        in: 1...365,
+                        step: 7
+                    ) {
+                        HStack {
+                            Text("未来")
+                            Spacer()
+                            Text("\(futureDays)日")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .onChange(of: futureDays) { oldValue, newValue in
+                        SyncSettings.save(pastDays: pastDays, futureDays: newValue)
+                    }
+
+                    Text("タイムラインに表示するイベントの同期範囲を設定します。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section("長期キャッシュ（一括取り込み）") {
                     if !isImportingArchive {
                         Button {
@@ -276,6 +325,50 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("データ管理") {
+                    Button {
+                        Task { await rebuildLocalData() }
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                            Text("ローカルデータを再構築")
+                        }
+                    }
+
+                    Button(role: .destructive) {
+                        Task { await clearCache() }
+                    } label: {
+                        HStack {
+                            Image(systemName: "trash")
+                            Text("キャッシュをクリア")
+                        }
+                    }
+
+                    Text("ローカルデータの再構築は、同期トークンをリセットして次回同期時に全データを再取得します。キャッシュクリアはローカルのカレンダーキャッシュを削除します。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("アプリ情報") {
+                    Link(destination: URL(string: "https://example.com/privacy")!) {
+                        HStack {
+                            Text("プライバシーポリシー")
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Link(destination: URL(string: "https://example.com/terms")!) {
+                        HStack {
+                            Text("利用規約")
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
                 // 開発者向けツール（隠し導線）
                 if isDeveloperModeEnabled {
                     Section("開発者向け") {
@@ -297,7 +390,7 @@ struct SettingsView: View {
                         Spacer()
                         Text(
                             Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-                                ?? "0.21"
+                                ?? "0.29"
                         )
                         .foregroundStyle(.secondary)
                     }
@@ -403,6 +496,45 @@ struct SettingsView: View {
     private func cancelArchiveImport() {
         archiveTask?.cancel()
         archiveTask = nil
+    }
+
+    @MainActor
+    private func rebuildLocalData() async {
+        // 全カレンダーの同期トークンをリセット
+        let calendarIds = calendars.map { $0.calendarId }
+        CalendarSyncState.clearAllTokens(calendarIds: calendarIds)
+        errorMessage = nil
+
+        // 次回同期時に全データが再取得される旨を通知
+        archiveProgressText = "同期トークンをリセットしました。次回同期時に全データが再取得されます。"
+    }
+
+    @MainActor
+    private func clearCache() async {
+        do {
+            // CachedCalendarEventを全削除
+            let cachedEvents = try modelContext.fetch(FetchDescriptor<CachedCalendarEvent>())
+            for event in cachedEvents {
+                modelContext.delete(event)
+            }
+
+            // ArchivedCalendarEventを全削除
+            let archivedEvents = try modelContext.fetch(FetchDescriptor<ArchivedCalendarEvent>())
+            for event in archivedEvents {
+                modelContext.delete(event)
+            }
+
+            try modelContext.save()
+
+            // 同期トークンもリセット
+            let calendarIds = calendars.map { $0.calendarId }
+            CalendarSyncState.clearAllTokens(calendarIds: calendarIds)
+
+            errorMessage = nil
+            archiveProgressText = "キャッシュをクリアしました。\(cachedEvents.count + archivedEvents.count)件のイベントを削除しました。"
+        } catch {
+            errorMessage = "キャッシュクリア失敗: \(error.localizedDescription)"
+        }
     }
 
 }
