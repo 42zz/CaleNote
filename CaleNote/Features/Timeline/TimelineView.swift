@@ -13,6 +13,7 @@ struct TimelineView: View {
     // MARK: - Environment
 
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var auth: GoogleAuthService
 
     // MARK: - Query
 
@@ -46,6 +47,7 @@ struct TimelineView: View {
         // init 時点では Environment がまだ利用できないため、
         // onAppear で初期化するか、外部から注入する必要があります。
         // ここでは仮の実装として、後で適切に初期化します。
+        // FIXME: This creates a separate ModelContainer. Should be injected.
         _syncService = StateObject(wrappedValue: CalendarSyncService(
             apiClient: GoogleCalendarClient(),
             authService: .shared,
@@ -114,8 +116,9 @@ struct TimelineView: View {
                 prompt: "タイトル、本文、タグで検索"
             )
             .sheet(isPresented: $showNewEntrySheet) {
-                // TODO: 新規エントリー作成画面
-                Text("新規エントリー作成画面")
+                JournalEditorView()
+                    .environmentObject(syncService)
+                    // auth is automatically inherited if this view is in the hierarchy
             }
             .onAppear {
                 // 今日の日付を更新
@@ -183,12 +186,18 @@ struct TimelineView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        // 検索ボタン
+        // 検索ボタン & 設定ボタン
         ToolbarItem(placement: .navigationBarLeading) {
-            Button {
-                showSearchBar.toggle()
-            } label: {
-                Image(systemName: "magnifyingglass")
+            HStack {
+                NavigationLink(destination: SettingsView().environmentObject(syncService)) {
+                    Image(systemName: "gearshape")
+                }
+                
+                Button {
+                    showSearchBar.toggle()
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                }
             }
         }
 
