@@ -28,8 +28,10 @@ struct CaleNoteApp: App {
                 ScheduleEntry.self,
                 CalendarInfo.self
             ])
-            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+            let storeURL = try DataProtection.protectedStoreURL(filename: "CaleNote.sqlite")
+            let config = ModelConfiguration(schema: schema, url: storeURL, isStoredInMemoryOnly: false)
             container = try ModelContainer(for: schema, configurations: [config])
+            DataProtection.applyFileProtection(to: storeURL)
 
             // サービスの初期化
             let context = container.mainContext
