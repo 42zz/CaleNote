@@ -9,32 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added - 2025/12/30
 
-#### Issue #1: SwiftData ScheduleEntry Model
-- ScheduleEntry.swift でスケジュールエントリのコアデータモデルを実装
-- Google Calendar との同期状態を追跡するための syncStatus プロパティを追加
-- タグベースの検索をサポート
-- CaleNoteApp.swift に ModelContainer を登録
-
-#### Issue #16: Error Handling and Retry Logic
-- CaleNoteError.swift で包括的なエラー型システムを実装
-  - NetworkError: ネットワーク関連エラー
-  - APIError: Google Calendar API エラー
-  - LocalDataError: ローカルデータ永続化エラー
-- RetryPolicy.swift で指数バックオフによるリトライロジックを実装
-  - デフォルト、アグレッシブ、コンサバティブの3つのプリセットポリシー
-  - RetryExecutor actor による並行安全なリトライ実行
-- ErrorHandler.swift で一元的なエラー管理サービスを実装
-
-#### Issue #2: Google Sign-In Authentication
-- GoogleAuthService.swift で OAuth 2.0 認証フローを実装
-  - サインイン / サインアウト
-  - アクセストークンの自動更新
-  - 追加スコープのリクエスト
-  - Keychain ベースのセッション永続化
-- GOOGLE_AUTH_SETUP.md でセットアップガイドを追加
-  - Google Cloud Console の設定手順
-  - OAuth クライアントの構成方法
-  - URL スキームのセットアップ
+#### Issue #4: Bidirectional Synchronization Service
+- CalendarSyncService.swift で Google Calendar との双方向同期を実装
+  - **ローカル→Google 同期**: ローカル変更を非同期で Google Calendar に反映
+  - **Google→ローカル 同期**: Google Calendar の変更をローカルに反映
+  - **差分同期**: syncToken を使用した効率的な差分同期
+  - **同期状態管理**: 各エントリーの同期状態を追跡（synced/pending/failed）
+  - **競合解決**: Google Calendar を正として競合を解決
+  - **バックグラウンド同期**: Timer ベースの定期同期（5分間隔）
+  - **リトライ機能**: 失敗した同期の再試行
+  - **syncToken 永続化**: UserDefaults による syncToken の保存・復元
+  - **時間範囲同期**: 過去90日〜未来365日の範囲で同期
+  - **ページネーション対応**: 大量イベントの効率的な取得
 
 #### Issue #3: Google Calendar API Client
 - CalendarModels.swift で Google Calendar API v3 のデータ構造を実装
@@ -51,6 +37,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - HTTP ステータスコード処理（401, 403, 404, 410, 429, 5xx など）
   - syncToken ベースの差分同期サポート
 
+#### Issue #2: Google Sign-In Authentication
+- GoogleAuthService.swift で OAuth 2.0 認証フローを実装
+  - サインイン / サインアウト
+  - アクセストークンの自動更新
+  - 追加スコープのリクエスト
+  - Keychain ベースのセッション永続化
+- GOOGLE_AUTH_SETUP.md でセットアップガイドを追加
+  - Google Cloud Console の設定手順
+  - OAuth クライアントの構成方法
+  - URL スキームのセットアップ
+
+#### Issue #16: Error Handling and Retry Logic
+- CaleNoteError.swift で包括的なエラー型システムを実装
+  - NetworkError: ネットワーク関連エラー
+  - APIError: Google Calendar API エラー
+  - LocalDataError: ローカルデータ永続化エラー
+- RetryPolicy.swift で指数バックオフによるリトライロジックを実装
+  - デフォルト、アグレッシブ、コンサバティブの3つのプリセットポリシー
+  - RetryExecutor actor による並行安全なリトライ実行
+- ErrorHandler.swift で一元的なエラー管理サービスを実装
+
+#### Issue #1: SwiftData ScheduleEntry Model
+- ScheduleEntry.swift でスケジュールエントリのコアデータモデルを実装
+- Google Calendar との同期状態を追跡するための syncStatus プロパティを追加
+- タグベースの検索をサポート
+- CaleNoteApp.swift に ModelContainer を登録
+
 ### Technical Details
 
 - **Swift Concurrency**: すべての API 呼び出しと DB 操作で async/await を使用
@@ -58,12 +71,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Error Handling**: すべてのサービスで CaleNoteError を使用した一貫したエラー処理
 - **Logging**: OSLog による構造化ログ
 - **Rate Limiting**: Google Calendar API のレート制限に対応
+- **Dependency Injection**: すべてのサービスで依存関係注入パターンを使用
 
 ### Dependencies
 
 - GoogleSignIn SDK 9.0+ (Issue #2)
 - SwiftData (Issue #1)
-- Combine (Issue #16, #2)
+- Combine (Issue #16, #2, #4)
 
 ## [0.1.0] - 2025/12/XX (Initial Reset)
 
