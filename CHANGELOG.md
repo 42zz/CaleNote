@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - 2025/12/30
+
+#### Technical Debt Resolution
+- **GoogleAuthService 環境注入**: CaleNoteApp.swift で GoogleAuthService を @StateObject として作成し、environmentObject で子ビューに注入
+- **全日イベント対応**: ScheduleEntry に isAllDay プロパティを追加し、Google Calendar の全日イベントをサポート
+- **TimelineRowView 改善**: 全日イベントの場合は時刻の代わりに「終日」と表示
+- **カレンダー設定管理**: CalendarSettings サービスを作成し、ターゲットカレンダーID を管理
+- **ハードコード削除**: CalendarSyncService のハードコードされた "primary" カレンダーID を設定ベースに変更
+- **.gitignore 追加**: .claude/ ディレクトリをバージョン管理から除外
+
+これらの修正により、アーキテクチャが改善され、将来的な拡張性が向上しました。
+
 ### Added - 2025/12/30
 
 #### Issue #7: Timeline View

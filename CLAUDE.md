@@ -74,6 +74,7 @@ Internally, each schedule entry should maintain:
 * `managedByCaleNote` (boolean)
 * `googleEventId`
 * `startAt` / `endAt`
+* `isAllDay` (boolean) - for all-day events
 * `title` / `body`
 * `tags`
 * `syncStatus` (synced / pending / failed)
@@ -113,7 +114,8 @@ The project has been reset and is ready for fresh development. Current structure
    - **Authentication**: Google Sign-In integration
    - **API Client**: Direct Google Calendar API calls
    - **Synchronization**: Bidirectional sync services
-   - **State Management**: User settings, sync state
+   - **Settings**: User settings, calendar configuration (e.g., CalendarSettings)
+   - **State Management**: Sync state, error handling
    - **Utilities**: Tag extraction, search indexing, etc.
 3. Use async/await for all API calls and DB operations
 4. Implement proper error handling and retry logic
