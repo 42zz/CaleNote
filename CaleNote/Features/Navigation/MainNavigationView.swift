@@ -15,6 +15,7 @@ struct MainNavigationView: View {
     // MARK: - Environment
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var auth: GoogleAuthService
     @EnvironmentObject private var syncService: CalendarSyncService
 
@@ -49,6 +50,9 @@ struct MainNavigationView: View {
 
     /// ScrollViewReader のプロキシ参照
     @State private var scrollProxy: ScrollViewProxy?
+
+    /// 表示中のセクション日付
+    @State private var visibleSectionDates: Set<Date> = []
 
     // MARK: - Computed Properties
 
@@ -115,6 +119,14 @@ struct MainNavigationView: View {
             focusDate = today
             syncService.startBackgroundSync()
         }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                refreshForDayChange(shouldScroll: true)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+            refreshForDayChange(shouldScroll: true)
+        }
     }
 
     // MARK: - Timeline List
@@ -138,12 +150,18 @@ struct MainNavigationView: View {
                         )
                     }
                     .id(section.date)
+                    .onAppear {
+                        visibleSectionDates.insert(section.date)
+                    }
+                    .onDisappear {
+                        visibleSectionDates.remove(section.date)
+                    }
                 }
             }
             .listStyle(.plain)
             .onAppear {
                 scrollProxy = proxy
-                scrollToToday()
+                scrollToToday(forceToday: true)
             }
         }
     }
@@ -176,6 +194,11 @@ struct MainNavigationView: View {
 
     /// 今日のセクションにスクロール
     private func scrollToToday() {
+        scrollToToday(forceToday: false)
+    }
+
+    /// 今日のセクションにスクロール（強制オプション）
+    private func scrollToToday(forceToday: Bool) {
         today = Date()
         focusDate = today
 
@@ -184,10 +207,27 @@ struct MainNavigationView: View {
             return
         }
 
+        let shouldScrollToTop = !forceToday && visibleSectionDates.contains(todaySection.date)
+        let targetDate = shouldScrollToTop ? groupedEntries.first?.date : todaySection.date
+        guard let targetDate else { return }
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             withAnimation {
-                proxy.scrollTo(todaySection.date, anchor: .top)
+                proxy.scrollTo(targetDate, anchor: .top)
             }
+        }
+    }
+
+    /// 日付変更時の更新処理
+    private func refreshForDayChange(shouldScroll: Bool) {
+        let now = Date()
+        let calendar = Calendar.current
+        let didChange = !calendar.isDate(now, inSameDayAs: today)
+        today = now
+        focusDate = today
+
+        if didChange, shouldScroll {
+            scrollToToday(forceToday: true)
         }
     }
 }
