@@ -1,3 +1,4 @@
+import Combine
 import SwiftData
 import SwiftUI
 
@@ -51,7 +52,7 @@ struct TagsView: View {
                     Text("タグはまだありません")
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(tagSummaries) { tag in
+                    ForEach(tagSummaries, id: \.id) { (tag: SearchIndexService.TagSummary) in
                         Button {
                             toggleTag(tag.name)
                         } label: {
@@ -62,7 +63,7 @@ struct TagsView: View {
                                     .foregroundStyle(.secondary)
                                 if selectedTags.contains(tag.name) {
                                     Image(systemName: "checkmark")
-                                        .foregroundStyle(.accent)
+                                        .foregroundStyle(Color.accentColor)
                                 }
                             }
                         }

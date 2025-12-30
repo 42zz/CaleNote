@@ -5,10 +5,10 @@
 //  Created by Claude Code on 2025/12/30.
 //
 
-import Foundation
-import SwiftData
-import OSLog
 import Combine
+import Foundation
+import OSLog
+import SwiftData
 
 /// Google Calendar との双方向同期サービス
 @MainActor
