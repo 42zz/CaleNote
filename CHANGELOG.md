@@ -53,6 +53,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 新規・既存エントリーにcalendarIdを設定
   - 全日イベントの正確な判定
 
+#### Issue #10 (CAL-10): Sidebar and Navigation Structure
+- `/CaleNote/Features/Navigation/` に新規ナビゲーション構造を実装
+- **SidebarView.swift**: サイドバービュー
+  - カレンダー表示切替（Google Calendar / CaleNote エントリー）
+  - 設定画面へのナビゲーション
+  - フィードバック・ヘルプ導線
+  - Googleアカウント情報表示
+- **TopBarView.swift**: トップバービュー
+  - サイドバートグルボタン
+  - 月表示と月選択ポップオーバー
+  - 検索ボタン
+  - 今日フォーカスボタン
+- **MainNavigationView.swift**: メインナビゲーションビュー
+  - サイドバーとタイムラインを統合
+  - カレンダー表示フィルタリング機能
+  - FAB（新規エントリー作成）ボタン
+- ContentView を MainNavigationView を使用するように更新
+
 ### Added (from feature/cal-11)
 - Restored and integrated JournalEditorView, SettingsView, CalendarSyncState.
 
