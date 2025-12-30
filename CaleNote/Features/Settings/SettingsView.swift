@@ -113,6 +113,12 @@ struct SettingsView: View {
                 Toggle("タイムラインにタグを表示", isOn: $timelineShowTags)
             }
 
+            Section("Tags") {
+                NavigationLink("タグ管理") {
+                    TagsView()
+                }
+            }
+
             Section("Data Management") {
                 HStack {
                     Text("データ整合性")
