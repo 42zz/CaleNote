@@ -37,6 +37,7 @@ struct TopBarView: View {
 
     /// 月表示ポップオーバー
     @State private var showMonthPicker = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // MARK: - Body
 
@@ -67,7 +68,7 @@ struct TopBarView: View {
         Group {
             if showsSidebarButton {
                 Button {
-                    withAnimation {
+                    AccessibilityAnimation.perform(reduceMotion: reduceMotion) {
                         onSidebarTap?()
                     }
                 } label: {
@@ -75,9 +76,12 @@ struct TopBarView: View {
                         .font(.title3)
                         .foregroundStyle(.primary)
                 }
+                .accessibilityLabel("サイドバーを開く")
+                .accessibilityHint("カレンダー一覧を表示します")
             } else {
                 Color.clear
                     .frame(width: 24, height: 24)
+                    .accessibilityHidden(true)
             }
         }
     }
@@ -98,6 +102,9 @@ struct TopBarView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .accessibilityLabel("月を選択")
+        .accessibilityValue(monthYearString)
+        .accessibilityHint("月表示のカレンダーを開きます")
         .sheet(isPresented: $showMonthPicker) {
             MonthCalendarPickerView(
                 selectedDate: $focusDate,
@@ -118,6 +125,8 @@ struct TopBarView: View {
                 .font(.title3)
                 .foregroundStyle(.primary)
         }
+        .accessibilityLabel("検索")
+        .accessibilityHint("エントリーを検索します")
     }
 
     // MARK: - Today Focus Button
@@ -130,6 +139,9 @@ struct TopBarView: View {
                 .font(.title3)
                 .foregroundStyle(isToday ? Color.accentColor : Color.primary)
         }
+        .accessibilityLabel("今日へ移動")
+        .accessibilityValue(isToday ? "今日を表示中" : nil)
+        .accessibilityHint("今日の日付にスクロールします")
     }
 
     // MARK: - Computed Properties

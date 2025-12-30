@@ -70,6 +70,8 @@ struct JournalEditorView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         TextEditor(text: $bodyText)
                             .frame(minHeight: 180)
+                            .accessibilityLabel("本文")
+                            .accessibilityHint("タグは # を入力して追加できます")
                         
                         // Tag Suggestions
                         if !filteredTagSuggestions.isEmpty {

@@ -18,6 +18,7 @@ struct TimelineView: View {
     @EnvironmentObject private var auth: GoogleAuthService
     @EnvironmentObject private var syncService: CalendarSyncService
     @EnvironmentObject private var calendarListService: CalendarListService
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // MARK: - Query
 
@@ -223,6 +224,8 @@ struct TimelineView: View {
         }
         .padding(.trailing, 16)
         .padding(.bottom, 16)
+        .accessibilityLabel("新規エントリーを作成")
+        .accessibilityHint("新しい予定や記録を追加します")
     }
 
     // MARK: - Toolbar Content
@@ -242,11 +245,15 @@ struct TimelineView: View {
             } label: {
                 if syncService.isSyncing {
                     ProgressView()
+                        .accessibilityLabel("同期中")
                 } else {
                     Image(systemName: "arrow.clockwise")
                 }
             }
             .disabled(syncService.isSyncing)
+            .accessibilityLabel("同期")
+            .accessibilityHint("Googleカレンダーと同期します")
+            .accessibilityValueText(syncService.isSyncing ? "同期中" : nil)
         }
     }
 
@@ -272,7 +279,7 @@ struct TimelineView: View {
         guard let targetDate else { return }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            withAnimation {
+            AccessibilityAnimation.perform(reduceMotion: reduceMotion) {
                 proxy.scrollTo(targetDate, anchor: .top)
             }
         }
@@ -292,7 +299,7 @@ struct TimelineView: View {
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            withAnimation {
+            AccessibilityAnimation.perform(reduceMotion: reduceMotion) {
                 proxy.scrollTo(targetSection.date, anchor: .top)
             }
         }

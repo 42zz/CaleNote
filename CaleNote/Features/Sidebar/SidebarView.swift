@@ -54,6 +54,7 @@ struct SidebarView: View {
             if calendarListService.isSyncing {
                 ProgressView()
                     .scaleEffect(0.7)
+                    .accessibilityLabel("同期中")
             } else {
                 Button {
                     Task {
@@ -63,6 +64,8 @@ struct SidebarView: View {
                     Image(systemName: "arrow.clockwise")
                         .font(.subheadline)
                 }
+                .accessibilityLabel("カレンダー一覧を同期")
+                .accessibilityHint("最新のカレンダー情報を取得します")
             }
         }
         .padding(.horizontal, 16)
@@ -125,6 +128,7 @@ struct SidebarView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
             }
+            .accessibilityHint("メールでフィードバックを送信します")
         }
         .padding(.vertical, 8)
     }
@@ -157,7 +161,6 @@ private struct CalendarRowView: View {
                     HStack(spacing: 4) {
                         Text(calendar.summary)
                             .font(.subheadline)
-                            .lineLimit(1)
 
                         // プライマリバッジ
                         if calendar.isPrimary {
@@ -187,6 +190,21 @@ private struct CalendarRowView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(calendar.summary)
+        .accessibilityValue(calendarAccessibilityValue)
+        .accessibilityHint("表示するカレンダーを切り替えます")
+    }
+
+    private var calendarAccessibilityValue: String {
+        var parts = [calendar.isVisible ? "表示中" : "非表示"]
+        if calendar.isPrimary {
+            parts.append("メイン")
+        }
+        if calendar.isReadOnly {
+            parts.append("読み取り専用")
+        }
+        return parts.joined(separator: "、")
     }
 
     private var calendarColor: Color {

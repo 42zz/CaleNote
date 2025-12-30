@@ -87,6 +87,8 @@ struct TagsView: View {
                         Text("選択中: \(selectedTags.sorted().map { "#\($0)" }.joined(separator: " "))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
                         Spacer()
                         Button("クリア") {
                             selectedTags.removeAll()
@@ -132,6 +134,7 @@ private struct TagChip: View {
     let isSelected: Bool
     let count: Int
     let action: () -> Void
+    @Environment(\.accessibilityContrast) private var accessibilityContrast
 
     var body: some View {
         Button(action: action) {
@@ -140,14 +143,26 @@ private struct TagChip: View {
                 Text("\(count)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.caption2)
+                        .foregroundStyle(.primary)
+                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(
                 Capsule()
-                    .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(0.15))
+                    .fill(isSelected ? Color.accentColor.opacity(accessibilityContrast == .high ? 0.3 : 0.2) : Color.secondary.opacity(accessibilityContrast == .high ? 0.25 : 0.15))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.accentColor, lineWidth: isSelected && accessibilityContrast == .high ? 1 : 0)
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("#\(title)")
+        .accessibilityValue("\(count)件、\(isSelected ? "選択中" : "未選択")")
+        .accessibilityHint("タグをフィルタに追加します")
     }
 }

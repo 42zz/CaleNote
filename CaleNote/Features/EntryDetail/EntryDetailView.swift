@@ -4,6 +4,7 @@ import SwiftData
 struct EntryDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityContrast) private var accessibilityContrast
 
     @EnvironmentObject private var relatedIndex: RelatedEntriesIndexService
     @EnvironmentObject private var syncService: CalendarSyncService
@@ -33,6 +34,8 @@ struct EntryDetailView: View {
                 } label: {
                     Image(systemName: "pencil")
                 }
+                .accessibilityLabel("編集")
+                .accessibilityHint("エントリーを編集します")
             }
         }
         .sheet(isPresented: $showEditSheet) {
@@ -52,6 +55,12 @@ struct EntryDetailView: View {
             if !relatedIndex.isReady {
                 relatedIndex.rebuildIndex(modelContext: modelContext)
             }
+        }
+        .accessibilityAction(named: "編集") {
+            showEditSheet = true
+        }
+        .accessibilityAction(named: "削除") {
+            showDeleteAlert = true
         }
     }
 
@@ -92,7 +101,11 @@ struct EntryDetailView: View {
                                 .padding(.vertical, 4)
                                 .background(
                                     Capsule()
-                                        .fill(Color.accentColor.opacity(0.12))
+                                        .fill(Color.accentColor.opacity(accessibilityContrast == .high ? 0.25 : 0.12))
+                                )
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Color.accentColor, lineWidth: accessibilityContrast == .high ? 1 : 0)
                                 )
                         }
                     }
@@ -113,6 +126,8 @@ struct EntryDetailView: View {
                 Text(syncStatusText)
             }
             .font(.subheadline)
+            .accessibilityElement(children: .combine)
+            .accessibilityValueText(syncStatusText)
             if let errorMessage {
                 Text(errorMessage)
                     .foregroundStyle(.red)
