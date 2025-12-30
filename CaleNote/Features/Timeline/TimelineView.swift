@@ -1,1189 +1,229 @@
-import SwiftData
-import SwiftUI
+//
+//  TimelineView.swift
+//  CaleNote
+//
+//  Created by Claude Code on 2025/12/30.
+//
 
+import SwiftUI
+import SwiftData
+
+/// メイン画面のタイムラインビュー
 struct TimelineView: View {
+    // MARK: - Environment
+
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var auth: GoogleAuthService
+    @EnvironmentObject private var syncService: CalendarSyncService
 
-    @Query(sort: \CachedCalendarEvent.start, order: .reverse)
-    private var cachedCalendarEvents: [CachedCalendarEvent]
+    // MARK: - Query
 
-    @Query private var cachedCalendars: [CachedCalendar]
+    /// 全スケジュールエントリー
+    @Query(
+        sort: \ScheduleEntry.startAt,
+        order: .forward
+    ) private var allEntries: [ScheduleEntry]
 
-    @Query(sort: \JournalEntry.eventDate, order: .reverse)
-    private var entries: [JournalEntry]
+    // MARK: - State
 
-    @State private var isPresentingEditor = false
-    @State private var searchText: String = ""
-    @State private var selectedTag: String? = nil
-    @State private var isSearchPresented: Bool = false  // 検索バーの表示状態
+    /// 今日の日付
+    @State private var today = Date()
 
-    // 初期フォーカス管理
-    @State private var hasAutoFocusedToday: Bool = false
-    @State private var needsInitialFocus: Bool = true  // 初回表示または明示的リセット時のみ true
-    @State private var selectedDayKey: String? = nil  // 日付ジャンプ用（将来の機能）
+    /// 検索テキスト
+    @State private var searchText = ""
 
-    // タブ選択によるスクロールトリガー
-    @Binding var selectedTab: Int
-    @Binding var tabTapTrigger: Int
-    @Binding var isDetailViewPresented: Bool
-    @Binding var syncRetryTrigger: Int  // エラー時の再試行トリガー
-    @State private var lastSelectedTab: Int = 0
-    @State private var lastAppearTime: Date = Date()
+    /// 検索バー表示フラグ
+    @State private var showSearchBar = false
 
-    // 同期ステータス管理（RootViewから注入）
-    @ObservedObject var syncStatusStore: SyncStatusStore
+    /// 新規エントリー作成シート表示フラグ
+    @State private var showNewEntrySheet = false
 
-    // 手動同期用
-    @State private var isSyncing: Bool = false
-    @State private var lastSyncAt: Date?
+    // MARK: - Computed Properties
 
-    // スクロール用のプロキシ参照
-    @State private var scrollProxy: ScrollViewProxy?
-
-    // 過去側ページング状態管理
-    @State private var pagingState = TimelinePagingState()
-
-    // Services（このView内で使えるように用意）
-    private let syncService = CalendarSyncService()
-    private let calendarToJournal = CalendarToJournalSyncService()
-    private let journalSync = JournalCalendarSyncService()
-
-    // 個別再送状態
-    @State private var isResendingIndividual: Bool = false
-    @State private var showResendConfirmation: Bool = false
-    @State private var entryToResend: JournalEntry?
-
-    // Toast表示用
-    @State private var toastMessage: String? = nil
-    @State private var toastType: ToastView.ToastType = .info
-
-    // デフォルト値（統一カードの視覚的整合性のため）
-    private let defaultColorHex: String = "#3B82F6"  // ミュートブルー
-    private let defaultIconName: String = "calendar"
-
-    // 辞書化されたlookup（型推論とパフォーマンスの改善）
-    private var entriesById: [String: JournalEntry] {
-        Dictionary(uniqueKeysWithValues: entries.map { ($0.id.uuidString, $0) })
-    }
-
-    private var cachedEventsByUid: [String: CachedCalendarEvent] {
-        Dictionary(uniqueKeysWithValues: cachedCalendarEvents.map { ($0.uid, $0) })
-    }
-
-    private var archivedEventsByUid: [String: ArchivedCalendarEvent] {
-        Dictionary(uniqueKeysWithValues: pagingState.loadedArchivedEvents.map { ($0.uid, $0) })
-    }
-
-    private var calendarsById: [String: CachedCalendar] {
-        Dictionary(uniqueKeysWithValues: cachedCalendars.map { ($0.calendarId, $0) })
-    }
-
-    // task id を外に出す（型推論の負荷軽減）
-    private var calendarsTaskId: String {
-        cachedCalendars
-            .map { "\($0.calendarId):\($0.isEnabled)" }
-            .joined(separator: ",")
-    }
-
-    // 最近使ったタグ（上位）
-    private var recentTagStats: [TagStat] {
-        // 有効なカレンダーID集合を取得
-        let enabledCalendarIds: Set<String> = Set(
-            cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId }
-        )
-
-        // 有効なカレンダーのイベントのみを対象
-        let enabledCalendarEvents = cachedCalendarEvents.filter { event in
-            enabledCalendarIds.contains(event.calendarId)
-        }
-
-        // 同期対象期間内のイベントも含めてタグ統計を構築
-        let stats = buildTagStats(
-            from: entries,
-            cachedEvents: enabledCalendarEvents
-        )
-
-        let sorted = stats.sorted { a, b in
-            if a.lastUsedAt != b.lastUsedAt { return a.lastUsedAt > b.lastUsedAt }
-            if a.count != b.count { return a.count > b.count }
-            return a.tag < b.tag
-        }
-
-        return Array(sorted.prefix(20))
-    }
-
-    private var filteredEntries: [JournalEntry] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let selected = selectedTag
-
-        func matchesText(_ entry: JournalEntry) -> Bool {
-            if query.isEmpty { return true }
-            let title = entry.title ?? ""
-            return title.localizedCaseInsensitiveContains(query)
-                || entry.body.localizedCaseInsensitiveContains(query)
-        }
-
-        func matchesTag(_ entry: JournalEntry) -> Bool {
-            guard let tag = selected else { return true }
-            let tags = TagExtractor.extract(from: entry.body)
-            return tags.contains(tag)
-        }
-
-        return entries.filter { entry in
-            matchesText(entry) && matchesTag(entry)
+    /// フィルタリングされたエントリー
+    private var filteredEntries: [ScheduleEntry] {
+        if searchText.isEmpty {
+            return allEntries
+        } else {
+            return allEntries.filter { entry in
+                entry.title.localizedCaseInsensitiveContains(searchText) ||
+                (entry.body?.localizedCaseInsensitiveContains(searchText) ?? false) ||
+                entry.tags.contains(where: { $0.localizedCaseInsensitiveContains(searchText) })
+            }
         }
     }
 
-    private var filterSummaryText: String? {
-        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let tagToken = selectedTag.map { "#\($0)" } ?? ""
-
-        let combined: String = {
-            if q.isEmpty { return tagToken }
-            if tagToken.isEmpty { return q }
-            return "\(tagToken) \(q)"
-        }()
-
-        return combined.isEmpty ? nil : "検索：\(combined)"
-    }
-
-    /// 日付からYYYYMMDD形式のキーを生成
-    private func dayKey(from date: Date) -> String {
+    /// 日付でグループ化されたエントリー（新しい日付が上）
+    private var groupedEntries: [(date: Date, entries: [ScheduleEntry])] {
         let calendar = Calendar.current
-        let components = calendar.dateComponents([.year, .month, .day], from: date)
-        if let year = components.year, let month = components.month, let day = components.day {
-            return String(format: "%04d%02d%02d", year, month, day)
+        let grouped = Dictionary(grouping: filteredEntries) { entry in
+            calendar.startOfDay(for: entry.startAt)
         }
-        return ""
+
+        return grouped
+            .map { (date: $0.key, entries: $0.value) }
+            .sorted { $0.date > $1.date } // 新しい日付が先
     }
 
-    /// 今日の日付キーを取得
-    private var todayKey: String {
-        dayKey(from: Date())
-    }
-
-    /// 昨日の日付キーを取得
-    private var yesterdayKey: String {
+    /// 今日のセクションのインデックス
+    private var todaySectionIndex: Int? {
         let calendar = Calendar.current
-        if let yesterday = calendar.date(byAdding: .day, value: -1, to: Date()) {
-            return dayKey(from: yesterday)
-        }
-        return ""
-    }
+        let todayStart = calendar.startOfDay(for: today)
 
-    /// 明日の日付キーを取得
-    private var tomorrowKey: String {
-        let calendar = Calendar.current
-        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) {
-            return dayKey(from: tomorrow)
-        }
-        return ""
-    }
-
-    private var groupedItems: [(day: Date, items: [TimelineItem])] {
-        let calendar = Calendar.current
-        let items = timelineItems
-
-        let groups: [Date: [TimelineItem]] = Dictionary(grouping: items) { item in
-            calendar.startOfDay(for: item.date)
-        }
-
-        var result: [(day: Date, items: [TimelineItem])] = []
-        result.reserveCapacity(groups.count + 1)  // 今日セクション追加の可能性を考慮
-
-        for (day, list) in groups {
-            let sortedList = list.sorted { $0.date > $1.date }
-            result.append((day: day, items: sortedList))
-        }
-
-        result.sort { $0.day > $1.day }
-
-        // 今日セクションが存在しない場合は空セクションを追加
-        let today = calendar.startOfDay(for: Date())
-        let hasTodaySection = result.contains { calendar.isDate($0.day, inSameDayAs: today) }
-        if !hasTodaySection {
-            result.append((day: today, items: []))
-            // 日付順を維持するため再ソート
-            result.sort { $0.day > $1.day }
-        }
-
-        return result
-    }
-
-    /// タグ統計を構築（JournalEntryと同期対象期間内のCachedCalendarEventから）
-    private func buildTagStats(
-        from entries: [JournalEntry],
-        cachedEvents: [CachedCalendarEvent]
-    ) -> [TagStat] {
-        var dict: [String: TagStat] = [:]
-
-        // 同期対象期間を取得
-        let (timeMin, timeMax) = SyncSettings.windowDates()
-
-        // JournalEntryからタグを抽出
-        for entry in entries {
-            let tags = TagExtractor.extract(from: entry.body)
-            for tag in tags {
-                if var stat = dict[tag] {
-                    stat.count += 1
-                    if entry.eventDate > stat.lastUsedAt {
-                        stat.lastUsedAt = entry.eventDate
-                    }
-                    dict[tag] = stat
-                } else {
-                    dict[tag] = TagStat(
-                        id: tag,
-                        tag: tag,
-                        count: 1,
-                        lastUsedAt: entry.eventDate
-                    )
-                }
-            }
-        }
-
-        // 同期対象期間内のCachedCalendarEventからタグを抽出
-        // 注意: JournalEntryと紐付いているイベントは重複カウントを避けるため、
-        // linkedJournalIdがnilのイベントのみを対象とする
-        for event in cachedEvents {
-            // 同期対象期間内かチェック
-            guard event.start >= timeMin && event.start <= timeMax else {
-                continue
-            }
-
-            // JournalEntryと紐付いている場合はスキップ（既にカウント済み）
-            if event.linkedJournalId != nil {
-                continue
-            }
-
-            // descriptionからタグを抽出
-            guard let desc = event.desc, !desc.isEmpty else {
-                continue
-            }
-
-            let tags = TagExtractor.extract(from: desc)
-            for tag in tags {
-                if var stat = dict[tag] {
-                    stat.count += 1
-                    if event.start > stat.lastUsedAt {
-                        stat.lastUsedAt = event.start
-                    }
-                    dict[tag] = stat
-                } else {
-                    dict[tag] = TagStat(
-                        id: tag,
-                        tag: tag,
-                        count: 1,
-                        lastUsedAt: event.start
-                    )
-                }
-            }
-        }
-
-        return Array(dict.values)
-    }
-
-    private func journalItems(from entries: [JournalEntry]) -> [TimelineItem] {
-        // カレンダー辞書を作成して高速検索
-        let calendarDict = Dictionary(
-            uniqueKeysWithValues: cachedCalendars.map { ($0.calendarId, $0) })
-
-        return entries.map { entry in
-            // colorHexはエントリ固有、ただし空文字列やデフォルト値の場合はカレンダーの色を使用
-            let colorHex: String
-            if entry.colorHex.isEmpty || entry.colorHex == "#3B82F6" {
-                // カレンダーの色を使用
-                if let linkedCalendarId = entry.linkedCalendarId,
-                    let calendar = calendarDict[linkedCalendarId],
-                    !calendar.userColorHex.isEmpty
-                {
-                    colorHex = calendar.userColorHex
-                } else {
-                    colorHex = defaultColorHex
-                }
-            } else {
-                colorHex = entry.colorHex
-            }
-
-            // linkedCalendarIdからカレンダーを取得してiconNameを決定
-            let iconName: String
-            if let linkedCalendarId = entry.linkedCalendarId,
-                let calendar = calendarDict[linkedCalendarId]
-            {
-                iconName = calendar.iconName.isEmpty ? defaultIconName : calendar.iconName
-            } else {
-                // エントリ固有のiconNameを使用、なければデフォルト
-                iconName = entry.iconName.isEmpty ? defaultIconName : entry.iconName
-            }
-
-            return TimelineItem(
-                id: "journal-\(entry.id.uuidString)",
-                kind: .journal,
-                title: entry.title?.isEmpty == false ? entry.title! : "（タイトルなし）",
-                body: entry.body,
-                date: entry.eventDate,
-                sourceId: entry.id.uuidString,
-                colorHex: colorHex,
-                iconName: iconName,
-                isAllDay: false  // ジャーナルは終日ではない
-            )
+        return groupedEntries.firstIndex { section in
+            calendar.isDate(section.date, inSameDayAs: todayStart)
         }
     }
 
-    private func calendarItems(from cached: [CachedCalendarEvent]) -> [TimelineItem] {
-        // カレンダー辞書を作成して高速検索
-        let calendarDict = Dictionary(
-            uniqueKeysWithValues: cachedCalendars.map { ($0.calendarId, $0) })
-
-        return cached.map { e in
-            // CachedCalendarのcolorHex/iconNameを確実に反映
-            let calendar = calendarDict[e.calendarId]
-            let colorHex: String
-            if let cal = calendar, !cal.userColorHex.isEmpty {
-                colorHex = cal.userColorHex
-            } else {
-                colorHex = defaultColorHex
-            }
-
-            let iconName: String
-            if let cal = calendar, !cal.iconName.isEmpty {
-                iconName = cal.iconName
-            } else {
-                iconName = defaultIconName
-            }
-
-            return TimelineItem(
-                id: "calendar-\(e.uid)",
-                kind: .calendar,
-                title: e.title,
-                body: e.desc,
-                date: e.start,
-                sourceId: e.uid,
-                colorHex: colorHex,
-                iconName: iconName,
-                isAllDay: e.isAllDay
-            )
-        }
-    }
-
-    private func archivedItems(from archived: [ArchivedCalendarEvent]) -> [TimelineItem] {
-        // カレンダー辞書を作成して高速検索
-        let calendarDict = Dictionary(
-            uniqueKeysWithValues: cachedCalendars.map { ($0.calendarId, $0) })
-
-        return archived.map { e in
-            // CachedCalendarのcolorHex/iconNameを確実に反映
-            let calendar = calendarDict[e.calendarId]
-            let colorHex: String
-            if let cal = calendar, !cal.userColorHex.isEmpty {
-                colorHex = cal.userColorHex
-            } else {
-                colorHex = defaultColorHex
-            }
-
-            let iconName: String
-            if let cal = calendar, !cal.iconName.isEmpty {
-                iconName = cal.iconName
-            } else {
-                iconName = defaultIconName
-            }
-
-            return TimelineItem(
-                id: "archived-\(e.uid)",
-                kind: .calendar,
-                title: e.title,
-                body: e.desc,
-                date: e.start,
-                sourceId: e.uid,
-                colorHex: colorHex,
-                iconName: iconName,
-                isAllDay: e.isAllDay
-            )
-        }
-    }
-
-    private var timelineItems: [TimelineItem] {
-        // 1) 表示対象のジャーナル（検索・タグフィルタ後）
-        let visibleJournals: [JournalEntry] = filteredEntries
-        let journalItemsLocal: [TimelineItem] = journalItems(from: visibleJournals)
-
-        // 2) 重複排除用の「全ジャーナルID集合」（フィルタに影響されないよう全件）
-        let allJournalIdSet: Set<String> = Set(entries.map { $0.id.uuidString })
-
-        // 2-1) 表示対象のジャーナルID集合（重複排除に使用）
-        let visibleJournalIdSet: Set<String> = Set(visibleJournals.map { $0.id.uuidString })
-
-        // 2-2) 表示対象のジャーナルに対応するカレンダーイベントのUID集合（重複排除に使用）
-        // linkedEventIdとlinkedCalendarIdを使って、ジャーナルエントリに対応するカレンダーイベントを特定
-        let journalLinkedEventUids: Set<String> = Set(
-            visibleJournals.compactMap { entry in
-                guard let calendarId = entry.linkedCalendarId,
-                    let eventId = entry.linkedEventId
-                else { return nil }
-                return "\(calendarId):\(eventId)"
-            })
-
-        // 3) 有効カレンダーID集合
-        let enabledCalendarIds: Set<String> = Set(
-            cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId })
-
-        // 4) 有効カレンダーのイベント
-        let enabledCalendarEvents: [CachedCalendarEvent] = cachedCalendarEvents.filter { ev in
-            enabledCalendarIds.contains(ev.calendarId)
-        }
-
-        // 5) ジャーナルに紐づくイベントはカレンダー側で表示しない（重複排除）
-        // 方法1: linkedJournalIdでチェック
-        // 方法2: linkedEventIdとlinkedCalendarIdでチェック（より確実）
-        let dedupedCalendarEvents: [CachedCalendarEvent] = enabledCalendarEvents.filter { ev in
-            // linkedJournalIdでチェック
-            if let jid = ev.linkedJournalId {
-                if allJournalIdSet.contains(jid) || visibleJournalIdSet.contains(jid) {
-                    return false
-                }
-            }
-
-            // linkedEventIdとlinkedCalendarIdでチェック（より確実）
-            if journalLinkedEventUids.contains(ev.uid) {
-                return false
-            }
-
-            return true
-        }
-
-        // 6) カレンダーイベントにも検索フィルタとタグフィルタを適用
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let filteredCalendarEvents: [CachedCalendarEvent] = dedupedCalendarEvents.filter { event in
-            // テキスト検索
-            let matchesText: Bool = {
-                if query.isEmpty { return true }
-                return event.title.localizedCaseInsensitiveContains(query)
-                    || (event.desc?.localizedCaseInsensitiveContains(query) ?? false)
-            }()
-
-            // タグ検索
-            let matchesTag: Bool = {
-                guard let tag = selectedTag else { return true }
-                guard let desc = event.desc, !desc.isEmpty else { return false }
-                let tags = TagExtractor.extract(from: desc)
-                return tags.contains(tag)
-            }()
-
-            return matchesText && matchesTag
-        }
-
-        // 7) 長期キャッシュ（ArchivedCalendarEvent）の処理
-        // 過去側ページングで取得した長期キャッシュを含める
-        let archivedEvents = pagingState.loadedArchivedEvents.filter { ev in
-            enabledCalendarIds.contains(ev.calendarId)
-        }
-
-        // ジャーナルに紐づくイベントは除外
-        let dedupedArchivedEvents = archivedEvents.filter { ev in
-            if let jid = ev.linkedJournalId {
-                if allJournalIdSet.contains(jid) || visibleJournalIdSet.contains(jid) {
-                    return false
-                }
-            }
-            if journalLinkedEventUids.contains(ev.uid) {
-                return false
-            }
-            return true
-        }
-
-        // 短期キャッシュと重複する場合は短期を優先（uid で排除）
-        let cachedUidSet = Set(filteredCalendarEvents.map { $0.uid })
-        let uniqueArchivedEvents = dedupedArchivedEvents.filter { !cachedUidSet.contains($0.uid) }
-
-        // アーカイブイベントにも検索フィルタとタグフィルタを適用
-        let filteredArchivedEvents = uniqueArchivedEvents.filter { event in
-            let matchesText: Bool = {
-                if query.isEmpty { return true }
-                return event.title.localizedCaseInsensitiveContains(query)
-                    || (event.desc?.localizedCaseInsensitiveContains(query) ?? false)
-            }()
-
-            let matchesTag: Bool = {
-                guard let tag = selectedTag else { return true }
-                guard let desc = event.desc, !desc.isEmpty else { return false }
-                let tags = TagExtractor.extract(from: desc)
-                return tags.contains(tag)
-            }()
-
-            return matchesText && matchesTag
-        }
-
-        // 8) 変換
-        let calendarItemsLocal: [TimelineItem] = calendarItems(from: filteredCalendarEvents)
-        let archivedItemsLocal: [TimelineItem] = archivedItems(from: filteredArchivedEvents)
-
-        // 9) 合成
-        // 2段階データソース：短期キャッシュ + JournalEntry + 長期キャッシュ（uid重複排除済み）
-        var merged: [TimelineItem] = []
-        merged.reserveCapacity(
-            journalItemsLocal.count + calendarItemsLocal.count + archivedItemsLocal.count
-        )
-        merged.append(contentsOf: journalItemsLocal)
-        merged.append(contentsOf: calendarItemsLocal)
-        merged.append(contentsOf: archivedItemsLocal)
-
-        // ソート（降順、日時で安定化）
-        merged.sort { $0.date > $1.date }
-        return merged
-    }
-
-    private func deleteJournalEntry(_ entry: JournalEntry) {
-        Task {
-            do {
-                // リモート削除（紐付いている場合のみ）
-                try await journalSync.deleteRemoteIfLinked(
-                    entry: entry, auth: auth, modelContext: modelContext)
-
-                // ローカル削除
-                modelContext.delete(entry)
-                try modelContext.save()
-
-                toastMessage = "ジャーナルを削除しました"
-                toastType = ToastView.ToastType.success
-            } catch {
-                toastMessage = "削除エラー: \(error.localizedDescription)"
-                toastType = ToastView.ToastType.error
-            }
-        }
-    }
-
-    private func deleteCalendarEvent(_ event: CachedCalendarEvent) {
-        Task {
-            do {
-                // アクセストークンを取得
-                let token = try await auth.validAccessToken()
-
-                // リモート削除（Google Calendar API）
-                _ = try await GoogleCalendarClient.deleteEvent(
-                    accessToken: token,
-                    calendarId: event.calendarId,
-                    eventId: event.eventId
-                )
-
-                // 紐付いているジャーナルがあれば、そちらのlinkedEventIdをクリア
-                if let journalId = event.linkedJournalId,
-                    let linkedEntry = entries.first(where: { $0.id.uuidString == journalId })
-                {
-                    linkedEntry.linkedEventId = nil
-                    linkedEntry.linkedCalendarId = nil
-                }
-
-                // ローカルキャッシュから削除
-                modelContext.delete(event)
-                try modelContext.save()
-
-                toastMessage = "イベントを削除しました"
-                toastType = ToastView.ToastType.success
-            } catch {
-                toastMessage = "削除エラー: \(error.localizedDescription)"
-                toastType = ToastView.ToastType.error
-            }
-        }
-    }
-
-    private func handleSyncBadgeTap(for entry: JournalEntry) {
-        if entry.hasConflict {
-            // 競合の場合は詳細画面に遷移してもらう（ここでは何もしない）
-            // NavigationLinkが自動的に遷移する
-            return
-        } else if entry.needsCalendarSync {
-            // 同期失敗の場合は確認ダイアログを表示
-            entryToResend = entry
-            showResendConfirmation = true
-        }
-    }
-
-    private func resendIndividualEntry() {
-        guard let entry = entryToResend else { return }
-
-        Task {
-            isResendingIndividual = true
-
-            do {
-                let targetCalendarId =
-                    entry.linkedCalendarId ?? JournalWriteSettings.loadWriteCalendarId()
-                    ?? "primary"
-
-                try await journalSync.syncOne(
-                    entry: entry,
-                    targetCalendarId: targetCalendarId,
-                    auth: auth,
-                    modelContext: modelContext
-                )
-
-                syncStatusStore.setSuccess(details: "再送成功")
-            } catch {
-                syncStatusStore.setError("再送エラー: \(error.localizedDescription)")
-            }
-
-            isResendingIndividual = false
-            entryToResend = nil
-        }
-    }
+    // MARK: - Body
 
     var body: some View {
         NavigationStack {
-            ScrollViewReader { proxy in
-                List {
-                    timelineListContent()
-                }
-                .listStyle(.insetGrouped)
-                .listSectionSpacing(.compact)
-                .safeAreaInset(edge: .bottom) {
-                    // タブバーの高さ分のスペースを確保
-                    Color.clear.frame(height: 60)
-                }
-                .navigationTitle("")
-                .navigationBarTitleDisplayMode(.inline)
-                .searchable(
-                    text: $searchText,
-                    isPresented: $isSearchPresented,
-                    placement: .navigationBarDrawer(displayMode: .automatic),
-                    prompt: "検索"
-                )
-                .toolbar {
-                    timelineToolbar()
-                }
-                .sheet(isPresented: $isPresentingEditor) {
-                    JournalEditorView()
-                }
-                .alert("再送しますか？", isPresented: $showResendConfirmation) {
-                    Button("キャンセル", role: .cancel) {
-                        entryToResend = nil
-                    }
-                    Button("再送") {
-                        resendIndividualEntry()
-                    }
-                } message: {
-                    if let entry = entryToResend {
-                        Text("「\(entry.title ?? "無題")」をカレンダーに再送します。")
-                    } else {
-                        Text("ジャーナルをカレンダーに再送します。")
-                    }
-                }
-                .task(id: calendarsTaskId) {
-                    await onCalendarsChanged()
-                }
-                .refreshable {
-                    await runSync(isManual: true)
-                }
-                .onAppear {
-                    // スクロールプロキシを保存
-                    scrollProxy = proxy
+            ZStack(alignment: .bottomTrailing) {
+                // タイムラインリスト
+                timelineList
 
-                    // 初期フォーカス処理
-                    handleInitialFocus(proxy: proxy)
-                }
-                .onChange(of: selectedDayKey) { _, newValue in
-                    scrollToSelectedDay(proxy: proxy, newKey: newValue)
-                }
-                .onChange(of: selectedTab) { oldValue, newValue in
-                    print("🔄 タブ変更: \(oldValue) → \(newValue), 現在のタブ: \(selectedTab)")
-                    // タブ選択状態を記録するのみ（スクロールはonChangeで同じタブ再タップ時のみ）
-                    lastSelectedTab = newValue
-                }
-                .onChange(of: tabTapTrigger) { _, newValue in
-                    print("🔔 タブタップトリガー検知: \(newValue)")
-                    // 検索中でない場合のみスクロール
-                    let isSearching =
-                        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        || selectedTag != nil
-                    if !isSearching {
-                        scrollToToday(proxy: proxy)
-                    } else {
-                        print("⚠️ 検索中のためスクロールをスキップ")
-                    }
-                }
-                .onChange(of: syncRetryTrigger) { _, newValue in
-                    print("🔄 同期リトライトリガー検知: \(newValue)")
-                    Task {
-                        await runSync(isManual: true)
-                    }
-                }
-                .toast(message: $toastMessage, type: $toastType, duration: 4.0)
+                // FAB ボタン
+                fabButton
             }
-        }
-    }
-
-    // MARK: - ViewBuilder Functions
-
-    @ViewBuilder
-    private func timelineListContent() -> some View {
-        // 最上部アンカー（スクロール用）
-        // Color.clear
-        //     .frame(height: 0)
-        //     .listRowInsets(EdgeInsets())
-        //     .listRowBackground(Color.clear)
-        //     .listRowSeparator(.hidden)
-        //     .id("timeline-top")
-
-        if let summary = filterSummaryText {
-            Section {
-                Text(summary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 4)
+            .navigationTitle("タイムライン")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                toolbarContent
             }
-        }
-
-        let items = timelineItems
-        let isEmpty = items.isEmpty
-        let hasNoSearch = searchText.isEmpty && selectedTag == nil
-
-        if isEmpty {
-            if hasNoSearch {
-                ContentUnavailableView("まだ何もありません", systemImage: "square.and.pencil")
-            } else {
-                ContentUnavailableView("見つかりませんでした", systemImage: "magnifyingglass")
-            }
-        } else {
-            let grouped = groupedItems
-            ForEach(grouped.indices, id: \.self) { index in
-                timelineSection(grouped: grouped, index: index)
-            }
-
-            // 過去側センチネル行（過去側ページングのトリガー）
-            pastSentinelRow()
-        }
-    }
-
-    @ViewBuilder
-    private func timelineSection(grouped: [(day: Date, items: [TimelineItem])], index: Int)
-        -> some View
-    {
-        let section = grouped[index]
-        let sectionDayKey = dayKey(from: section.day)
-        let formattedDate = section.day.formatted(date: .abbreviated, time: .omitted)
-        let isYesterday = sectionDayKey == yesterdayKey
-        let isTomorrow = sectionDayKey == tomorrowKey
-        let isToday = sectionDayKey == todayKey
-
-        let headerTitle = isYesterday ? "昨日 (\(formattedDate))"
-            : isToday ? "今日 (\(formattedDate))"
-            : isTomorrow ? "明日 (\(formattedDate))"
-            : formattedDate
-
-        let isHighlighted = isYesterday || isToday || isTomorrow
-        let isFirstSection = index == grouped.startIndex
-        let isLastSection = index == grouped.index(before: grouped.endIndex)
-
-        Section {
-            if section.items.isEmpty {
-                Text("記録がありません")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 8)
-            } else {
-                timelineRows(
-                    items: section.items,
-                    isFirstSection: isFirstSection,
-                    isLastSection: isLastSection
-                )
-            }
-        } header: {
-            TimelineSectionHeader(title: headerTitle, isHighlighted: isHighlighted)
-        }
-        .id(sectionDayKey)
-    }
-
-    @ViewBuilder
-    private func timelineRows(
-        items: [TimelineItem],
-        isFirstSection: Bool,
-        isLastSection: Bool
-    ) -> some View {
-        ForEach(items.indices, id: \.self) { itemIndex in
-            let item = items[itemIndex]
-
-            // 辞書参照でlookup（型推論とパフォーマンスの改善）
-            let entry: JournalEntry? =
-                item.kind == .journal ? entriesById[item.sourceId] : nil
-
-            let calendarEvent: CachedCalendarEvent? =
-                (item.kind == .calendar && !item.id.hasPrefix("archived-"))
-                    ? cachedEventsByUid[item.sourceId] : nil
-
-            let archivedEvent: ArchivedCalendarEvent? =
-                (item.kind == .calendar && item.id.hasPrefix("archived-"))
-                    ? archivedEventsByUid[item.sourceId] : nil
-
-            let calendar: CachedCalendar? = {
-                if let ce = calendarEvent { return calendarsById[ce.calendarId] }
-                if let ae = archivedEvent { return calendarsById[ae.calendarId] }
-                return nil
-            }()
-
-            TimelineRowLink(
-                item: item,
-                entry: entry,
-                calendarEvent: calendarEvent,
-                archivedEvent: archivedEvent,
-                calendar: calendar,
-                isResendingIndividual: isResendingIndividual,
-                resendingEntryId: entryToResend?.id.uuidString,
-                isFirstItemInFirstSection: false,  // 使用しない
-                isLastItemInLastSection: false,  // 使用しない
-                onSyncBadgeTap: entry != nil ? { handleSyncBadgeTap(for: entry!) } : nil,
-                onDeleteJournal: { deleteJournalEntry($0) },
-                onDeleteCalendar: { deleteCalendarEvent($0) },
-                isDetailViewPresented: $isDetailViewPresented
+            .searchable(
+                text: $searchText,
+                isPresented: $showSearchBar,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "タイトル、本文、タグで検索"
             )
-            // ページネーショントリガーは削除
-            // 短期キャッシュは同期範囲内のデータが全て取得済みのため、ページネーション不要
+            .sheet(isPresented: $showNewEntrySheet) {
+                JournalEditorView()
+                    .environmentObject(syncService)
+            }
+            .onAppear {
+                // 今日の日付を更新
+                today = Date()
+
+                // 定期的な同期を開始（必要に応じて）
+                syncService.startBackgroundSync()
+            }
         }
     }
 
-    // 過去側センチネル行（過去側ページングのトリガー）
-    @ViewBuilder
-    private func pastSentinelRow() -> some View {
-        if pagingState.isLoadingPast {
-            HStack {
-                Spacer()
-                ProgressView()
-                    .padding(.vertical, 12)
-                Spacer()
-            }
-            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-        } else if !pagingState.hasReachedEarliestData {
-            Color.clear
-                .frame(height: 1)
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .onAppear {
-                    print("👁️ 過去側センチネルが表示されました")
-                    loadPastPageIfNeeded()
+    // MARK: - Timeline List
+
+    private var timelineList: some View {
+        ScrollViewReader { proxy in
+            List {
+                ForEach(Array(groupedEntries.enumerated()), id: \.offset) { index, section in
+                    Section {
+                        ForEach(section.entries) { entry in
+                            TimelineRowView(entry: entry)
+                        }
+                    } header: {
+                        DateSectionHeader(
+                            date: section.date,
+                            isToday: isTodaySection(section.date)
+                        )
+                    }
+                    .id(section.date)
                 }
+            }
+            .listStyle(.plain)
+            .onAppear {
+                // 初回表示時に今日のセクションにスクロール
+                scrollToToday(proxy: proxy)
+            }
         }
     }
+
+    // MARK: - FAB Button
+
+    private var fabButton: some View {
+        Button {
+            showNewEntrySheet = true
+        } label: {
+            Image(systemName: "plus")
+                .font(.title2)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+                .frame(width: 56, height: 56)
+                .background(Color.accentColor)
+                .clipShape(Circle())
+                .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+        }
+        .padding(.trailing, 16)
+        .padding(.bottom, 16)
+    }
+
+    // MARK: - Toolbar Content
 
     @ToolbarContentBuilder
-    private func timelineToolbar() -> some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            Button {
-                isSearchPresented = true
-            } label: {
-                Image(systemName: "magnifyingglass")
-            }
-        }
-
-        ToolbarItem(placement: .principal) {
-            Button {
-                scrollToTop()
-            } label: {
-                Text("ジャーナル")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-            }
-        }
-
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                isPresentingEditor = true
-            } label: {
-                Image(systemName: "plus")
-            }
-            .disabled(isSyncing)
-            .buttonStyle(.borderedProminent)
-            .tint(Color.blue)
-        }
-    }
-
-    // MARK: - Event Handlers
-
-    @MainActor
-    private func onCalendarsChanged() async {
-        // カレンダー設定が変更された場合は再初期化
-        let enabledCalendarIds = Set(
-            cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId }
-        )
-
-        print("🔄 カレンダー設定変更検知: \(enabledCalendarIds.count)個有効 → タイムライン初期化開始")
-
-        // 1. 長期ページング状態をリセット（古い選別が残らないように）
-        pagingState.reset()
-        print("📄 長期ページング状態をリセット")
-
-        // 2. 初期フォーカス状態をリセット（今日へのスクロールを再実行できるようにする）
-        hasAutoFocusedToday = false
-        needsInitialFocus = true  // 明示的リセットにより、次回 onAppear で初期フォーカス実行
-
-        // 3. 日付選択状態をクリア（今日優先に戻す）
-        selectedDayKey = nil
-
-        // 4. 検索中かどうかを判定
-        let isSearching =
-            !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || selectedTag != nil
-
-        // 5. 検索中でない場合のみ、今日へスクロール
-        if !isSearching, let proxy = scrollProxy {
-            print("📅 今日へスクロール実行")
-            scrollToToday(proxy: proxy)
-        } else if isSearching {
-            print("🔍 検索中のため、スクロールはスキップ")
-        } else {
-            print("⚠️ scrollProxyが未設定のため、スクロールはスキップ")
-        }
-
-        // 6. 起動時同期（短期キャッシュの最新化）
-        await runSync(isManual: false)
-        print("🚀 タイムライン初期化完了")
-    }
-
-    private func handleInitialFocus(proxy: ScrollViewProxy) {
-        // 詳細画面が開いている/復帰直後の場合はスキップ（スクロール位置を保持）
-        if isDetailViewPresented {
-            print("🚫 詳細画面復帰のため、初期フォーカスをスキップ")
-            return
-        }
-
-        // 初回表示または明示的リセット時のみ実行
-        guard needsInitialFocus else {
-            print("🚫 既に初期フォーカス済みのため、スキップ")
-            return
-        }
-
-        // 検索中でない場合のみ実行
-        let isSearching =
-            !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || selectedTag != nil
-
-        guard !isSearching else {
-            print("🚫 検索中のため、初期フォーカスをスキップ")
-            return
-        }
-
-        // 日付ジャンプで選択された日がある場合はそれを優先、なければ今日
-        let targetKey = selectedDayKey ?? todayKey
-        print("🎯 初期フォーカス実行: targetKey=\(targetKey)")
-
-        // 少し遅延を入れてレイアウトが確定してからスクロール
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            withAnimation {
-                proxy.scrollTo(targetKey, anchor: .top)
-            }
-            hasAutoFocusedToday = true
-            needsInitialFocus = false  // 初期フォーカス完了
-        }
-    }
-
-    private func scrollToSelectedDay(proxy: ScrollViewProxy, newKey: String?) {
-        // 日付ジャンプで選択された日が変更された場合、その日にスクロール
-        if let newKey = newKey {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                withAnimation {
-                    proxy.scrollTo(newKey, anchor: .top)
+    private var toolbarContent: some ToolbarContent {
+        // 検索ボタン & 設定ボタン
+        ToolbarItem(placement: .navigationBarLeading) {
+            HStack {
+                NavigationLink(destination: SettingsView()) {
+                    Image(systemName: "gearshape")
+                }
+                
+                Button {
+                    showSearchBar.toggle()
+                } label: {
+                    Image(systemName: "magnifyingglass")
                 }
             }
         }
+
+        // 今日へフォーカスボタン
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Button {
+                // TODO: 今日のセクションにスクロール
+            } label: {
+                Image(systemName: "calendar.circle")
+            }
+        }
+
+        // 同期ボタン
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Button {
+                Task {
+                    do {
+                        try await syncService.performFullSync()
+                    } catch {
+                        print("Sync failed: \(error)")
+                    }
+                }
+            } label: {
+                if syncService.isSyncing {
+                    ProgressView()
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                }
+            }
+            .disabled(syncService.isSyncing)
+        }
     }
 
+    // MARK: - Helper Methods
+
+    /// 今日のセクションかどうか判定
+    private func isTodaySection(_ date: Date) -> Bool {
+        let calendar = Calendar.current
+        return calendar.isDate(date, inSameDayAs: today)
+    }
+
+    /// 今日のセクションにスクロール
     private func scrollToToday(proxy: ScrollViewProxy) {
-        // 今日のセクションにスクロール
-        let today = todayKey
-        print("📅 今日にスクロール開始: \(today)")
-
-        // レイアウトが確定するまで待つ（タブ切り替え時は特に必要）
-        Task { @MainActor in
-            // 少し待ってからスクロール（レイアウト確定を待つ）
-            try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5秒
-
-            // 今日のセクションが存在するか確認
-            let grouped = groupedItems
-            let calendar = Calendar.current
-            let todayDate = calendar.startOfDay(for: Date())
-            let hasTodaySection = grouped.contains {
-                calendar.isDate($0.day, inSameDayAs: todayDate)
-            }
-
-            print(
-                "📅 今日のセクション確認: hasTodaySection=\(hasTodaySection), grouped.count=\(grouped.count)")
-            if hasTodaySection {
-                print("📅 今日のセクションが見つかりました。スクロール実行: \(today)")
-                // 複数回試行して確実にスクロールする
-                withAnimation(.easeInOut(duration: 0.5)) {
-                    proxy.scrollTo(today, anchor: .top)
-                }
-                // 念のため少し待ってからもう一度試行
-                try? await Task.sleep(nanoseconds: 200_000_000)  // 0.2秒
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    proxy.scrollTo(today, anchor: .top)
-                }
-            } else {
-                print("⚠️ 今日のセクションが見つかりませんでした。groupedItems: \(grouped.map { dayKey(from: $0.day) })")
-            }
-        }
-    }
-
-    private func scrollToTop() {
-        print("⬆️ 最上部にスクロール開始")
-        guard let proxy = scrollProxy else {
-            print("⚠️ scrollProxyが設定されていません")
+        guard let todaySection = groupedEntries.first(where: { isTodaySection($0.date) }) else {
             return
         }
 
-        // 画面の最上部（もう上にスクロールできない位置）にスクロール
-        // groupedItemsの最初のセクション（最も新しい日付）にスクロール
-        let grouped = groupedItems
-        guard let firstSection = grouped.first else {
-            print("⚠️ スクロール対象のセクションがありません")
-            return
-        }
-
-        let firstSectionKey = dayKey(from: firstSection.day)
-        print("⬆️ 最初のセクションにスクロール: \(firstSectionKey)")
-        withAnimation(.easeInOut(duration: 0.3)) {
-            proxy.scrollTo(firstSectionKey, anchor: .top)
-        }
-    }
-
-    @MainActor
-    private func runSync(isManual: Bool) async {
-        if isSyncing { return }
-        isSyncing = true
-        defer { isSyncing = false }
-
-        // ログインしていない場合の処理
-        guard auth.user != nil else {
-            // 初期起動時はエラーメッセージを表示しない（正常な状態）
-            if isManual {
-                // 手動同期の場合は、ログインが必要であることを通知
-                syncStatusStore.setError("ログインが必要です")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation {
+                proxy.scrollTo(todaySection.date, anchor: .top)
             }
-            return
         }
-
-        let now = Date()
-        if !SyncRateLimiter.canSync(now: now) {
-            let remain = SyncRateLimiter.remainingSeconds(now: now)
-            syncStatusStore.setError("同期は少し待ってください（あと \(remain) 秒）")
-            return
-        }
-
-        SyncRateLimiter.markSynced(at: Date())
-        lastSyncAt = Date()
-
-        // 同期開始
-        syncStatusStore.setSyncing()
-
-        let (timeMin, timeMax) = SyncSettings.windowDates()
-
-        do {
-            try await syncService.syncEnabledCalendars(
-                auth: auth,
-                modelContext: modelContext,
-                calendars: cachedCalendars,
-                initialTimeMin: timeMin,
-                initialTimeMax: timeMax
-            )
-
-            let apply = try calendarToJournal.applyFromCachedEvents(modelContext: modelContext)
-            let cleaner = CalendarCacheCleaner()
-            let removed = try cleaner.cleanupEventsOutsideWindow(
-                modelContext: modelContext, timeMin: timeMin, timeMax: timeMax)
-
-            // 成功時の詳細情報
-            let details = "更新\(apply.updatedCount) / 削除\(apply.unlinkedCount) / スキップ\(apply.skippedCount) / 競合\(apply.conflictCount) / 掃除\(removed)"
-            syncStatusStore.setSuccess(details: details)
-        } catch {
-            // エラーメッセージから「未ログインです」を除外（初期起動時の正常な状態）
-            let errorDesc = error.localizedDescription
-            if errorDesc.contains("未ログインです") && !isManual {
-                // 初期起動時で未ログインの場合はエラーを表示しない
-                return
-            }
-            syncStatusStore.setError("同期エラー: \(errorDesc)")
-        }
-    }
-
-    /// 過去方向のページをロード
-    /// 短期キャッシュの最古日付より古い長期キャッシュを取得
-    private func loadPastPageIfNeeded() {
-        let enabledCalendarIds = Set(cachedCalendars.filter { $0.isEnabled }.map { $0.calendarId })
-
-        // 長期キャッシュの境界が既に存在する場合は、それを使用
-        let fromDayKey: Int
-        if let pagingBoundary = pagingState.earliestPagingDayKey {
-            // 2回目以降: 長期キャッシュの最古日付より前を取得
-            fromDayKey = pagingBoundary
-            print("📄 過去ページロードトリガー: 長期キャッシュ境界使用 fromDayKey=\(fromDayKey)")
-        } else {
-            // 初回: 短期キャッシュとジャーナルの最古日付を計算
-            let enabledCachedEvents = cachedCalendarEvents.filter { enabledCalendarIds.contains($0.calendarId) }
-            let cachedOldest = enabledCachedEvents.map { makeDayKeyInt(from: $0.start) }.min()
-            let journalOldest = entries.map { makeDayKeyInt(from: $0.eventDate) }.min()
-
-            // 両方の最古日付のうち、より古い方を使用
-            if let cached = cachedOldest, let journal = journalOldest {
-                fromDayKey = min(cached, journal)
-            } else if let cached = cachedOldest {
-                fromDayKey = cached
-            } else if let journal = journalOldest {
-                fromDayKey = journal
-            } else {
-                // データがない場合は今日を基準にする
-                fromDayKey = makeDayKeyInt(from: Date())
-            }
-            print("📄 過去ページロードトリガー: 初回ロード fromDayKey=\(fromDayKey), 短期最古=\(cachedOldest ?? 0), ジャーナル最古=\(journalOldest ?? 0)")
-        }
-
-        Task {
-            await pagingState.loadPastPage(
-                fromDayKey: fromDayKey,
-                modelContext: modelContext,
-                enabledCalendarIds: enabledCalendarIds
-            )
-        }
-    }
-
-    /// 日付からYYYYMMDD形式のInt型dayKeyを生成
-    private func makeDayKeyInt(from date: Date) -> Int {
-        let cal = Calendar.current
-        let year = cal.component(.year, from: date)
-        let month = cal.component(.month, from: date)
-        let day = cal.component(.day, from: date)
-        return year * 10000 + month * 100 + day
     }
 }
-
-// MARK: - Timeline Section Header
-
-/// タイムラインセクションのヘッダービュー
-/// 「昨日」「今日」「明日」の場合は強調表示する
-struct TimelineSectionHeader: View {
-    let title: String
-    let isHighlighted: Bool
-
-    var body: some View {
-        HStack(spacing: 6) {
-            // 特別な日付（昨日・今日・明日）の場合は左側に小さなドット表示
-            if isHighlighted {
-                Circle()
-                    .fill(Color.accentColor)
-                    .frame(width: 6, height: 6)
-            }
-
-            Text(title)
-                .font(isHighlighted ? .headline : .subheadline)
-                .fontWeight(isHighlighted ? .semibold : .regular)
-                .foregroundStyle(isHighlighted ? Color.accentColor : Color.primary)
-        }
-        .padding(0)
-        .padding(.vertical, isHighlighted ? 4 : 0)
-        // .background(
-        //     isHighlighted ?
-        //         Capsule()
-        //             .fill(Color.accentColor.opacity(0.1))
-        //         : nil
-        // )
-    }
-}
-

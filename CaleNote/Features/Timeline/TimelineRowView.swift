@@ -1,129 +1,133 @@
-import SwiftData
+//
+//  TimelineRowView.swift
+//  CaleNote
+//
+//  Created by Claude Code on 2025/12/30.
+//
+
 import SwiftUI
 
+/// タイムラインのエントリー行
 struct TimelineRowView: View {
-  let item: TimelineItem
+    // MARK: - Properties
 
-  // ジャーナル詳細へ遷移するために参照が必要
-  let journalEntry: JournalEntry?
+    let entry: ScheduleEntry
 
-  // 削除処理（必要なら）
-  let onDeleteJournal: (() -> Void)?
+    // MARK: - Computed Properties
 
-  // 同期バッジタップ時のコールバック
-  let onSyncBadgeTap: (() -> Void)?
-  
-  // 同期中のエントリーID（同期中かどうかを判定するため）
-  let syncingEntryId: String?
-
-  // 表示色（統一カードの視覚的整合性のため）
-  private var displayColor: Color {
-    if let color = Color(hex: item.colorHex) {
-      return color
+    /// 時刻表示
+    private var timeText: String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter.string(from: entry.startAt)
     }
-    // デフォルト値（ミュートブルー）
-    return Color(hex: "#3B82F6") ?? .blue
-  }
 
-  var body: some View {
-    HStack(spacing: 0) {
-      // カラーバー（左側）
-      Rectangle()
-        .fill(displayColor)
-        .frame(width: 4)
-
-      // コンテンツ
-      VStack(alignment: .leading, spacing: 6) {
-        HStack {
-          Text(item.title)
-            .font(.headline)
-
-          Spacer()
-
-          // 同期状態バッジ（ジャーナルのみ）
-          if item.kind == .journal, let entry = journalEntry {
-            syncStatusBadge(for: entry)
-          }
-        }
-
-        if let bodyText = item.body, !bodyText.isEmpty {
-          Text(bodyText)
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .lineLimit(2)
-        }
-
-        // サブテキスト（時間・場所の整合）
-        if item.isAllDay {
-          Text("終日")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        } else {
-          Text(item.date, style: .time)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-      }
-      .padding(.horizontal, 12)
+    /// 終了時刻表示
+    private var endTimeText: String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter.string(from: entry.endAt)
     }
-    .padding(.vertical, 6)
-    .swipeActions(edge: .trailing) {
-      if item.kind == .journal, onDeleteJournal != nil {
-        Button(role: .destructive) {
-          onDeleteJournal?()
-        } label: {
-          Label("削除", systemImage: "trash")
-        }
-      }
-    }
-  }
 
-  @ViewBuilder
-  private func syncStatusBadge(for entry: JournalEntry) -> some View {
-    // 優先順位: 同期中 → 競合 → 同期失敗 → 同期済み（何も表示しない）
-    let isSyncing = syncingEntryId == entry.id.uuidString
-    
-    if isSyncing {
-      // 同期中バッジ（グルグル回るアイコン）
-      SyncingIconView()
-    } else if entry.hasConflict {
-      // 競合バッジ
-      Image(systemName: "exclamationmark.triangle.fill")
-        .foregroundStyle(.orange)
-        .font(.caption)
-        .onTapGesture {
-          onSyncBadgeTap?()
-        }
-    } else if entry.needsCalendarSync {
-      // 同期失敗バッジ
-      Image(systemName: "exclamationmark.circle.fill")
-        .foregroundStyle(.yellow)
-        .font(.caption)
-        .onTapGesture {
-          onSyncBadgeTap?()
+    /// 同期状態アイコン
+    private var syncStatusIcon: (name: String, color: Color)? {
+        switch entry.syncStatus {
+        case ScheduleEntry.SyncStatus.pending.rawValue:
+            return ("arrow.clockwise.circle.fill", .orange)
+        case ScheduleEntry.SyncStatus.failed.rawValue:
+            return ("exclamationmark.circle.fill", .red)
+        default:
+            return nil
         }
     }
-    // 同期済みの場合は何も表示しない
-  }
-}
 
-// 同期中アイコンの回転アニメーション用ビュー
-private struct SyncingIconView: View {
-  @State private var rotation: Double = 0
-  
-  var body: some View {
-    Image(systemName: "arrow.triangle.2.circlepath")
-      .foregroundStyle(.blue)
-      .font(.caption)
-      .rotationEffect(.degrees(rotation))
-      .onAppear {
-        // 連続的に回転させる
-        withAnimation(.linear(duration: 1.0).repeatForever(autoreverses: false)) {
-          rotation = 360
+    /// ソースバッジ
+    private var sourceIcon: String {
+        entry.managedByCaleNote ? "note.text" : "calendar"
+    }
+
+    // MARK: - Body
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // 時刻表示（全日イベントの場合は「終日」表示）
+            VStack(alignment: .trailing, spacing: 2) {
+                if entry.isAllDay {
+                    Text("終日")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text(timeText)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text(endTimeText)
+                        .font(.caption2)
+                        .foregroundColor(.secondary.opacity(0.7))
+                }
+            }
+            .frame(width: 50)
+
+            // エントリー内容
+            VStack(alignment: .leading, spacing: 4) {
+                // タイトル
+                HStack(spacing: 6) {
+                    Text(entry.title)
+                        .font(.body)
+                        .fontWeight(.medium)
+
+                    // ソースアイコン
+                    Image(systemName: sourceIcon)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+
+                    // 同期状態バッジ
+                    if let syncStatus = syncStatusIcon {
+                        Image(systemName: syncStatus.name)
+                            .font(.caption)
+                            .foregroundColor(syncStatus.color)
+                    }
+
+                    Spacer()
+                }
+
+                // 本文プレビュー
+                if let body = entry.body, !body.isEmpty {
+                    Text(body)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+
+                // タグ
+                if !entry.tags.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 4) {
+                            ForEach(entry.tags.prefix(3), id: \.self) { tag in
+                                Text("#\(tag)")
+                                    .font(.caption2)
+                                    .foregroundColor(.accentColor)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color.accentColor.opacity(0.1))
+                                    )
+                            }
+
+                            if entry.tags.count > 3 {
+                                Text("+\(entry.tags.count - 3)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
         }
-      }
-      .onDisappear {
-        rotation = 0
-      }
-  }
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+    }
 }
