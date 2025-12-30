@@ -432,6 +432,9 @@ final class CalendarSyncService: ObservableObject {
         // startAt と endAt を取得
         let startAt = parseEventDateTime(event.start)
         let endAt = parseEventDateTime(event.end)
+        let title = event.summary ?? "(タイトルなし)"
+        let body = event.description
+        let tags = TagParser.extract(from: [title, body])
 
         return ScheduleEntry(
             source: ScheduleEntry.Source.google.rawValue,
@@ -439,9 +442,9 @@ final class CalendarSyncService: ObservableObject {
             googleEventId: event.id,
             startAt: startAt,
             endAt: endAt,
-            title: event.summary ?? "(タイトルなし)",
-            body: event.description,
-            tags: [],
+            title: title,
+            body: body,
+            tags: tags,
             syncStatus: ScheduleEntry.SyncStatus.synced.rawValue,
             lastSyncedAt: Date()
         )
@@ -454,6 +457,7 @@ final class CalendarSyncService: ObservableObject {
     private func updateEntryFromEvent(_ entry: ScheduleEntry, event: CalendarEvent) {
         entry.title = event.summary ?? "(タイトルなし)"
         entry.body = event.description
+        entry.tags = TagParser.extract(from: [entry.title, entry.body])
         entry.startAt = parseEventDateTime(event.start)
         entry.endAt = parseEventDateTime(event.end)
         entry.syncStatus = ScheduleEntry.SyncStatus.synced.rawValue
