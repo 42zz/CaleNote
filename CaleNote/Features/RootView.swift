@@ -16,6 +16,11 @@ struct RootView: View {
     @State private var isDetailViewPresented = false
     @State private var syncRetryTrigger: Int = 0  // エラー時の再試行トリガー
 
+    // データ整合性チェック用
+    @State private var showIntegrityAlert = false
+    @State private var integrityIssues: [String] = []
+    private let recoveryService = DataRecoveryService()
+
     var body: some View {
         Group {
             if isCheckingOnboarding {
@@ -116,10 +121,19 @@ struct RootView: View {
         .task {
             await auth.restorePreviousSignInIfPossible()
             checkOnboardingStatus()
+            checkDataIntegrity()
         }
         .onChange(of: auth.user) { _, _ in
             // ログアウト時などに再チェック
             checkOnboardingStatus()
+        }
+        .alert("データの問題を検出しました", isPresented: $showIntegrityAlert) {
+            Button("設定画面で復旧") {
+                selectedTab = 1
+            }
+            Button("後で", role: .cancel) {}
+        } message: {
+            Text(integrityIssues.joined(separator: "\n") + "\n\n設定画面の「データ復旧」から修復できます。")
         }
     }
 
@@ -135,5 +149,17 @@ struct RootView: View {
 
         needsOnboarding = !(hasUser && hasCalendars && hasEnabledCalendar)
         isCheckingOnboarding = false
+    }
+
+    private func checkDataIntegrity() {
+        // オンボーディング前やログイン前はチェックしない
+        guard !needsOnboarding else { return }
+
+        let result = recoveryService.checkIntegrity(modelContext: modelContext)
+
+        if !result.isHealthy {
+            integrityIssues = result.issues
+            showIntegrityAlert = true
+        }
     }
 }

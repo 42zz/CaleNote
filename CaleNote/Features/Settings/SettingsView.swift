@@ -19,6 +19,13 @@ struct SettingsView: View {
     @State private var archiveTask: Task<Void, Never>?
     private let archiveSync = ArchiveSyncService()
 
+    // データ復旧用
+    @State private var isRecovering = false
+    @State private var recoveryProgressText: String?
+    @State private var recoveryTask: Task<Void, Never>?
+    @State private var showRecoveryConfirmation = false
+    private let recoveryService = DataRecoveryService()
+
     @Query(
         filter: #Predicate<JournalEntry> { $0.needsCalendarSync == true },
         sort: \JournalEntry.updatedAt, order: .reverse)
@@ -268,6 +275,42 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("データ復旧") {
+                    if !isRecovering {
+                        Button {
+                            showRecoveryConfirmation = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "arrow.counterclockwise.circle")
+                                Text("Google Calendarから再構築")
+                            }
+                        }
+                        .foregroundStyle(.orange)
+                    } else {
+                        HStack {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                            Text("復旧中…")
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("キャンセル") {
+                                cancelRecovery()
+                            }
+                            .foregroundStyle(.red)
+                        }
+                    }
+
+                    if let recoveryProgressText {
+                        Text(recoveryProgressText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text("ローカルデータに問題がある場合、Google Calendarから全データを再取得して復旧します。ジャーナルは保持され、カレンダーとの紐付けが再構築されます。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 if let errorMessage {
                     Section {
                         Text(errorMessage)
@@ -322,6 +365,18 @@ struct SettingsView: View {
                 Color.clear.frame(height: 60)
             }
             .navigationTitle("設定")
+            .confirmationDialog(
+                "データを再構築しますか？",
+                isPresented: $showRecoveryConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("再構築を開始", role: .destructive) {
+                    recoveryTask = Task { await performRecovery() }
+                }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("ローカルのキャッシュデータを削除し、Google Calendarから全データを再取得します。ジャーナルは保持されますが、処理には時間がかかります。")
+            }
         }
     }
 
@@ -403,6 +458,66 @@ struct SettingsView: View {
     private func cancelArchiveImport() {
         archiveTask?.cancel()
         archiveTask = nil
+    }
+
+    @MainActor
+    private func performRecovery() async {
+        guard auth.user != nil else {
+            recoveryProgressText = "Googleにログインしてください"
+            return
+        }
+
+        if isRecovering { return }
+        isRecovering = true
+        defer {
+            isRecovering = false
+            recoveryTask = nil
+        }
+
+        do {
+            try await recoveryService.performFullRecovery(
+                auth: auth,
+                modelContext: modelContext,
+                preserveJournals: true
+            ) { progress in
+                Task { @MainActor in
+                    switch progress.phase {
+                    case .idle:
+                        recoveryProgressText = nil
+                    case .deletingLocalData:
+                        recoveryProgressText = "ローカルデータを削除中..."
+                    case .syncingCalendarList:
+                        recoveryProgressText = "カレンダー一覧を同期中..."
+                    case .fetchingEvents:
+                        if progress.totalRanges > 0 {
+                            recoveryProgressText = "イベント取得中...\n" +
+                                "カレンダー: \(progress.currentCalendarId)\n" +
+                                "進捗: \(progress.fetchedRanges)/\(progress.totalRanges)\n" +
+                                "取得: \(progress.totalUpserted)件"
+                        } else {
+                            recoveryProgressText = "イベント取得中..."
+                        }
+                    case .rebuildingIndexes:
+                        recoveryProgressText = "インデックスを再構築中..."
+                    case .completed:
+                        recoveryProgressText = "復旧が完了しました ✓\n" +
+                            "取得: \(progress.totalUpserted)件"
+                    case .failed:
+                        recoveryProgressText = "復旧に失敗しました: \(progress.errorMessage ?? "不明なエラー")"
+                    }
+                }
+            }
+        } catch is CancellationError {
+            recoveryProgressText = "復旧がキャンセルされました"
+        } catch {
+            recoveryProgressText = "復旧に失敗しました: \(error.localizedDescription)"
+        }
+    }
+
+    @MainActor
+    private func cancelRecovery() {
+        recoveryTask?.cancel()
+        recoveryTask = nil
     }
 
 }

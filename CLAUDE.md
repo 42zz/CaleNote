@@ -83,6 +83,9 @@ Business logic and external integrations:
 - `CalendarCacheCleaner`: Removes old cached events outside sync window
 - `ArchiveSyncService`: Long-term event import with cancellation support and progress persistence
 - `ConflictResolutionService`: Resolves sync conflicts (useLocal/useRemote strategies)
+- `DataRecoveryService`: Full data recovery from Google Calendar
+  - `checkIntegrity()`: Database integrity check (orphaned journals, missing data)
+  - `performFullRecovery()`: Complete rebuild from Google Calendar (preserves journals)
 
 **State Management:**
 - `CalendarSyncState`: Persists syncToken per calendar (UserDefaults)
@@ -132,6 +135,7 @@ SwiftUI views organized by feature:
    - Sync window configuration
    - Pending sync queue display
    - Long-term cache import with cancellation support
+   - **Data recovery section**: Full rebuild from Google Calendar with progress display
    - Hidden developer mode (7 taps on version to enable)
 
 3. **Detail Views** (Unified Structure):
@@ -230,6 +234,20 @@ Updates JournalEntry metadata (event cancelled, title changed, etc.)
   - **useLocal**: Re-sync local version to calendar (sets `needsCalendarSync = true`)
   - **useRemote**: Overwrite local with calendar version
 - **Auto-clear**: Conflict flags cleared when remote changes successfully applied
+
+### Data Recovery
+- **Integrity Check**: Runs on app startup after onboarding
+  - Detects orphaned journals (linked to missing events)
+  - Detects missing calendar/event data
+  - Shows alert with option to navigate to recovery settings
+- **Full Recovery**: Triggered from Settings > Data Recovery
+  - Deletes all local cache data (CachedCalendarEvent, ArchivedCalendarEvent, CachedCalendar)
+  - Preserves JournalEntry but resets link information
+  - Re-syncs calendar list from Google
+  - Imports all events via ArchiveSyncService
+  - Rebuilds short-term cache via CalendarSyncService
+  - Re-links journals using extendedProperties.private.journalId
+  - Progress display with cancellation support
 
 ## Key Design Patterns
 
