@@ -50,6 +50,8 @@ struct SidebarView: View {
                     } label: {
                         Image(systemName: "xmark")
                     }
+                    .accessibilityLabel("閉じる")
+                    .accessibilityHint("サイドバーを閉じます")
                 }
             }
         }
@@ -67,6 +69,7 @@ struct SidebarView: View {
                     Text("Google Calendar")
                 }
             }
+            .accessibilityValue(showGoogleCalendarEvents ? "表示中" : "非表示")
 
             Toggle(isOn: $showCaleNoteEntries) {
                 HStack(spacing: 12) {
@@ -76,6 +79,7 @@ struct SidebarView: View {
                     Text("CaleNote エントリー")
                 }
             }
+            .accessibilityValue(showCaleNoteEntries ? "表示中" : "非表示")
         }
     }
 
@@ -100,12 +104,14 @@ struct SidebarView: View {
             } label: {
                 Label("フィードバックを送信", systemImage: "envelope")
             }
+            .accessibilityHint("メールでフィードバックを送信します")
 
             Button {
                 openHelpURL()
             } label: {
                 Label("ヘルプ", systemImage: "questionmark.circle")
             }
+            .accessibilityHint("ヘルプページを開きます")
         }
     }
 
@@ -128,10 +134,12 @@ struct SidebarView: View {
                         }
                         .frame(width: 40, height: 40)
                         .clipShape(Circle())
+                        .accessibilityHidden(true)
                     } else {
                         Image(systemName: "person.circle.fill")
                             .font(.title)
                             .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
                     }
 
                     VStack(alignment: .leading, spacing: 2) {

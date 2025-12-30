@@ -14,6 +14,7 @@ struct ContentView: View {
     // MARK: - Environment
 
     @EnvironmentObject private var calendarListService: CalendarListService
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // MARK: - State
 
@@ -31,7 +32,7 @@ struct ContentView: View {
             TimelineView(
                 showSidebarButton: true,
                 onSidebarButtonTap: {
-                    withAnimation(.easeInOut(duration: 0.25)) {
+                    AccessibilityAnimation.perform(.easeInOut(duration: 0.25), reduceMotion: reduceMotion) {
                         showSidebar.toggle()
                     }
                 }
@@ -40,16 +41,20 @@ struct ContentView: View {
 
             // サイドバーオーバーレイ
             if showSidebar {
-                Color.black.opacity(0.3)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            showSidebar = false
-                        }
+                Button {
+                    AccessibilityAnimation.perform(.easeInOut(duration: 0.25), reduceMotion: reduceMotion) {
+                        showSidebar = false
                     }
+                } label: {
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("サイドバーを閉じる")
+                .accessibilityHint("メイン画面に戻ります")
 
                 SidebarView(showSettings: $showSettings)
-                    .transition(.move(edge: .leading))
+                    .transition(reduceMotion ? .identity : .move(edge: .leading))
             }
         }
         .sheet(isPresented: $showSettings) {

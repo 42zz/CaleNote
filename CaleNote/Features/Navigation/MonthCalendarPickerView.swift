@@ -29,6 +29,7 @@ struct MonthCalendarPickerView: View {
     // MARK: - Environment
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityContrast) private var accessibilityContrast
 
     // MARK: - Init
 
@@ -82,6 +83,7 @@ struct MonthCalendarPickerView: View {
                     .font(.headline)
             }
             .accessibilityLabel("前月")
+            .accessibilityHint("前の月に移動します")
 
             Spacer(minLength: 0)
 
@@ -96,6 +98,7 @@ struct MonthCalendarPickerView: View {
                     .font(.headline)
             }
             .accessibilityLabel("翌月")
+            .accessibilityHint("次の月に移動します")
         }
     }
 
@@ -165,20 +168,23 @@ struct MonthCalendarPickerView: View {
                 Text("\(calendar.component(.day, from: date))")
                     .font(.body)
                     .fontWeight(isSelected ? .semibold : .regular)
-                    .frame(width: 32, height: 32)
+                    .frame(minWidth: 32, minHeight: 32)
                     .background(
                         Circle()
                             .fill(isSelected ? Color.accentColor : Color.clear)
                     )
                     .overlay(
                         Circle()
-                            .stroke(isToday ? Color.accentColor : Color.clear, lineWidth: 1)
+                            .stroke(
+                                isToday ? Color.accentColor : Color.clear,
+                                lineWidth: accessibilityContrast == .high ? 2 : 1
+                            )
                     )
                     .foregroundStyle(isSelected ? Color.white : Color.primary)
 
                 if hasEntry {
                     Circle()
-                        .fill(isSelected ? Color.white : Color.accentColor)
+                        .fill(isSelected ? Color.white : (accessibilityContrast == .high ? Color.primary : Color.accentColor))
                         .frame(width: 4, height: 4)
                 } else {
                     Color.clear.frame(width: 4, height: 4)
@@ -187,6 +193,9 @@ struct MonthCalendarPickerView: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(dayAccessibilityLabel(for: date, isToday: isToday, hasEntry: hasEntry))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityHint("日付を選択します")
     }
 
     // MARK: - Footer
@@ -205,7 +214,7 @@ struct MonthCalendarPickerView: View {
                     .fontWeight(.semibold)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(Color.accentColor.opacity(0.1))
+                    .background(Color.accentColor.opacity(accessibilityContrast == .high ? 0.2 : 0.1))
                     .clipShape(Capsule())
             }
 
@@ -273,6 +282,21 @@ struct MonthCalendarPickerView: View {
             return
         }
         displayMonth = startOfMonth(for: newMonth)
+    }
+
+    private func dayAccessibilityLabel(for date: Date, isToday: Bool, hasEntry: Bool) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateStyle = .full
+        formatter.timeStyle = .none
+        var parts = [formatter.string(from: date)]
+        if isToday {
+            parts.append("今日")
+        }
+        if hasEntry {
+            parts.append("エントリーあり")
+        }
+        return parts.joined(separator: "、")
     }
 }
 
