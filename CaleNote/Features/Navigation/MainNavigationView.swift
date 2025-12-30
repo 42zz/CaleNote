@@ -75,6 +75,12 @@ struct MainNavigationView: View {
             .sorted { $0.date > $1.date }
     }
 
+    /// エントリー存在日の集合（startOfDay）
+    private var entryDates: Set<Date> {
+        let calendar = Calendar.current
+        return Set(filteredEntries.map { calendar.startOfDay(for: $0.startAt) })
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -83,10 +89,18 @@ struct MainNavigationView: View {
             VStack(spacing: 0) {
                 // トップバー
                 TopBarView(
-                    showSidebar: $showSidebar,
+                    showsSidebarButton: true,
+                    onSidebarTap: {
+                        showSidebar = true
+                    },
                     showSearch: $showSearchView,
                     focusDate: $focusDate,
-                    scrollToToday: scrollToToday
+                    scrollToToday: scrollToToday,
+                    entryDates: entryDates,
+                    onSelectDate: { date in
+                        focusDate = date
+                        scrollToDate(date)
+                    }
                 )
 
                 Divider()
@@ -187,6 +201,26 @@ struct MainNavigationView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             withAnimation {
                 proxy.scrollTo(todaySection.date, anchor: .top)
+            }
+        }
+    }
+
+    /// 指定日のセクションにスクロール
+    private func scrollToDate(_ date: Date) {
+        guard let proxy = scrollProxy else { return }
+
+        let calendar = Calendar.current
+        let targetDate = calendar.startOfDay(for: date)
+
+        guard let targetSection = groupedEntries.first(where: {
+            calendar.isDate($0.date, inSameDayAs: targetDate)
+        }) else {
+            return
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation {
+                proxy.scrollTo(targetSection.date, anchor: .top)
             }
         }
     }

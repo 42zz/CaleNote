@@ -5,16 +5,18 @@
 //  Created by Claude Code on 2025/12/30.
 //
 
-import Combine
 import SwiftUI
 
 /// トップバービュー
 /// 表示切替トグル、月表示、検索、今日フォーカスを配置
 struct TopBarView: View {
-    // MARK: - Bindings
+    // MARK: - Properties
 
-    /// サイドバー表示フラグ
-    @Binding var showSidebar: Bool
+    /// サイドバー表示ボタンを表示するか
+    var showsSidebarButton: Bool = true
+
+    /// サイドバー表示アクション
+    var onSidebarTap: (() -> Void)?
 
     /// 検索画面表示フラグ
     @Binding var showSearch: Bool
@@ -24,6 +26,12 @@ struct TopBarView: View {
 
     /// 今日へスクロールするアクション
     var scrollToToday: () -> Void
+
+    /// エントリー存在日の集合（startOfDay）
+    var entryDates: Set<Date> = []
+
+    /// 日付選択時のアクション
+    var onSelectDate: ((Date) -> Void)? = nil
 
     // MARK: - State
 
@@ -56,14 +64,21 @@ struct TopBarView: View {
     // MARK: - Sidebar Toggle Button
 
     private var sidebarToggleButton: some View {
-        Button {
-            withAnimation {
-                showSidebar.toggle()
+        Group {
+            if showsSidebarButton {
+                Button {
+                    withAnimation {
+                        onSidebarTap?()
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.title3)
+                        .foregroundStyle(.primary)
+                }
+            } else {
+                Color.clear
+                    .frame(width: 24, height: 24)
             }
-        } label: {
-            Image(systemName: "line.3.horizontal")
-                .font(.title3)
-                .foregroundStyle(.primary)
         }
     }
 
@@ -84,8 +99,12 @@ struct TopBarView: View {
             }
         }
         .sheet(isPresented: $showMonthPicker) {
-            MonthPickerView(selectedDate: $focusDate)
-                .presentationDetents([.medium])
+            MonthCalendarPickerView(
+                selectedDate: $focusDate,
+                entryDates: entryDates,
+                onSelectDate: onSelectDate
+            )
+            .presentationDetents([.medium, .large])
         }
     }
 
@@ -127,40 +146,14 @@ struct TopBarView: View {
     }
 }
 
-// MARK: - Month Picker View
-
-/// 月選択ビュー
-struct MonthPickerView: View {
-    @Binding var selectedDate: Date
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            DatePicker(
-                "月を選択",
-                selection: $selectedDate,
-                displayedComponents: [.date]
-            )
-            .datePickerStyle(.graphical)
-            .padding()
-            .navigationTitle("月を選択")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完了") {
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-}
-
 #Preview {
     TopBarView(
-        showSidebar: .constant(false),
+        showsSidebarButton: true,
+        onSidebarTap: {},
         showSearch: .constant(false),
         focusDate: .constant(Date()),
-        scrollToToday: {}
+        scrollToToday: {},
+        entryDates: [],
+        onSelectDate: nil
     )
 }
