@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (from feature/cal-11)
+- Restored and integrated JournalEditorView, SettingsView, CalendarSyncState.
+
 ### Fixed - 2025/12/30
 
 #### Technical Debt Resolution
