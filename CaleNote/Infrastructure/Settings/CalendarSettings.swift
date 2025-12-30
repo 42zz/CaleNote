@@ -19,13 +19,15 @@ final class CalendarSettings {
         static let targetCalendarId = "targetCalendarId"
         static let syncWindowDaysPast = "syncWindowDaysPast"
         static let syncWindowDaysFuture = "syncWindowDaysFuture"
+        static let calendarListSyncToken = "calendarListSyncToken"
+        static let lastCalendarListSyncAt = "lastCalendarListSyncAt"
     }
 
     // MARK: - Properties
 
     private let defaults = UserDefaults.standard
 
-    /// ターゲットカレンダーID
+    /// ターゲットカレンダーID（新規エントリを作成するカレンダー）
     var targetCalendarId: String {
         get {
             defaults.string(forKey: Keys.targetCalendarId) ?? "primary"
@@ -57,6 +59,26 @@ final class CalendarSettings {
         }
     }
 
+    /// カレンダーリストの同期トークン
+    var calendarListSyncToken: String? {
+        get {
+            defaults.string(forKey: Keys.calendarListSyncToken)
+        }
+        set {
+            defaults.set(newValue, forKey: Keys.calendarListSyncToken)
+        }
+    }
+
+    /// 最終カレンダーリスト同期日時
+    var lastCalendarListSyncAt: Date? {
+        get {
+            defaults.object(forKey: Keys.lastCalendarListSyncAt) as? Date
+        }
+        set {
+            defaults.set(newValue, forKey: Keys.lastCalendarListSyncAt)
+        }
+    }
+
     // MARK: - Initialization
 
     private init() {}
@@ -68,5 +90,12 @@ final class CalendarSettings {
         defaults.removeObject(forKey: Keys.targetCalendarId)
         defaults.removeObject(forKey: Keys.syncWindowDaysPast)
         defaults.removeObject(forKey: Keys.syncWindowDaysFuture)
+        defaults.removeObject(forKey: Keys.calendarListSyncToken)
+        defaults.removeObject(forKey: Keys.lastCalendarListSyncAt)
+    }
+
+    /// カレンダーリストの同期トークンをクリア
+    func clearCalendarListSyncToken() {
+        calendarListSyncToken = nil
     }
 }
