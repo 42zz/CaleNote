@@ -26,6 +26,9 @@ final class ScheduleEntry {
     /// Google Calendar イベントID
     var googleEventId: String?
 
+    /// Google Calendar ID（どのカレンダーに属するか）
+    var calendarId: String?
+
     /// 開始日時
     var startAt: Date
 
@@ -63,6 +66,7 @@ final class ScheduleEntry {
     ///   - source: データソース（"google" または "calenote"）
     ///   - managedByCaleNote: CaleNote管理フラグ
     ///   - googleEventId: Google Calendar イベントID
+    ///   - calendarId: Google Calendar ID
     ///   - startAt: 開始日時
     ///   - endAt: 終了日時
     ///   - isAllDay: 全日イベントフラグ（デフォルト: false）
@@ -75,6 +79,7 @@ final class ScheduleEntry {
         source: String,
         managedByCaleNote: Bool,
         googleEventId: String? = nil,
+        calendarId: String? = nil,
         startAt: Date,
         endAt: Date,
         isAllDay: Bool = false,
@@ -87,6 +92,7 @@ final class ScheduleEntry {
         self.source = source
         self.managedByCaleNote = managedByCaleNote
         self.googleEventId = googleEventId
+        self.calendarId = calendarId
         self.startAt = startAt
         self.endAt = endAt
         self.isAllDay = isAllDay

@@ -15,6 +15,7 @@ struct TimelineView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var auth: GoogleAuthService
     @EnvironmentObject private var syncService: CalendarSyncService
+    @EnvironmentObject private var calendarListService: CalendarListService
 
     // MARK: - Query
 
@@ -23,6 +24,14 @@ struct TimelineView: View {
         sort: \ScheduleEntry.startAt,
         order: .forward
     ) private var allEntries: [ScheduleEntry]
+
+    // MARK: - Properties
+
+    /// サイドバーボタンを表示するか
+    var showSidebarButton: Bool = false
+
+    /// サイドバーボタンがタップされた時のコールバック
+    var onSidebarButtonTap: (() -> Void)?
 
     // MARK: - State
 
@@ -40,10 +49,31 @@ struct TimelineView: View {
 
     // MARK: - Computed Properties
 
+    /// 表示対象のカレンダーIDセット
+    private var visibleCalendarIds: Set<String> {
+        calendarListService.visibleCalendarIds
+    }
+
+    /// フィルタリングされたエントリー
+    private var filteredEntries: [ScheduleEntry] {
+        // カレンダーリストが空の場合（未同期）は全エントリーを表示
+        guard !calendarListService.calendars.isEmpty else {
+            return allEntries
+        }
+
+        return allEntries.filter { entry in
+            // calendarIdがnilの場合は表示（レガシーデータ対応）
+            guard let calendarId = entry.calendarId else {
+                return true
+            }
+            return visibleCalendarIds.contains(calendarId)
+        }
+    }
+
     /// 日付でグループ化されたエントリー（新しい日付が上）
     private var groupedEntries: [(date: Date, entries: [ScheduleEntry])] {
         let calendar = Calendar.current
-        let grouped = Dictionary(grouping: allEntries) { entry in
+        let grouped = Dictionary(grouping: filteredEntries) { entry in
             calendar.startOfDay(for: entry.startAt)
         }
 
@@ -149,13 +179,23 @@ struct TimelineView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        // 検索ボタン & 設定ボタン
+        // サイドバー/設定ボタン & 検索ボタン
         ToolbarItem(placement: .navigationBarLeading) {
             HStack {
-                NavigationLink(destination: SettingsView()) {
-                    Image(systemName: "gearshape")
+                if showSidebarButton {
+                    // サイドバーを開くボタン
+                    Button {
+                        onSidebarButtonTap?()
+                    } label: {
+                        Image(systemName: "line.3.horizontal")
+                    }
+                } else {
+                    // 設定画面へのリンク
+                    NavigationLink(destination: SettingsView()) {
+                        Image(systemName: "gearshape")
+                    }
                 }
-                
+
                 Button {
                     showSearchView = true
                 } label: {

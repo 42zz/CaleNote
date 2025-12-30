@@ -334,7 +334,7 @@ final class CalendarSyncService: ObservableObject {
         if let eventId = event.id,
            let existingEntry = try fetchEntry(googleEventId: eventId) {
             // 既存エントリーを更新（Google を正とする）
-            updateEntryFromEvent(existingEntry, event: event)
+            updateEntryFromEvent(existingEntry, event: event, calendarId: calendarId)
             searchIndexService.updateEntry(existingEntry)
             relatedIndexService.updateEntry(existingEntry)
             logger.info("Updated local entry from Google event: \(eventId)")
@@ -454,6 +454,9 @@ final class CalendarSyncService: ObservableObject {
     private func createEntryFromEvent(_ event: CalendarEvent, calendarId: String) -> ScheduleEntry {
         let isManagedByCaleNote = event.extendedProperties?.private?["managedByCaleNote"] == "true"
 
+        // 全日イベントかどうかを判定
+        let isAllDay = event.start?.date != nil
+
         // startAt と endAt を取得
         let startAt = parseEventDateTime(event.start)
         let endAt = parseEventDateTime(event.end)
@@ -465,8 +468,10 @@ final class CalendarSyncService: ObservableObject {
             source: ScheduleEntry.Source.google.rawValue,
             managedByCaleNote: isManagedByCaleNote,
             googleEventId: event.id,
+            calendarId: calendarId,
             startAt: startAt,
             endAt: endAt,
+            isAllDay: isAllDay,
             title: title,
             body: body,
             tags: tags,
@@ -479,12 +484,15 @@ final class CalendarSyncService: ObservableObject {
     /// - Parameters:
     ///   - entry: ScheduleEntry
     ///   - event: CalendarEvent
-    private func updateEntryFromEvent(_ entry: ScheduleEntry, event: CalendarEvent) {
+    ///   - calendarId: カレンダー ID
+    private func updateEntryFromEvent(_ entry: ScheduleEntry, event: CalendarEvent, calendarId: String) {
         entry.title = event.summary ?? "(タイトルなし)"
         entry.body = event.description
         entry.tags = TagParser.extract(from: [entry.title, entry.body])
         entry.startAt = parseEventDateTime(event.start)
         entry.endAt = parseEventDateTime(event.end)
+        entry.isAllDay = event.start?.date != nil
+        entry.calendarId = calendarId
         entry.syncStatus = ScheduleEntry.SyncStatus.synced.rawValue
         entry.lastSyncedAt = Date()
         entry.updatedAt = Date()
