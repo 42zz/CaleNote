@@ -46,6 +46,7 @@ final class CalendarSyncService: ObservableObject {
 
     /// カレンダーごとの syncToken を保存
     private var syncTokens: [String: String] = [:]
+    private let syncTokenStore = SyncTokenStore()
 
     /// 同期設定
     private let syncConfig = SyncConfiguration()
@@ -536,19 +537,17 @@ final class CalendarSyncService: ObservableObject {
 
     /// syncToken を UserDefaults から読み込み
     private func loadSyncTokens() {
-        if let data = UserDefaults.standard.data(forKey: "CalendarSyncTokens"),
-           let tokens = try? JSONDecoder().decode([String: String].self, from: data) {
-            syncTokens = tokens
+        let tokens = syncTokenStore.load()
+        syncTokens = tokens
+        if !tokens.isEmpty {
             logger.info("Loaded \(tokens.count) sync tokens")
         }
     }
 
     /// syncToken を UserDefaults に保存
     private func saveSyncTokens() {
-        if let data = try? JSONEncoder().encode(self.syncTokens) {
-            UserDefaults.standard.set(data, forKey: "CalendarSyncTokens")
-            logger.info("Saved \(self.syncTokens.count) sync tokens")
-        }
+        syncTokenStore.save(syncTokens)
+        logger.info("Saved \(self.syncTokens.count) sync tokens")
     }
 
     // MARK: - Recovery Helpers
@@ -556,7 +555,7 @@ final class CalendarSyncService: ObservableObject {
     /// 同期トークンをリセット（完全同期用）
     func resetSyncTokens() {
         syncTokens.removeAll()
-        saveSyncTokens()
+        syncTokenStore.clear()
         logger.info("Reset sync tokens")
     }
 

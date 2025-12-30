@@ -32,6 +32,16 @@ final class GoogleAuthService: ObservableObject {
 
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "CaleNote", category: "GoogleAuth")
 
+    // MARK: - Secure Storage
+
+    private let keychain = KeychainStore(service: "com.calenote.auth")
+    private let tokenStorageKey = "oauth_tokens"
+
+    private struct StoredAuthToken: Codable {
+        let accessToken: String
+        let expirationDate: Date
+    }
+
     // MARK: - Constants
 
     /// Google Calendar API のスコープ
@@ -83,6 +93,7 @@ final class GoogleAuthService: ObservableObject {
 
             currentUser = result.user
             isAuthenticated = true
+            persistTokens(for: result.user)
 
             logger.info("Google Sign-In successful: \(result.user.userID ?? "unknown")")
         } catch let error as GIDSignInError {
@@ -100,6 +111,7 @@ final class GoogleAuthService: ObservableObject {
         GIDSignIn.sharedInstance.signOut()
         currentUser = nil
         isAuthenticated = false
+        clearPersistedTokens()
     }
 
     /// 前回のサインイン状態を復元
@@ -110,6 +122,7 @@ final class GoogleAuthService: ObservableObject {
             let user = try await GIDSignIn.sharedInstance.restorePreviousSignIn()
             self.currentUser = user
             self.isAuthenticated = true
+            persistTokens(for: user)
             self.logger.info("Previous sign-in restored: \(user.userID ?? "unknown")")
         } catch {
             self.logger.warning("Failed to restore previous sign-in: \(error.localizedDescription)")
@@ -146,6 +159,7 @@ final class GoogleAuthService: ObservableObject {
         do {
             let refreshedUser = try await user.refreshTokensIfNeeded()
             currentUser = refreshedUser
+            persistTokens(for: refreshedUser)
             logger.info("Access token refreshed successfully")
         } catch let error as GIDSignInError {
             logger.error("Token refresh failed: \(error.localizedDescription)")
@@ -182,6 +196,16 @@ final class GoogleAuthService: ObservableObject {
     }
 
     // MARK: - Helper Methods
+    private func persistTokens(for user: GIDGoogleUser) {
+        guard let expirationDate = user.accessToken.expirationDate else { return }
+        let stored = StoredAuthToken(accessToken: user.accessToken.tokenString, expirationDate: expirationDate)
+        guard let data = try? JSONEncoder().encode(stored) else { return }
+        _ = keychain.save(data, for: tokenStorageKey)
+    }
+
+    private func clearPersistedTokens() {
+        _ = keychain.delete(tokenStorageKey)
+    }
 
     /// Info.plist から Google Client ID を取得
     /// - Returns: Client ID（存在する場合）
