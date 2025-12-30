@@ -1,40 +1,90 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to CaleNote will be documented in this file.
 
-## [Unreleased]
-
-### Added
-- Comprehensive error handling system (#16)
-  - Custom error types (CaleNoteError, NetworkError, APIError, LocalDataError)
-  - Retry policy with exponential backoff
-  - RetryExecutor for automatic retry logic
-  - ErrorHandler service for centralized error management
-  - Localized error messages and recovery suggestions
-  - Error logging with OSLog
-
-## [0.27] - 2025-12-24
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Added
-- Google Sign-In authentication service (#2)
-  - OAuth 2.0 integration with Google Sign-In SDK 9.0
-  - Automatic token refresh with expiration check
-  - Keychain-based session persistence
-  - Calendar API scopes support
-  - User profile information access (email, name, image)
-  - Additional scopes request capability
-  - Comprehensive setup documentation (GOOGLE_AUTH_SETUP.md)
-- Error handling infrastructure (dependency for #2)
-  - Custom error types for better error management
-  - Retry policy with exponential backoff
-  - Centralized error handler service
-- SwiftData ScheduleEntry model as the core data structure (#1)
-  - Support for data source tracking (Google Calendar / CaleNote)
-  - Sync status management (synced / pending / failed)
-  - Tag support
-  - Comprehensive metadata (creation time, update time, last sync time)
-  - Helper methods for sync status updates and tag management
+### Added - 2025/12/30
+
+#### Issue #4: Bidirectional Synchronization Service
+- CalendarSyncService.swift で Google Calendar との双方向同期を実装
+  - **ローカル→Google 同期**: ローカル変更を非同期で Google Calendar に反映
+  - **Google→ローカル 同期**: Google Calendar の変更をローカルに反映
+  - **差分同期**: syncToken を使用した効率的な差分同期
+  - **同期状態管理**: 各エントリーの同期状態を追跡（synced/pending/failed）
+  - **競合解決**: Google Calendar を正として競合を解決
+  - **バックグラウンド同期**: Timer ベースの定期同期（5分間隔）
+  - **リトライ機能**: 失敗した同期の再試行
+  - **syncToken 永続化**: UserDefaults による syncToken の保存・復元
+  - **時間範囲同期**: 過去90日〜未来365日の範囲で同期
+  - **ページネーション対応**: 大量イベントの効率的な取得
+
+#### Issue #3: Google Calendar API Client
+- CalendarModels.swift で Google Calendar API v3 のデータ構造を実装
+  - CalendarEvent: イベントデータ
+  - EventListResponse: イベントリストレスポンス
+  - CalendarList: カレンダーリスト
+  - GoogleAPIErrorResponse: エラーレスポンス
+- GoogleCalendarClient.swift で完全な CRUD 操作を実装
+  - イベントの作成、取得、更新、削除
+  - カレンダーリスト取得（ページネーション対応）
+  - イベントリスト取得（時間範囲フィルタ、ページネーション、syncToken 対応）
+  - レート制限（リクエスト間隔 100ms）
+  - RetryExecutor による自動リトライ
+  - HTTP ステータスコード処理（401, 403, 404, 410, 429, 5xx など）
+  - syncToken ベースの差分同期サポート
+
+#### Issue #2: Google Sign-In Authentication
+- GoogleAuthService.swift で OAuth 2.0 認証フローを実装
+  - サインイン / サインアウト
+  - アクセストークンの自動更新
+  - 追加スコープのリクエスト
+  - Keychain ベースのセッション永続化
+  - ユーザープロフィール情報へのアクセス（email, name, image）
+- GOOGLE_AUTH_SETUP.md でセットアップガイドを追加
+  - Google Cloud Console の設定手順
+  - OAuth クライアントの構成方法
+  - URL スキームのセットアップ
+
+#### Issue #16: Error Handling and Retry Logic
+- CaleNoteError.swift で包括的なエラー型システムを実装
+  - NetworkError: ネットワーク関連エラー
+  - APIError: Google Calendar API エラー
+  - LocalDataError: ローカルデータ永続化エラー
+- RetryPolicy.swift で指数バックオフによるリトライロジックを実装
+  - デフォルト、アグレッシブ、コンサバティブの3つのプリセットポリシー
+  - RetryExecutor actor による並行安全なリトライ実行
+- ErrorHandler.swift で一元的なエラー管理サービスを実装
+
+#### Issue #1: SwiftData ScheduleEntry Model
+- ScheduleEntry.swift でスケジュールエントリのコアデータモデルを実装
+  - Google Calendar との同期状態を追跡するための syncStatus プロパティを追加
+  - タグベースの検索をサポート
+  - CaleNoteApp.swift に ModelContainer を登録
+
+### Technical Details
+
+- **Swift Concurrency**: すべての API 呼び出しと DB 操作で async/await を使用
+- **Actor Isolation**: RetryExecutor を actor として実装し、並行安全性を確保
+- **Error Handling**: すべてのサービスで CaleNoteError を使用した一貫したエラー処理
+- **Logging**: OSLog による構造化ログ
+- **Rate Limiting**: Google Calendar API のレート制限に対応
+- **Dependency Injection**: すべてのサービスで依存関係注入パターンを使用
+
+### Dependencies
+
+- GoogleSignIn SDK 9.0+ (Issue #2)
+- SwiftData (Issue #1)
+- Combine (Issue #16, #2, #4)
+
+## [0.1.0] - 2025/12/XX (Initial Reset)
+
+### Changed
+- プロジェクトを最小構成にリセット
+- App Layer: CaleNoteApp.swift
+- Features Layer: ContentView.swift
+- Domain Layer: 空
+- Infrastructure Layer: 空
