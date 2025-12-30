@@ -69,7 +69,7 @@ struct TimelineView: View {
         }
     }
 
-    /// 日付でグループ化されたエントリー
+    /// 日付でグループ化されたエントリー（新しい日付が上）
     private var groupedEntries: [(date: Date, entries: [ScheduleEntry])] {
         let calendar = Calendar.current
         let grouped = Dictionary(grouping: filteredEntries) { entry in
@@ -78,7 +78,7 @@ struct TimelineView: View {
 
         return grouped
             .map { (date: $0.key, entries: $0.value) }
-            .sorted { $0.date < $1.date }
+            .sorted { $0.date > $1.date } // 新しい日付が先
     }
 
     /// 今日のセクションのインデックス
