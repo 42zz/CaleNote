@@ -6,6 +6,7 @@ struct SettingsView: View {
     @EnvironmentObject private var auth: GoogleAuthService
     @EnvironmentObject private var syncService: CalendarSyncService
     @EnvironmentObject private var searchIndex: SearchIndexService
+    @EnvironmentObject private var relatedIndex: RelatedEntriesIndexService
     @Environment(\.modelContext) private var modelContext
 
     @Query(
@@ -208,6 +209,7 @@ struct SettingsView: View {
                         futureDays: recoveryRangeFutureDays
                     )
                     searchIndex.rebuildIndex(modelContext: modelContext)
+                    relatedIndex.rebuildIndex(modelContext: modelContext)
                     if let error = recoveryService.lastError {
                         errorMessage = error.localizedDescription
                     } else {
@@ -225,6 +227,8 @@ struct SettingsView: View {
             Button("削除", role: .destructive) {
                 do {
                     try recoveryService.clearLocalData(modelContext: modelContext)
+                    searchIndex.rebuildIndex(modelContext: modelContext)
+                    relatedIndex.rebuildIndex(modelContext: modelContext)
                 } catch {
                     errorMessage = error.localizedDescription
                 }

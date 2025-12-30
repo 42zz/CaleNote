@@ -32,6 +32,7 @@ final class CalendarSyncService: ObservableObject {
     private let apiClient: GoogleCalendarClient
     private let authService: GoogleAuthService
     private let searchIndexService: SearchIndexService
+    private let relatedIndexService: RelatedEntriesIndexService
     private let errorHandler: ErrorHandler
     private let modelContext: ModelContext
     private let calendarSettings: CalendarSettings
@@ -59,6 +60,7 @@ final class CalendarSyncService: ObservableObject {
         apiClient: GoogleCalendarClient,
         authService: GoogleAuthService,
         searchIndexService: SearchIndexService,
+        relatedIndexService: RelatedEntriesIndexService,
         errorHandler: ErrorHandler,
         modelContext: ModelContext,
         calendarSettings: CalendarSettings,
@@ -67,6 +69,7 @@ final class CalendarSyncService: ObservableObject {
         self.apiClient = apiClient
         self.authService = authService
         self.searchIndexService = searchIndexService
+        self.relatedIndexService = relatedIndexService
         self.errorHandler = errorHandler
         self.modelContext = modelContext
         self.calendarSettings = calendarSettings
@@ -333,12 +336,14 @@ final class CalendarSyncService: ObservableObject {
             // 既存エントリーを更新（Google を正とする）
             updateEntryFromEvent(existingEntry, event: event)
             searchIndexService.updateEntry(existingEntry)
+            relatedIndexService.updateEntry(existingEntry)
             logger.info("Updated local entry from Google event: \(eventId)")
         } else {
             // 新規エントリーを作成（CaleNote 管理対象外のイベント）
             let newEntry = createEntryFromEvent(event, calendarId: calendarId)
             modelContext.insert(newEntry)
             searchIndexService.indexEntry(newEntry)
+            relatedIndexService.indexEntry(newEntry)
             logger.info("Created new local entry from Google event: \(event.id ?? "unknown")")
         }
 
@@ -379,9 +384,29 @@ final class CalendarSyncService: ObservableObject {
         if let entry = try fetchEntry(googleEventId: googleEventId) {
             modelContext.delete(entry)
             searchIndexService.removeEntry(entry)
+            relatedIndexService.removeEntry(entry)
             try modelContext.save()
             logger.info("Deleted local entry: \(googleEventId)")
         }
+    }
+
+    // MARK: - Delete
+
+    /// エントリーを削除（Google とローカル）
+    /// - Parameter entry: 削除対象エントリー
+    func deleteEntry(_ entry: ScheduleEntry) async throws {
+        logger.info("Deleting entry: \(entry.googleEventId ?? entry.title)")
+
+        if let eventId = entry.googleEventId {
+            let calendarId = calendarSettings.targetCalendarId
+            try await apiClient.deleteEvent(calendarId: calendarId, eventId: eventId)
+        }
+
+        modelContext.delete(entry)
+        searchIndexService.removeEntry(entry)
+        relatedIndexService.removeEntry(entry)
+        try modelContext.save()
+        logger.info("Deleted entry locally: \(entry.googleEventId ?? entry.title)")
     }
 
     // MARK: - Conversion
