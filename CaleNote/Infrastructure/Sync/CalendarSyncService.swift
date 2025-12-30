@@ -34,6 +34,7 @@ final class CalendarSyncService: ObservableObject {
     private let errorHandler: ErrorHandler
     private let modelContext: ModelContext
     private let calendarSettings: CalendarSettings
+    private let rateLimiter: SyncRateLimiter
 
     // MARK: - Logger
 
@@ -58,13 +59,15 @@ final class CalendarSyncService: ObservableObject {
         authService: GoogleAuthService,
         errorHandler: ErrorHandler,
         modelContext: ModelContext,
-        calendarSettings: CalendarSettings = .shared
+        calendarSettings: CalendarSettings = .shared,
+        rateLimiter: SyncRateLimiter = .shared
     ) {
         self.apiClient = apiClient
         self.authService = authService
         self.errorHandler = errorHandler
         self.modelContext = modelContext
         self.calendarSettings = calendarSettings
+        self.rateLimiter = rateLimiter
 
         // syncToken を復元
         loadSyncTokens()
@@ -217,6 +220,7 @@ final class CalendarSyncService: ObservableObject {
         if let syncToken = syncToken {
             // 差分同期
             do {
+                try await rateLimiter.acquire()
                 let response = try await apiClient.listEventsSince(
                     calendarId: calendarId,
                     syncToken: syncToken
@@ -234,22 +238,26 @@ final class CalendarSyncService: ObservableObject {
         } else {
             // 完全同期（時間範囲を指定）
             let now = Date()
-            let pastDate = Calendar.current.date(
+            guard let pastDate = Calendar.current.date(
                 byAdding: .day,
                 value: -syncConfig.pastDays,
                 to: now
-            )!
+            ),
             let futureDate = Calendar.current.date(
                 byAdding: .day,
                 value: syncConfig.futureDays,
                 to: now
-            )!
+            ) else {
+                logger.error("Failed to calculate sync date range")
+                return
+            }
 
             let timeMin = GoogleCalendarClient.iso8601String(from: pastDate)
             let timeMax = GoogleCalendarClient.iso8601String(from: futureDate)
 
             // ページネーション対応
             repeat {
+                try await rateLimiter.acquire()
                 let response = try await apiClient.listEvents(
                     calendarId: calendarId,
                     timeMin: timeMin,
