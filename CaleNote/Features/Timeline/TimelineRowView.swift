@@ -9,6 +9,10 @@ import SwiftUI
 
 /// タイムラインのエントリー行
 struct TimelineRowView: View {
+    // MARK: - Environment
+
+    @EnvironmentObject private var calendarListService: CalendarListService
+
     // MARK: - Properties
 
     let entry: ScheduleEntry
@@ -17,6 +21,16 @@ struct TimelineRowView: View {
     init(entry: ScheduleEntry, showTags: Bool = true) {
         self.entry = entry
         self.showTags = showTags
+    }
+
+    // MARK: - Calendar Color
+
+    /// カレンダーの背景色
+    private var calendarColor: Color {
+        guard let hexColor = calendarListService.backgroundColor(for: entry.calendarId) else {
+            return .accentColor
+        }
+        return Color(hex: hexColor) ?? .accentColor
     }
 
     // MARK: - Computed Properties
@@ -58,6 +72,12 @@ struct TimelineRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
+            // カレンダーカラーインジケーター
+            RoundedRectangle(cornerRadius: 2)
+                .fill(calendarColor)
+                .frame(width: 4)
+                .padding(.vertical, 2)
+
             // 時刻表示（全日イベントの場合は「終日」表示）
             VStack(alignment: .trailing, spacing: 2) {
                 if entry.isAllDay {

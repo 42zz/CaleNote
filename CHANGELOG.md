@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - 2025/12/30
+
+#### Issue #18: Calendar Selection and Multi-Calendar Support (CAL-18)
+- **CalendarInfo SwiftData Model** (`Domain/CalendarInfo.swift`)
+  - Google Calendar のカレンダー情報をローカルにキャッシュ
+  - カレンダーID、名前、色、アクセス権限を保存
+  - 表示/非表示設定、同期設定のユーザー設定を管理
+  - プライマリカレンダー識別
+
+- **CalendarListService** (`Infrastructure/Settings/CalendarListService.swift`)
+  - Google Calendar API からカレンダーリストを取得・キャッシュ
+  - 差分同期対応（syncToken使用）
+  - カレンダー表示/非表示の切り替え
+  - 同期設定の管理
+  - カレンダーカラー情報の提供
+
+- **SidebarView** (`Features/Sidebar/SidebarView.swift`)
+  - サイドバーUI実装
+  - カレンダーリスト表示（カラー、名前、プライマリバッジ）
+  - チェックボックスによる表示/非表示切り替え
+  - 設定・フィードバックへのアクセス
+
+- **ScheduleEntry.calendarId プロパティ追加**
+  - 各エントリーがどのカレンダーに属するかを追跡
+  - Google Calendar 同期時に自動設定
+
+- **TimelineView カレンダーフィルタリング**
+  - 表示中のカレンダーのみをタイムラインに表示
+  - CalendarListService との連携
+
+- **TimelineRowView カレンダーカラー表示**
+  - 各エントリーの左側にカレンダーカラーインジケーターを表示
+  - Color拡張で16進数カラーコードからSwiftUI Colorへの変換をサポート
+
+- **ContentView サイドバー統合**
+  - ハンバーガーメニューでサイドバーを開閉
+  - オーバーレイ表示によるモバイルフレンドリーな実装
+
+- **CalendarSettings 拡張**
+  - カレンダーリストの同期トークン管理
+  - 最終同期日時の記録
+
+- **CalendarSyncService 更新**
+  - 新規・既存エントリーにcalendarIdを設定
+  - 全日イベントの正確な判定
+
 ### Added (from feature/cal-11)
 - Restored and integrated JournalEditorView, SettingsView, CalendarSyncState.
 
