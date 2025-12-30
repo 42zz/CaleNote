@@ -14,6 +14,7 @@ struct TimelineView: View {
 
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var auth: GoogleAuthService
+    @EnvironmentObject private var syncService: CalendarSyncService
 
     // MARK: - Query
 
@@ -36,25 +37,6 @@ struct TimelineView: View {
 
     /// 新規エントリー作成シート表示フラグ
     @State private var showNewEntrySheet = false
-
-    /// 同期サービス
-    @StateObject private var syncService: CalendarSyncService
-
-    // MARK: - Initialization
-
-    init() {
-        // NOTE: CalendarSyncService の初期化には modelContext が必要ですが、
-        // init 時点では Environment がまだ利用できないため、
-        // onAppear で初期化するか、外部から注入する必要があります。
-        // ここでは仮の実装として、後で適切に初期化します。
-        // FIXME: This creates a separate ModelContainer. Should be injected.
-        _syncService = StateObject(wrappedValue: CalendarSyncService(
-            apiClient: GoogleCalendarClient(),
-            authService: .shared,
-            errorHandler: .shared,
-            modelContext: ModelContext(try! ModelContainer(for: ScheduleEntry.self))
-        ))
-    }
 
     // MARK: - Computed Properties
 
@@ -118,20 +100,13 @@ struct TimelineView: View {
             .sheet(isPresented: $showNewEntrySheet) {
                 JournalEditorView()
                     .environmentObject(syncService)
-                    // auth is automatically inherited if this view is in the hierarchy
             }
             .onAppear {
                 // 今日の日付を更新
                 today = Date()
 
-                // 同期実行
-                Task {
-                    do {
-                        try await syncService.performFullSync()
-                    } catch {
-                        print("Sync failed: \(error)")
-                    }
-                }
+                // 定期的な同期を開始（必要に応じて）
+                syncService.startBackgroundSync()
             }
         }
     }
@@ -189,7 +164,7 @@ struct TimelineView: View {
         // 検索ボタン & 設定ボタン
         ToolbarItem(placement: .navigationBarLeading) {
             HStack {
-                NavigationLink(destination: SettingsView().environmentObject(syncService)) {
+                NavigationLink(destination: SettingsView()) {
                     Image(systemName: "gearshape")
                 }
                 
