@@ -29,34 +29,21 @@ struct TimelineView: View {
     /// 今日の日付
     @State private var today = Date()
 
-    /// 検索テキスト
-    @State private var searchText = ""
-
-    /// 検索バー表示フラグ
-    @State private var showSearchBar = false
+    /// 検索画面表示フラグ
+    @State private var showSearchView = false
 
     /// 新規エントリー作成シート表示フラグ
     @State private var showNewEntrySheet = false
 
-    // MARK: - Computed Properties
+    /// 表示設定
+    @AppStorage("timelineShowTags") private var showTags = true
 
-    /// フィルタリングされたエントリー
-    private var filteredEntries: [ScheduleEntry] {
-        if searchText.isEmpty {
-            return allEntries
-        } else {
-            return allEntries.filter { entry in
-                entry.title.localizedCaseInsensitiveContains(searchText) ||
-                (entry.body?.localizedCaseInsensitiveContains(searchText) ?? false) ||
-                entry.tags.contains(where: { $0.localizedCaseInsensitiveContains(searchText) })
-            }
-        }
-    }
+    // MARK: - Computed Properties
 
     /// 日付でグループ化されたエントリー（新しい日付が上）
     private var groupedEntries: [(date: Date, entries: [ScheduleEntry])] {
         let calendar = Calendar.current
-        let grouped = Dictionary(grouping: filteredEntries) { entry in
+        let grouped = Dictionary(grouping: allEntries) { entry in
             calendar.startOfDay(for: entry.startAt)
         }
 
@@ -91,15 +78,12 @@ struct TimelineView: View {
             .toolbar {
                 toolbarContent
             }
-            .searchable(
-                text: $searchText,
-                isPresented: $showSearchBar,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "タイトル、本文、タグで検索"
-            )
             .sheet(isPresented: $showNewEntrySheet) {
                 JournalEditorView()
                     .environmentObject(syncService)
+            }
+            .sheet(isPresented: $showSearchView) {
+                SearchView()
             }
             .onAppear {
                 // 今日の日付を更新
@@ -119,7 +103,7 @@ struct TimelineView: View {
                 ForEach(Array(groupedEntries.enumerated()), id: \.offset) { index, section in
                     Section {
                         ForEach(section.entries) { entry in
-                            TimelineRowView(entry: entry)
+                            TimelineRowView(entry: entry, showTags: showTags)
                         }
                     } header: {
                         DateSectionHeader(
@@ -169,7 +153,7 @@ struct TimelineView: View {
                 }
                 
                 Button {
-                    showSearchBar.toggle()
+                    showSearchView = true
                 } label: {
                     Image(systemName: "magnifyingglass")
                 }

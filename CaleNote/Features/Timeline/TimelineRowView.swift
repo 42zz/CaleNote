@@ -12,6 +12,12 @@ struct TimelineRowView: View {
     // MARK: - Properties
 
     let entry: ScheduleEntry
+    let showTags: Bool
+
+    init(entry: ScheduleEntry, showTags: Bool = true) {
+        self.entry = entry
+        self.showTags = showTags
+    }
 
     // MARK: - Computed Properties
 
@@ -102,7 +108,7 @@ struct TimelineRowView: View {
                 }
 
                 // タグ
-                if !entry.tags.isEmpty {
+                if showTags && !entry.tags.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 4) {
                             ForEach(entry.tags.prefix(3), id: \.self) { tag in

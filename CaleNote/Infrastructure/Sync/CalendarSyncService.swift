@@ -31,6 +31,7 @@ final class CalendarSyncService: ObservableObject {
 
     private let apiClient: GoogleCalendarClient
     private let authService: GoogleAuthService
+    private let searchIndexService: SearchIndexService
     private let errorHandler: ErrorHandler
     private let modelContext: ModelContext
     private let calendarSettings: CalendarSettings
@@ -57,6 +58,7 @@ final class CalendarSyncService: ObservableObject {
     init(
         apiClient: GoogleCalendarClient,
         authService: GoogleAuthService,
+        searchIndexService: SearchIndexService,
         errorHandler: ErrorHandler,
         modelContext: ModelContext,
         calendarSettings: CalendarSettings,
@@ -64,6 +66,7 @@ final class CalendarSyncService: ObservableObject {
     ) {
         self.apiClient = apiClient
         self.authService = authService
+        self.searchIndexService = searchIndexService
         self.errorHandler = errorHandler
         self.modelContext = modelContext
         self.calendarSettings = calendarSettings
@@ -173,7 +176,19 @@ final class CalendarSyncService: ObservableObject {
     /// Google Calendar の変更をローカルに同期
     /// - Throws: 同期エラー
     func syncGoogleChangesToLocal() async throws {
-        logger.info("Syncing Google changes to local")
+        try await syncGoogleChangesToLocal(
+            pastDays: syncConfig.pastDays,
+            futureDays: syncConfig.futureDays
+        )
+    }
+
+    /// Google Calendar の変更をローカルに同期（同期範囲を指定）
+    /// - Parameters:
+    ///   - pastDays: 過去の同期範囲（日数）
+    ///   - futureDays: 未来の同期範囲（日数）
+    /// - Throws: 同期エラー
+    func syncGoogleChangesToLocal(pastDays: Int, futureDays: Int) async throws {
+        logger.info("Syncing Google changes to local (past: \(pastDays)d, future: \(futureDays)d)")
 
         // TODO: Issue #18 - 現在は全カレンダーを同期しているが、
         // 設定で指定されたカレンダーのみを同期するように変更する必要がある
@@ -190,12 +205,20 @@ final class CalendarSyncService: ObservableObject {
         // 各カレンダーのイベントを同期
         for calendar in calendars {
             do {
-                try await syncCalendarEvents(calendar.id)
+                try await syncCalendarEvents(
+                    calendar.id,
+                    pastDays: pastDays,
+                    futureDays: futureDays
+                )
             } catch CaleNoteError.apiError(.tokenExpired) {
                 // syncToken が失効した場合はトークンをクリアして再試行
                 logger.warning("SyncToken expired for calendar: \(calendar.id), performing full sync")
                 syncTokens.removeValue(forKey: calendar.id)
-                try await syncCalendarEvents(calendar.id)
+                try await syncCalendarEvents(
+                    calendar.id,
+                    pastDays: pastDays,
+                    futureDays: futureDays
+                )
             } catch {
                 logger.error("Failed to sync calendar \(calendar.id): \(error.localizedDescription)")
                 // エラーが発生しても他のカレンダーの同期を続行
@@ -209,7 +232,11 @@ final class CalendarSyncService: ObservableObject {
     /// 指定カレンダーのイベントを同期
     /// - Parameter calendarId: カレンダー ID
     /// - Throws: API エラー
-    private func syncCalendarEvents(_ calendarId: String) async throws {
+    private func syncCalendarEvents(
+        _ calendarId: String,
+        pastDays: Int,
+        futureDays: Int
+    ) async throws {
         logger.info("Syncing events for calendar: \(calendarId)")
 
         let syncToken = syncTokens[calendarId]
@@ -240,12 +267,12 @@ final class CalendarSyncService: ObservableObject {
             let now = Date()
             guard let pastDate = Calendar.current.date(
                 byAdding: .day,
-                value: -syncConfig.pastDays,
+                value: -pastDays,
                 to: now
             ),
             let futureDate = Calendar.current.date(
                 byAdding: .day,
-                value: syncConfig.futureDays,
+                value: futureDays,
                 to: now
             ) else {
                 logger.error("Failed to calculate sync date range")
@@ -305,11 +332,13 @@ final class CalendarSyncService: ObservableObject {
            let existingEntry = try fetchEntry(googleEventId: eventId) {
             // 既存エントリーを更新（Google を正とする）
             updateEntryFromEvent(existingEntry, event: event)
+            searchIndexService.updateEntry(existingEntry)
             logger.info("Updated local entry from Google event: \(eventId)")
         } else {
             // 新規エントリーを作成（CaleNote 管理対象外のイベント）
             let newEntry = createEntryFromEvent(event, calendarId: calendarId)
             modelContext.insert(newEntry)
+            searchIndexService.indexEntry(newEntry)
             logger.info("Created new local entry from Google event: \(event.id ?? "unknown")")
         }
 
@@ -349,6 +378,7 @@ final class CalendarSyncService: ObservableObject {
     private func deleteLocalEvent(googleEventId: String) async throws {
         if let entry = try fetchEntry(googleEventId: googleEventId) {
             modelContext.delete(entry)
+            searchIndexService.removeEntry(entry)
             try modelContext.save()
             logger.info("Deleted local entry: \(googleEventId)")
         }
@@ -482,6 +512,15 @@ final class CalendarSyncService: ObservableObject {
             UserDefaults.standard.set(data, forKey: "CalendarSyncTokens")
             logger.info("Saved \(self.syncTokens.count) sync tokens")
         }
+    }
+
+    // MARK: - Recovery Helpers
+
+    /// 同期トークンをリセット（完全同期用）
+    func resetSyncTokens() {
+        syncTokens.removeAll()
+        saveSyncTokens()
+        logger.info("Reset sync tokens")
     }
 
     // MARK: - Background Sync

@@ -6,6 +6,7 @@ struct JournalEditorView: View {
     @Environment(\.modelContext) private var modelContext
 
     @EnvironmentObject private var auth: GoogleAuthService
+    @EnvironmentObject private var searchIndex: SearchIndexService
     // Use EnvironmentObject for SyncService if possible, or create local/singleton. 
     // Usually services should be injected. Assuming it's available or we create one.
     // Given the previous files, CalendarSyncService is likely created in App and injected.
@@ -130,6 +131,7 @@ struct JournalEditorView: View {
 
         Task {
             do {
+                var createdEntry: ScheduleEntry?
                 if let entry {
                     // Update existing
                     entry.title = finalTitle.isEmpty ? "(タイトルなし)" : finalTitle
@@ -154,9 +156,16 @@ struct JournalEditorView: View {
                         syncStatus: ScheduleEntry.SyncStatus.pending.rawValue
                     )
                     modelContext.insert(newEntry)
+                    createdEntry = newEntry
                 }
                 
                 try modelContext.save()
+
+                if let entry {
+                    searchIndex.updateEntry(entry)
+                } else if let createdEntry {
+                    searchIndex.indexEntry(createdEntry)
+                }
                 
                 // Trigger sync
                 try await syncService.syncLocalChangesToGoogle()
