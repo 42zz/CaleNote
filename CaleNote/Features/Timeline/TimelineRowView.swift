@@ -1,0 +1,127 @@
+//
+//  TimelineRowView.swift
+//  CaleNote
+//
+//  Created by Claude Code on 2025/12/30.
+//
+
+import SwiftUI
+
+/// タイムラインのエントリー行
+struct TimelineRowView: View {
+    // MARK: - Properties
+
+    let entry: ScheduleEntry
+
+    // MARK: - Computed Properties
+
+    /// 時刻表示
+    private var timeText: String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter.string(from: entry.startAt)
+    }
+
+    /// 終了時刻表示
+    private var endTimeText: String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter.string(from: entry.endAt)
+    }
+
+    /// 同期状態アイコン
+    private var syncStatusIcon: (name: String, color: Color)? {
+        switch entry.syncStatus {
+        case ScheduleEntry.SyncStatus.pending.rawValue:
+            return ("arrow.clockwise.circle.fill", .orange)
+        case ScheduleEntry.SyncStatus.failed.rawValue:
+            return ("exclamationmark.circle.fill", .red)
+        default:
+            return nil
+        }
+    }
+
+    /// ソースバッジ
+    private var sourceIcon: String {
+        entry.managedByCaleNote ? "note.text" : "calendar"
+    }
+
+    // MARK: - Body
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // 時刻表示
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(timeText)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Text(endTimeText)
+                    .font(.caption2)
+                    .foregroundColor(.secondary.opacity(0.7))
+            }
+            .frame(width: 50)
+
+            // エントリー内容
+            VStack(alignment: .leading, spacing: 4) {
+                // タイトル
+                HStack(spacing: 6) {
+                    Text(entry.title)
+                        .font(.body)
+                        .fontWeight(.medium)
+
+                    // ソースアイコン
+                    Image(systemName: sourceIcon)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+
+                    // 同期状態バッジ
+                    if let syncStatus = syncStatusIcon {
+                        Image(systemName: syncStatus.name)
+                            .font(.caption)
+                            .foregroundColor(syncStatus.color)
+                    }
+
+                    Spacer()
+                }
+
+                // 本文プレビュー
+                if let body = entry.body, !body.isEmpty {
+                    Text(body)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+
+                // タグ
+                if !entry.tags.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 4) {
+                            ForEach(entry.tags.prefix(3), id: \.self) { tag in
+                                Text("#\(tag)")
+                                    .font(.caption2)
+                                    .foregroundColor(.accentColor)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color.accentColor.opacity(0.1))
+                                    )
+                            }
+
+                            if entry.tags.count > 3 {
+                                Text("+\(entry.tags.count - 3)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+    }
+}
