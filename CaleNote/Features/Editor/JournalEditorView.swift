@@ -9,8 +9,11 @@ struct JournalEditorView: View {
     private let syncService = JournalCalendarSyncService()
 
     private let entry: JournalEntry?
+    private let initialDate: Date
 
     @Query private var calendars: [CachedCalendar]
+    @Query(sort: \JournalEntry.eventDate, order: .reverse)
+    private var allEntries: [JournalEntry]
 
     @State private var title: String
     @State private var content: String  // ← ここを body から改名
@@ -22,11 +25,12 @@ struct JournalEditorView: View {
     @State private var selectedCalendarId: String?
     @State private var isPresentingCalendarPicker = false
 
-    init(entry: JournalEntry? = nil) {
+    init(entry: JournalEntry? = nil, initialDate: Date = Date()) {
         self.entry = entry
+        self.initialDate = initialDate
         _title = State(initialValue: entry?.title ?? "")
         _content = State(initialValue: entry?.body ?? "")  // ← body → content
-        _eventDate = State(initialValue: entry?.eventDate ?? Date())
+        _eventDate = State(initialValue: entry?.eventDate ?? initialDate)
         // 初期値：既存エントリの場合はlinkedCalendarId、新規の場合は設定値
         _selectedCalendarId = State(initialValue: entry?.linkedCalendarId ?? JournalWriteSettings.loadWriteCalendarId())
     }
@@ -55,14 +59,79 @@ struct JournalEditorView: View {
         return .blue
     }
 
+    // 過去のエントリから使用されているタグを収集（頻度順）
+    private var suggestedTags: [String] {
+        var tagCounts: [String: Int] = [:]
+        for entry in allEntries {
+            let tags = TagExtractor.extract(from: entry.body)
+            for tag in tags {
+                tagCounts[tag, default: 0] += 1
+            }
+        }
+        // 頻度順にソート、上位10件を返す
+        return tagCounts.sorted { $0.value > $1.value }
+            .prefix(10)
+            .map { $0.key }
+    }
+
+    // 現在入力中のタグ（#で始まり、まだ完成していないもの）
+    private var currentPartialTag: String? {
+        // カーソル位置の代わりに、最後の#以降を取得
+        guard let hashIndex = content.lastIndex(of: "#") else { return nil }
+        let afterHash = String(content[content.index(after: hashIndex)...])
+        // スペースや改行が含まれていたら完成したタグなのでnilを返す
+        if afterHash.contains(where: { $0.isWhitespace }) {
+            return nil
+        }
+        return afterHash
+    }
+
+    // フィルタされたタグ候補
+    private var filteredTagSuggestions: [String] {
+        guard let partial = currentPartialTag else { return [] }
+        if partial.isEmpty {
+            return suggestedTags
+        }
+        return suggestedTags.filter { $0.lowercased().hasPrefix(partial.lowercased()) }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
                 Section {
                     DatePicker("日時", selection: $eventDate)
                     TextField("タイトル", text: $title)
-                    TextEditor(text: $content)
-                        .frame(minHeight: 180)
+                    VStack(alignment: .leading, spacing: 8) {
+                        TextEditor(text: $content)
+                            .frame(minHeight: 180)
+
+                        // タグ候補表示（#入力時のみ）
+                        if !filteredTagSuggestions.isEmpty {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("タグ候補")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 6) {
+                                        ForEach(filteredTagSuggestions, id: \.self) { tag in
+                                            Button {
+                                                insertTag(tag)
+                                            } label: {
+                                                Text("#\(tag)")
+                                                    .font(.caption)
+                                                    .padding(.horizontal, 8)
+                                                    .padding(.vertical, 4)
+                                                    .background(Color.accentColor.opacity(0.1))
+                                                    .foregroundStyle(Color.accentColor)
+                                                    .cornerRadius(6)
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 } footer: {
                     HStack {
                         Spacer()
@@ -243,6 +312,15 @@ struct JournalEditorView: View {
                 }
             }
         }
+    }
+
+    /// 選択されたタグを本文に挿入する
+    private func insertTag(_ tag: String) {
+        // 現在入力中の部分タグを完成したタグで置換
+        guard let hashIndex = content.lastIndex(of: "#") else { return }
+        let beforeHash = String(content[..<hashIndex])
+        // #以降を選択されたタグで置換し、スペースを追加
+        content = beforeHash + "#" + tag + " "
     }
 
 }
