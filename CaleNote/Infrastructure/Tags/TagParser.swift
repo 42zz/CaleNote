@@ -8,6 +8,7 @@
 import Foundation
 
 enum TagParser {
+    private static let maxTagLength = 50
     /// Extract tags from a single text.
     static func extract(from text: String?) -> [String] {
         guard let text, !text.isEmpty else { return [] }
@@ -32,11 +33,12 @@ enum TagParser {
             for match in matches {
                 guard let range = Range(match.range, in: combined) else { continue }
                 let raw = String(combined[range])
-                let tag = raw
-                    .replacingOccurrences(of: "#", with: "")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let tag = sanitize(
+                    raw.replacingOccurrences(of: "#", with: "")
+                )
                 let normalized = normalize(tag)
                 guard !tag.isEmpty, !normalized.isEmpty else { continue }
+                guard tag.count <= maxTagLength else { continue }
                 if seen.insert(normalized).inserted {
                     results.append(tag)
                 }
@@ -50,5 +52,11 @@ enum TagParser {
     /// Normalize a tag for de-duplication and indexing.
     static func normalize(_ tag: String) -> String {
         tag.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private static func sanitize(_ tag: String) -> String {
+        let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+        let filteredScalars = trimmed.unicodeScalars.filter { !$0.properties.isControl }
+        return String(String.UnicodeScalarView(filteredScalars))
     }
 }

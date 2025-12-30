@@ -97,19 +97,19 @@ final class ErrorHandler: ObservableObject {
     ///   - context: コンテキスト情報
     private func logError(_ error: CaleNoteError, context: String?) {
         let contextInfo = context.map { " [\($0)]" } ?? ""
-        let message = "\(contextInfo) \(error.localizedDescription)"
+        let message = "\(contextInfo) \(error.logDescription)"
 
         switch error {
         case .networkError:
-            logger.warning("Network error:\(message, privacy: .public)")
+            logger.warning("Network error:\(message, privacy: .private)")
         case .apiError:
-            logger.error("API error:\(message, privacy: .public)")
+            logger.error("API error:\(message, privacy: .private)")
         case .localDataError:
-            logger.error("Local data error:\(message, privacy: .public)")
+            logger.error("Local data error:\(message, privacy: .private)")
         case .syncError:
-            logger.warning("Sync error:\(message, privacy: .public)")
+            logger.warning("Sync error:\(message, privacy: .private)")
         case .unknown:
-            logger.fault("Unknown error:\(message, privacy: .public)")
+            logger.fault("Unknown error:\(message, privacy: .private)")
         }
     }
 

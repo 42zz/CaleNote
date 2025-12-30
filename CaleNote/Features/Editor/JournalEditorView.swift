@@ -115,9 +115,15 @@ struct JournalEditorView: View {
         isSaving = true
         errorMessage = nil
 
-        let finalTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalTitle = InputValidator.sanitizeTitle(title)
+        let finalBody = InputValidator.sanitizeBody(bodyText)
+        if let validationError = InputValidator.validate(title: finalTitle, body: finalBody) {
+            errorMessage = validationError
+            isSaving = false
+            return
+        }
         let endAt = isAllDay ? startAt : startAt.addingTimeInterval(3600) // Default 1 hour
-        let extractedTags = TagParser.extract(from: [title, bodyText])
+        let extractedTags = TagParser.extract(from: [finalTitle, finalBody])
 
         Task {
             do {
@@ -125,7 +131,7 @@ struct JournalEditorView: View {
                 if let entry {
                     // Update existing
                     entry.title = finalTitle.isEmpty ? "(タイトルなし)" : finalTitle
-                    entry.body = bodyText
+                    entry.body = finalBody
                     entry.startAt = startAt
                     entry.endAt = endAt
                     entry.isAllDay = isAllDay
@@ -141,7 +147,7 @@ struct JournalEditorView: View {
                         endAt: endAt,
                         isAllDay: isAllDay,
                         title: finalTitle.isEmpty ? "(タイトルなし)" : finalTitle,
-                        body: bodyText,
+                        body: finalBody,
                         tags: extractedTags,
                         syncStatus: ScheduleEntry.SyncStatus.pending.rawValue
                     )

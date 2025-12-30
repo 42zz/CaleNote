@@ -152,7 +152,7 @@ extension NetworkError: LocalizedError {
         case .noConnection:
             return "インターネット接続がありません"
         case .other(let error):
-            return "ネットワークエラー: \(error.localizedDescription)"
+            return "ネットワークエラーが発生しました"
         }
     }
 }
@@ -177,11 +177,10 @@ extension APIError: LocalizedError {
         case .decodingError:
             return "データの解析に失敗しました"
         case .other(let code, let message):
-            if let message = message {
-                return "API エラー（\(code)）: \(message)"
-            } else {
-                return "API エラー（\(code)）"
+            if message != nil {
+                return "API エラー（\(code)）が発生しました"
             }
+            return "API エラー（\(code)）が発生しました"
         }
     }
 }
@@ -200,7 +199,90 @@ extension LocalDataError: LocalizedError {
         case .notFound:
             return "データが見つかりませんでした"
         case .other(let error):
-            return "ローカルデータエラー: \(error.localizedDescription)"
+            return "ローカルデータエラーが発生しました"
+        }
+    }
+}
+
+// MARK: - Log Descriptions
+
+extension CaleNoteError {
+    var logDescription: String {
+        switch self {
+        case .networkError(let error):
+            return error.logDescription
+        case .apiError(let error):
+            return error.logDescription
+        case .localDataError(let error):
+            return error.logDescription
+        case .syncError(let message):
+            return "Sync error: \(message)"
+        case .unknown(let error):
+            return "Unknown error: \(error.localizedDescription)"
+        }
+    }
+}
+
+extension NetworkError {
+    var logDescription: String {
+        switch self {
+        case .timeout:
+            return "Network timeout"
+        case .connectionFailed:
+            return "Network connection failed"
+        case .dnsError:
+            return "DNS error"
+        case .noConnection:
+            return "No network connection"
+        case .other(let error):
+            return "Other network error: \(error.localizedDescription)"
+        }
+    }
+}
+
+extension APIError {
+    var logDescription: String {
+        switch self {
+        case .unauthorized:
+            return "API unauthorized"
+        case .forbidden:
+            return "API forbidden"
+        case .notFound:
+            return "API not found"
+        case .rateLimited:
+            return "API rate limited"
+        case .tokenExpired:
+            return "API token expired"
+        case .serverError(let code):
+            return "API server error: \(code)"
+        case .invalidResponse:
+            return "API invalid response"
+        case .decodingError:
+            return "API decoding error"
+        case .other(let code, let message):
+            if let message {
+                return "API error (\(code)): \(message)"
+            }
+            return "API error (\(code))"
+        }
+    }
+}
+
+extension LocalDataError {
+    var logDescription: String {
+        switch self {
+        case .writeFailed:
+            return "Local data write failed"
+        case .readFailed:
+            return "Local data read failed"
+        case .dataIntegrityError:
+            return "Local data integrity error"
+        case .storageFull:
+            return "Local data storage full"
+        case .notFound:
+            return "Local data not found"
+        case .other(let error):
+            return "Local data error: \(error.localizedDescription)"
         }
     }
 }
