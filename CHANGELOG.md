@@ -43,7 +43,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - アクセストークンの自動更新
   - 追加スコープのリクエスト
   - Keychain ベースのセッション永続化
-  - ユーザープロフィール情報へのアクセス（email, name, image）
 - GOOGLE_AUTH_SETUP.md でセットアップガイドを追加
   - Google Cloud Console の設定手順
   - OAuth クライアントの構成方法
@@ -61,9 +60,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Issue #1: SwiftData ScheduleEntry Model
 - ScheduleEntry.swift でスケジュールエントリのコアデータモデルを実装
-  - Google Calendar との同期状態を追跡するための syncStatus プロパティを追加
-  - タグベースの検索をサポート
-  - CaleNoteApp.swift に ModelContainer を登録
+- Google Calendar との同期状態を追跡するための syncStatus プロパティを追加
+- タグベースの検索をサポート
+- CaleNoteApp.swift に ModelContainer を登録
 
 ### Technical Details
 
