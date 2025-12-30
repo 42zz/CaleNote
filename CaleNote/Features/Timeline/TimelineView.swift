@@ -46,6 +46,9 @@ struct TimelineView: View {
     /// 新規エントリー作成シート表示フラグ
     @State private var showNewEntrySheet = false
 
+    /// フォーカス日付（月表示で使用）
+    @State private var focusDate = Date()
+
     /// 表示設定
     @AppStorage("timelineShowTags") private var showTags = true
 
@@ -78,6 +81,12 @@ struct TimelineView: View {
         }
     }
 
+    /// エントリー存在日の集合（startOfDay）
+    private var entryDates: Set<Date> {
+        let calendar = Calendar.current
+        return Set(filteredEntries.map { calendar.startOfDay(for: $0.startAt) })
+    }
+
     /// 日付でグループ化されたエントリー（新しい日付が上）
     private var groupedEntries: [(date: Date, entries: [ScheduleEntry])] {
         let calendar = Calendar.current
@@ -104,15 +113,32 @@ struct TimelineView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottomTrailing) {
-                // タイムラインリスト
-                timelineList
+            VStack(spacing: 0) {
+                TopBarView(
+                    showsSidebarButton: showSidebarButton,
+                    onSidebarTap: {
+                        onSidebarButtonTap?()
+                    },
+                    showSearch: $showSearchView,
+                    focusDate: $focusDate,
+                    scrollToToday: scrollToToday,
+                    entryDates: entryDates,
+                    onSelectDate: { date in
+                        focusDate = date
+                        scrollToDate(date)
+                    }
+                )
 
-                // FAB ボタン
-                fabButton
+                Divider()
+
+                ZStack(alignment: .bottomTrailing) {
+                    // タイムラインリスト
+                    timelineList
+
+                    // FAB ボタン
+                    fabButton
+                }
             }
-            .navigationTitle("タイムライン")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 toolbarContent
             }
@@ -126,6 +152,7 @@ struct TimelineView: View {
             .onAppear {
                 // 今日の日付を更新
                 today = Date()
+                focusDate = today
 
                 // 定期的な同期を開始（必要に応じて）
                 syncService.startBackgroundSync()
@@ -202,40 +229,6 @@ struct TimelineView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        // サイドバー/設定ボタン & 検索ボタン
-        ToolbarItem(placement: .navigationBarLeading) {
-            HStack {
-                if showSidebarButton {
-                    // サイドバーを開くボタン
-                    Button {
-                        onSidebarButtonTap?()
-                    } label: {
-                        Image(systemName: "line.3.horizontal")
-                    }
-                } else {
-                    // 設定画面へのリンク
-                    NavigationLink(destination: SettingsView()) {
-                        Image(systemName: "gearshape")
-                    }
-                }
-
-                Button {
-                    showSearchView = true
-                } label: {
-                    Image(systemName: "magnifyingglass")
-                }
-            }
-        }
-
-        // 今日へフォーカスボタン
-        ToolbarItem(placement: .navigationBarTrailing) {
-            Button {
-                scrollToToday(forceToday: false)
-            } label: {
-                Image(systemName: "calendar.circle")
-            }
-        }
-
         // 同期ボタン
         ToolbarItem(placement: .navigationBarTrailing) {
             Button {
@@ -268,6 +261,7 @@ struct TimelineView: View {
     /// 今日のセクションにスクロール
     private func scrollToToday(forceToday: Bool) {
         today = Date()
+        focusDate = today
         guard let proxy = scrollProxy else { return }
         guard let todaySection = groupedEntries.first(where: { isTodaySection($0.date) }) else {
             return
@@ -284,12 +278,33 @@ struct TimelineView: View {
         }
     }
 
+    /// 指定日のセクションにスクロール
+    private func scrollToDate(_ date: Date) {
+        guard let proxy = scrollProxy else { return }
+
+        let calendar = Calendar.current
+        let targetDate = calendar.startOfDay(for: date)
+
+        guard let targetSection = groupedEntries.first(where: {
+            calendar.isDate($0.date, inSameDayAs: targetDate)
+        }) else {
+            return
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation {
+                proxy.scrollTo(targetSection.date, anchor: .top)
+            }
+        }
+    }
+
     /// 日付変更時の更新処理
     private func refreshForDayChange(shouldScroll: Bool) {
         let now = Date()
         let calendar = Calendar.current
         let didChange = !calendar.isDate(now, inSameDayAs: today)
         today = now
+        focusDate = today
 
         if didChange, shouldScroll {
             scrollToToday(forceToday: true)
