@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added - 2025/12/30
 
+#### Issue #7: Timeline View
+- TimelineView.swift でメイン画面のタイムラインビューを実装
+  - **日付セクション**: 日付ごとにエントリーをグループ化して表示
+  - **時系列表示**: 各日のエントリーを時刻順に並べて表示
+  - **混在表示**: Google Calendar イベントと CaleNote ジャーナルを統合表示
+  - **検索機能**: タイトル、本文、タグによる検索
+  - **今日へフォーカス**: 初回表示時に今日のセクションへ自動スクロール
+  - **同期ボタン**: ツールバーから手動同期を実行可能
+  - **FAB ボタン**: 右下の＋ボタンで新規エントリー作成（画面は未実装）
+- TimelineRowView.swift でエントリー行のUIを実装
+  - 時刻表示（開始〜終了）
+  - タイトル、本文プレビュー、タグ表示
+  - ソースアイコン（カレンダー/ノート）
+  - 同期状態バッジ（pending/failed）
+- DateSectionHeader.swift で日付セクションヘッダーを実装
+  - 今日、昨日、明日の相対日付表示
+  - 今日のセクションをハイライト表示（アクセントカラー、ドット、背景）
+- ContentView を TimelineView に置き換え
+
 #### Issue #4: Bidirectional Synchronization Service
 - CalendarSyncService.swift で Google Calendar との双方向同期を実装
   - **ローカル→Google 同期**: ローカル変更を非同期で Google Calendar に反映
