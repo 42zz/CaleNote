@@ -86,7 +86,11 @@ struct SearchView: View {
                 ForEach(groupedResults, id: \.date) { section in
                     Section {
                         ForEach(section.entries) { entry in
-                            TimelineRowView(entry: entry, showTags: showTags)
+                            NavigationLink {
+                                EntryDetailView(entry: entry)
+                            } label: {
+                                TimelineRowView(entry: entry, showTags: showTags)
+                            }
                         }
                     } header: {
                         DateSectionHeader(date: section.date, isToday: false)

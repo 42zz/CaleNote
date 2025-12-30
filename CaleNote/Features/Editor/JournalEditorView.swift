@@ -7,6 +7,7 @@ struct JournalEditorView: View {
 
     @EnvironmentObject private var auth: GoogleAuthService
     @EnvironmentObject private var searchIndex: SearchIndexService
+    @EnvironmentObject private var relatedIndex: RelatedEntriesIndexService
     // Use EnvironmentObject for SyncService if possible, or create local/singleton. 
     // Usually services should be injected. Assuming it's available or we create one.
     // Given the previous files, CalendarSyncService is likely created in App and injected.
@@ -163,8 +164,10 @@ struct JournalEditorView: View {
 
                 if let entry {
                     searchIndex.updateEntry(entry)
+                    relatedIndex.updateEntry(entry)
                 } else if let createdEntry {
                     searchIndex.indexEntry(createdEntry)
+                    relatedIndex.indexEntry(createdEntry)
                 }
                 
                 // Trigger sync

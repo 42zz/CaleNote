@@ -8,6 +8,9 @@ struct CaleNoteApp: App {
     
     // 検索インデックスサービス
     @StateObject private var searchIndexService: SearchIndexService
+    
+    // 関連エントリーインデックスサービス
+    @StateObject private var relatedIndexService: RelatedEntriesIndexService
 
     // モデルコンテナの保持
     let container: ModelContainer
@@ -28,10 +31,13 @@ struct CaleNoteApp: App {
             let context = container.mainContext
             let searchIndex = SearchIndexService()
             searchIndex.rebuildIndex(modelContext: context)
+            let relatedIndex = RelatedEntriesIndexService()
+            relatedIndex.rebuildIndex(modelContext: context)
             let sync = CalendarSyncService(
                 apiClient: GoogleCalendarClient(),
                 authService: .shared,
                 searchIndexService: searchIndex,
+                relatedIndexService: relatedIndex,
                 errorHandler: .shared,
                 modelContext: context,
                 calendarSettings: .shared,
@@ -39,6 +45,7 @@ struct CaleNoteApp: App {
             )
             _syncService = StateObject(wrappedValue: sync)
             _searchIndexService = StateObject(wrappedValue: searchIndex)
+            _relatedIndexService = StateObject(wrappedValue: relatedIndex)
         } catch {
             fatalError("Could not initialize ModelContainer: \(error)")
         }
@@ -50,6 +57,7 @@ struct CaleNoteApp: App {
                 .environmentObject(authService)
                 .environmentObject(syncService)
                 .environmentObject(searchIndexService)
+                .environmentObject(relatedIndexService)
         }
         .modelContainer(container)
     }
