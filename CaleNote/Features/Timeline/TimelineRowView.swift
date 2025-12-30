@@ -52,15 +52,21 @@ struct TimelineRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            // 時刻表示
+            // 時刻表示（全日イベントの場合は「終日」表示）
             VStack(alignment: .trailing, spacing: 2) {
-                Text(timeText)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                if entry.isAllDay {
+                    Text("終日")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text(timeText)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
 
-                Text(endTimeText)
-                    .font(.caption2)
-                    .foregroundColor(.secondary.opacity(0.7))
+                    Text(endTimeText)
+                        .font(.caption2)
+                        .foregroundColor(.secondary.opacity(0.7))
+                }
             }
             .frame(width: 50)
 

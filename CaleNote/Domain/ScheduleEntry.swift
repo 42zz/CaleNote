@@ -32,6 +32,9 @@ final class ScheduleEntry {
     /// 終了日時
     var endAt: Date
 
+    /// 全日イベントフラグ
+    var isAllDay: Bool
+
     /// タイトル
     var title: String
 
@@ -62,6 +65,7 @@ final class ScheduleEntry {
     ///   - googleEventId: Google Calendar イベントID
     ///   - startAt: 開始日時
     ///   - endAt: 終了日時
+    ///   - isAllDay: 全日イベントフラグ（デフォルト: false）
     ///   - title: タイトル
     ///   - body: 本文（オプション）
     ///   - tags: タグ配列
@@ -73,6 +77,7 @@ final class ScheduleEntry {
         googleEventId: String? = nil,
         startAt: Date,
         endAt: Date,
+        isAllDay: Bool = false,
         title: String,
         body: String? = nil,
         tags: [String] = [],
@@ -84,6 +89,7 @@ final class ScheduleEntry {
         self.googleEventId = googleEventId
         self.startAt = startAt
         self.endAt = endAt
+        self.isAllDay = isAllDay
         self.title = title
         self.body = body
         self.tags = tags

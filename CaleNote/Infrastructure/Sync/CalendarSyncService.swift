@@ -33,6 +33,7 @@ final class CalendarSyncService: ObservableObject {
     private let authService: GoogleAuthService
     private let errorHandler: ErrorHandler
     private let modelContext: ModelContext
+    private let calendarSettings: CalendarSettings
 
     // MARK: - Logger
 
@@ -56,12 +57,14 @@ final class CalendarSyncService: ObservableObject {
         apiClient: GoogleCalendarClient,
         authService: GoogleAuthService,
         errorHandler: ErrorHandler,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        calendarSettings: CalendarSettings = .shared
     ) {
         self.apiClient = apiClient
         self.authService = authService
         self.errorHandler = errorHandler
         self.modelContext = modelContext
+        self.calendarSettings = calendarSettings
 
         // syncToken を復元
         loadSyncTokens()
@@ -130,8 +133,8 @@ final class CalendarSyncService: ObservableObject {
         // Google Calendar イベントに変換
         let calendarEvent = convertToCalendarEvent(entry)
 
-        // デフォルトカレンダー ID（実際には設定から取得すべき）
-        let calendarId = "primary"
+        // 設定からカレンダーIDを取得
+        let calendarId = calendarSettings.targetCalendarId
 
         if let googleEventId = entry.googleEventId {
             // 既存イベントを更新
@@ -168,6 +171,10 @@ final class CalendarSyncService: ObservableObject {
     /// - Throws: 同期エラー
     func syncGoogleChangesToLocal() async throws {
         logger.info("Syncing Google changes to local")
+
+        // TODO: Issue #18 - 現在は全カレンダーを同期しているが、
+        // 設定で指定されたカレンダーのみを同期するように変更する必要がある
+        // 暫定的には全カレンダーを同期する実装とする
 
         // カレンダーリストを取得
         let calendarList = try await apiClient.getCalendarList()
