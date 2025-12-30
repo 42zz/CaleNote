@@ -103,7 +103,11 @@ struct TimelineView: View {
                 ForEach(Array(groupedEntries.enumerated()), id: \.offset) { index, section in
                     Section {
                         ForEach(section.entries) { entry in
-                            TimelineRowView(entry: entry, showTags: showTags)
+                            NavigationLink {
+                                EntryDetailView(entry: entry)
+                            } label: {
+                                TimelineRowView(entry: entry, showTags: showTags)
+                            }
                         }
                     } header: {
                         DateSectionHeader(
