@@ -113,9 +113,9 @@ extension CaleNoteError: LocalizedError {
         case .localDataError(let error):
             return error.localizedDescription
         case .syncError(let message):
-            return "同期エラー: \(message)"
+            return L10n.tr("error.sync", message)
         case .unknown(let error):
-            return "予期しないエラーが発生しました: \(error.localizedDescription)"
+            return L10n.tr("error.unknown", error.localizedDescription)
         }
     }
 
@@ -123,19 +123,19 @@ extension CaleNoteError: LocalizedError {
     var recoverySuggestion: String? {
         switch self {
         case .networkError(.noConnection):
-            return "インターネット接続を確認してください"
+            return L10n.tr("error.recovery.no_connection")
         case .networkError(.timeout):
-            return "時間をおいて再度お試しください"
+            return L10n.tr("error.recovery.timeout")
         case .apiError(.unauthorized), .apiError(.forbidden):
-            return "アカウント設定を確認してください"
+            return L10n.tr("error.recovery.account")
         case .apiError(.rateLimited):
-            return "しばらく待ってから再度お試しください"
+            return L10n.tr("error.recovery.rate_limited")
         case .apiError(.tokenExpired):
-            return "再度ログインしてください"
+            return L10n.tr("error.recovery.token_expired")
         case .localDataError(.storageFull):
-            return "デバイスの空き容量を確保してください"
+            return L10n.tr("error.recovery.storage_full")
         default:
-            return "問題が解決しない場合は、アプリを再起動してください"
+            return L10n.tr("error.recovery.default")
         }
     }
 }
@@ -144,15 +144,15 @@ extension NetworkError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .timeout:
-            return "通信がタイムアウトしました"
+            return L10n.tr("error.network.timeout")
         case .connectionFailed:
-            return "サーバーに接続できませんでした"
+            return L10n.tr("error.network.connection_failed")
         case .dnsError:
-            return "DNS エラーが発生しました"
+            return L10n.tr("error.network.dns")
         case .noConnection:
-            return "インターネット接続がありません"
+            return L10n.tr("error.network.no_connection")
         case .other(let error):
-            return "ネットワークエラーが発生しました"
+            return L10n.tr("error.network.other", error.localizedDescription)
         }
     }
 }
@@ -161,26 +161,26 @@ extension APIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unauthorized:
-            return "認証に失敗しました"
+            return L10n.tr("error.api.unauthorized")
         case .forbidden:
-            return "アクセスが拒否されました"
+            return L10n.tr("error.api.forbidden")
         case .notFound:
-            return "リソースが見つかりませんでした"
+            return L10n.tr("error.api.not_found")
         case .rateLimited:
-            return "リクエスト制限に達しました"
+            return L10n.tr("error.api.rate_limited")
         case .tokenExpired:
-            return "認証トークンが失効しました"
+            return L10n.tr("error.api.token_expired")
         case .serverError(let code):
-            return "サーバーエラーが発生しました（\(code)）"
+            return L10n.tr("error.api.server_error", L10n.number(code))
         case .invalidResponse:
-            return "無効なレスポンスを受信しました"
+            return L10n.tr("error.api.invalid_response")
         case .decodingError:
-            return "データの解析に失敗しました"
+            return L10n.tr("error.api.decoding_failed")
         case .other(let code, let message):
             if message != nil {
-                return "API エラー（\(code)）が発生しました"
+                return L10n.tr("error.api.other", L10n.number(code))
             }
-            return "API エラー（\(code)）が発生しました"
+            return L10n.tr("error.api.other", L10n.number(code))
         }
     }
 }
@@ -189,17 +189,17 @@ extension LocalDataError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .writeFailed:
-            return "データの保存に失敗しました"
+            return L10n.tr("error.local.write_failed")
         case .readFailed:
-            return "データの読み込みに失敗しました"
+            return L10n.tr("error.local.read_failed")
         case .dataIntegrityError:
-            return "データの整合性エラーが発生しました"
+            return L10n.tr("error.local.integrity_failed")
         case .storageFull:
-            return "ストレージ容量が不足しています"
+            return L10n.tr("error.local.storage_full")
         case .notFound:
-            return "データが見つかりませんでした"
+            return L10n.tr("error.local.not_found")
         case .other(let error):
-            return "ローカルデータエラーが発生しました"
+            return L10n.tr("error.local.other", error.localizedDescription)
         }
     }
 }

@@ -60,11 +60,11 @@ struct MonthCalendarPickerView: View {
                 Spacer(minLength: 0)
             }
             .padding(16)
-            .navigationTitle("カレンダー")
+            .navigationTitle(L10n.tr("calendar.title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完了") {
+                    Button(L10n.tr("common.done")) {
                         dismiss()
                     }
                 }
@@ -82,8 +82,8 @@ struct MonthCalendarPickerView: View {
                 Image(systemName: "chevron.left")
                     .font(.headline)
             }
-            .accessibilityLabel("前月")
-            .accessibilityHint("前の月に移動します")
+            .accessibilityLabel(L10n.tr("calendar.previous_month"))
+            .accessibilityHint(L10n.tr("calendar.previous_month.hint"))
 
             Spacer(minLength: 0)
 
@@ -97,8 +97,8 @@ struct MonthCalendarPickerView: View {
                 Image(systemName: "chevron.right")
                     .font(.headline)
             }
-            .accessibilityLabel("翌月")
-            .accessibilityHint("次の月に移動します")
+            .accessibilityLabel(L10n.tr("calendar.next_month"))
+            .accessibilityHint(L10n.tr("calendar.next_month.hint"))
         }
     }
 
@@ -121,7 +121,7 @@ struct MonthCalendarPickerView: View {
             .datePickerStyle(.compact)
             .labelsHidden()
             .opacity(0.02)
-            .accessibilityLabel("年月を選択")
+            .accessibilityLabel(L10n.tr("calendar.month_year.select"))
         }
     }
 
@@ -195,7 +195,7 @@ struct MonthCalendarPickerView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(dayAccessibilityLabel(for: date, isToday: isToday, hasEntry: hasEntry))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityHint("日付を選択します")
+        .accessibilityHint(L10n.tr("calendar.day.select.hint"))
     }
 
     // MARK: - Footer
@@ -209,7 +209,7 @@ struct MonthCalendarPickerView: View {
                 onSelectDate?(today)
                 dismiss()
             } label: {
-                Text("今日")
+                Text(L10n.tr("date.today"))
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .padding(.horizontal, 16)
@@ -230,7 +230,7 @@ struct MonthCalendarPickerView: View {
 
     private var weekdaySymbols: [String] {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.locale = Locale.autoupdatingCurrent
         let symbols = formatter.shortWeekdaySymbols
         let calendar = Calendar.current
         let startIndex = max(calendar.firstWeekday - 1, 0)
@@ -266,8 +266,8 @@ struct MonthCalendarPickerView: View {
 
     private func monthYearString(for date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "yyyy年M月"
+        formatter.locale = Locale.autoupdatingCurrent
+        formatter.setLocalizedDateFormatFromTemplate("yMMMM")
         return formatter.string(from: date)
     }
 
@@ -286,17 +286,17 @@ struct MonthCalendarPickerView: View {
 
     private func dayAccessibilityLabel(for date: Date, isToday: Bool, hasEntry: Bool) -> String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.locale = Locale.autoupdatingCurrent
         formatter.dateStyle = .full
         formatter.timeStyle = .none
         var parts = [formatter.string(from: date)]
         if isToday {
-            parts.append("今日")
+            parts.append(L10n.tr("date.today"))
         }
         if hasEntry {
-            parts.append("エントリーあり")
+            parts.append(L10n.tr("calendar.has_entry"))
         }
-        return parts.joined(separator: "、")
+        return parts.joined(separator: L10n.tr("common.list_separator"))
     }
 }
 

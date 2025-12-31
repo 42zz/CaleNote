@@ -10,13 +10,13 @@ struct OnboardingView: View {
         var title: String {
             switch self {
             case .welcome:
-                return "CaleNoteへようこそ"
+                return L10n.tr("onboarding.step.welcome")
             case .googleSignIn:
-                return "Googleアカウント連携"
+                return L10n.tr("onboarding.step.google_sign_in")
             case .initialSettings:
-                return "初期設定"
+                return L10n.tr("onboarding.step.initial_settings")
             case .tutorial:
-                return "使い方のポイント"
+                return L10n.tr("onboarding.step.tutorial")
             }
         }
     }
@@ -62,11 +62,11 @@ struct OnboardingView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("スキップ") {
+                    Button(L10n.tr("common.skip")) {
                         completeOnboarding()
                     }
-                    .accessibilityLabel("オンボーディングをスキップ")
-                    .accessibilityHint("後から設定画面で再表示できます")
+                    .accessibilityLabel(L10n.tr("onboarding.skip"))
+                    .accessibilityHint(L10n.tr("onboarding.skip.hint"))
                     .accessibilityIdentifier("onboardingSkipButton")
                 }
             }
@@ -90,7 +90,7 @@ struct OnboardingView: View {
 
     private var footer: some View {
         HStack {
-            Button("戻る") {
+            Button(L10n.tr("common.back")) {
                 moveStep(offset: -1)
             }
             .disabled(step == .welcome)
@@ -98,7 +98,7 @@ struct OnboardingView: View {
 
             Spacer()
 
-            Button(step == .tutorial ? "完了" : "次へ") {
+            Button(step == .tutorial ? L10n.tr("common.done") : L10n.tr("common.next")) {
                 if step == .tutorial {
                     completeOnboarding()
                 } else {
@@ -113,21 +113,21 @@ struct OnboardingView: View {
     private var welcomeStep: some View {
         OnboardingStepContainer {
             VStack(alignment: .leading, spacing: 16) {
-                Text("カレンダーに寄生する記録")
+                Text(L10n.tr("onboarding.welcome.title"))
                     .font(.title2)
                     .fontWeight(.semibold)
 
-                Text("CaleNoteは、カレンダーを見る流れを途切れさせずに記録できる体験を目指しています。")
+                Text(L10n.tr("onboarding.welcome.message"))
                     .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    Label("予定と記録を同じタイムラインに表示", systemImage: "calendar")
-                    Label("Googleカレンダーと双方向同期", systemImage: "arrow.triangle.2.circlepath")
-                    Label("学習コストの低いUI", systemImage: "hand.tap")
+                    Label(L10n.tr("onboarding.welcome.point.timeline"), systemImage: "calendar")
+                    Label(L10n.tr("onboarding.welcome.point.sync"), systemImage: "arrow.triangle.2.circlepath")
+                    Label(L10n.tr("onboarding.welcome.point.ui"), systemImage: "hand.tap")
                 }
                 .font(.subheadline)
 
-                Button("このステップをスキップ") {
+                Button(L10n.tr("onboarding.step.skip")) {
                     moveStep(offset: 1)
                 }
                 .font(.footnote)
@@ -141,34 +141,34 @@ struct OnboardingView: View {
     private var googleSignInStep: some View {
         OnboardingStepContainer {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Googleカレンダーと同期するために、Googleアカウントの連携が必要です。")
+                Text(L10n.tr("onboarding.google.message"))
                     .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("必要な権限")
+                    Text(L10n.tr("onboarding.google.permissions.title"))
                         .font(.headline)
 
-                    Label("カレンダーの閲覧・作成・更新・削除", systemImage: "checkmark.circle")
-                    Label("同期を維持するためのアクセス", systemImage: "lock.shield")
+                    Label(L10n.tr("onboarding.google.permissions.calendar"), systemImage: "checkmark.circle")
+                    Label(L10n.tr("onboarding.google.permissions.access"), systemImage: "lock.shield")
                 }
                 .font(.subheadline)
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("プライバシー")
+                    Text(L10n.tr("onboarding.google.privacy.title"))
                         .font(.headline)
 
-                    Text("データはGoogleカレンダーを正として扱い、必要最小限のみローカルに保存します。いつでも設定からサインアウトできます。")
+                    Text(L10n.tr("onboarding.google.privacy.message"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
 
                 if auth.isAuthenticated {
-                    Label("連携済み: \(auth.userEmail ?? "Unknown")", systemImage: "checkmark.seal.fill")
+                    Label(L10n.tr("onboarding.google.connected", auth.userEmail ?? L10n.tr("common.unknown")), systemImage: "checkmark.seal.fill")
                         .foregroundStyle(.green)
                         .font(.subheadline)
                         .accessibilityIdentifier("onboardingSignedInLabel")
                 } else {
-                    Button("Googleでサインイン") {
+                    Button(L10n.tr("auth.google.sign_in")) {
                         Task {
                             do {
                                 try await auth.signIn()
@@ -188,7 +188,7 @@ struct OnboardingView: View {
                         .foregroundStyle(.red)
                 }
 
-                Button("このステップをスキップ") {
+                Button(L10n.tr("onboarding.step.skip")) {
                     moveStep(offset: 1)
                 }
                 .font(.footnote)
@@ -202,7 +202,7 @@ struct OnboardingView: View {
     private var initialSettingsStep: some View {
         OnboardingStepContainer {
             VStack(alignment: .leading, spacing: 16) {
-                Text("同期対象や表示設定を選んで、あなたのカレンダー体験に合わせます。")
+                Text(L10n.tr("onboarding.settings.message"))
                     .foregroundStyle(.secondary)
 
                 calendarSelectionSection
@@ -215,7 +215,7 @@ struct OnboardingView: View {
 
                 weekStartSection
 
-                Button("このステップをスキップ") {
+                Button(L10n.tr("onboarding.step.skip")) {
                     moveStep(offset: 1)
                 }
                 .font(.footnote)
@@ -228,21 +228,21 @@ struct OnboardingView: View {
 
     private var calendarSelectionSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("同期対象カレンダー")
+            Text(L10n.tr("onboarding.settings.calendars.title"))
                 .font(.headline)
 
             if !auth.isAuthenticated {
-                Text("カレンダーを取得するにはGoogleサインインが必要です。")
+                Text(L10n.tr("onboarding.settings.calendars.sign_in_required"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else if calendarListService.calendars.isEmpty {
                 HStack(spacing: 12) {
                     ProgressView()
-                    Text("カレンダーを取得しています…")
+                    Text(L10n.tr("onboarding.settings.calendars.loading"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                Button("再取得する") {
+                Button(L10n.tr("common.refresh")) {
                     Task {
                         await calendarListService.syncCalendarList()
                     }
@@ -265,7 +265,7 @@ struct OnboardingView: View {
                             Text(calendar.summary)
                                 .font(.subheadline)
                             if calendar.isPrimary {
-                                Text("メイン")
+                                Text(L10n.tr("calendar.primary"))
                                     .font(.caption2)
                                     .foregroundStyle(.white)
                                     .padding(.horizontal, 4)
@@ -279,7 +279,7 @@ struct OnboardingView: View {
                 }
 
                 if let targetCalendar = writableCalendars.first(where: { $0.calendarId == targetCalendarId }) ?? writableCalendars.first {
-                    Picker("書き込み先", selection: $targetCalendarId) {
+                    Picker(L10n.tr("onboarding.settings.calendars.target"), selection: $targetCalendarId) {
                         ForEach(writableCalendars, id: \.calendarId) { calendar in
                             Text(calendar.summary)
                                 .tag(calendar.calendarId)
@@ -292,7 +292,7 @@ struct OnboardingView: View {
                     }
                     .accessibilityIdentifier("onboardingTargetCalendarPicker")
                 } else {
-                    Text("書き込み可能なカレンダーが見つかりません。")
+                    Text(L10n.tr("onboarding.settings.calendars.no_writable"))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -302,22 +302,22 @@ struct OnboardingView: View {
 
     private var syncWindowSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("同期範囲")
+            Text(L10n.tr("onboarding.settings.sync_window"))
                 .font(.headline)
 
-            Stepper("過去: \(pastDays)日", value: $pastDays, in: 1...365)
-            Stepper("未来: \(futureDays)日", value: $futureDays, in: 1...365)
+            Stepper(L10n.tr("settings.sync_window.past", pastDays), value: $pastDays, in: 1...365)
+            Stepper(L10n.tr("settings.sync_window.future", futureDays), value: $futureDays, in: 1...365)
         }
     }
 
     private var weekStartSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("週の開始曜日")
+            Text(L10n.tr("settings.display.week_start"))
                 .font(.headline)
 
-            Picker("開始曜日", selection: $weekStartDay) {
-                Text("日曜日").tag(0)
-                Text("月曜日").tag(1)
+            Picker(L10n.tr("settings.display.week_start"), selection: $weekStartDay) {
+                Text(L10n.tr("weekday.sunday")).tag(0)
+                Text(L10n.tr("weekday.monday")).tag(1)
             }
             .pickerStyle(.segmented)
         }
@@ -326,25 +326,25 @@ struct OnboardingView: View {
     private var tutorialStep: some View {
         OnboardingStepContainer {
             VStack(alignment: .leading, spacing: 16) {
-                Text("日々の記録は、カレンダーを見る延長で完結します。")
+                Text(L10n.tr("onboarding.tutorial.message"))
                     .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    Label("右下の＋から記録を追加", systemImage: "plus.circle.fill")
-                    Label("タイトルと本文を入力して保存", systemImage: "square.and.pencil")
-                    Label("#タグで整理", systemImage: "tag")
-                    Label("検索から過去の記録を探す", systemImage: "magnifyingglass")
+                    Label(L10n.tr("onboarding.tutorial.point.add"), systemImage: "plus.circle.fill")
+                    Label(L10n.tr("onboarding.tutorial.point.save"), systemImage: "square.and.pencil")
+                    Label(L10n.tr("onboarding.tutorial.point.tags"), systemImage: "tag")
+                    Label(L10n.tr("onboarding.tutorial.point.search"), systemImage: "magnifyingglass")
                 }
                 .font(.subheadline)
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("エントリー例")
+                    Text(L10n.tr("onboarding.tutorial.example.title"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("朝の振り返り")
+                        Text(L10n.tr("onboarding.tutorial.example.entry_title"))
                             .font(.headline)
-                        Text("7:30 / #習慣 #メモ")
+                        Text(L10n.tr("onboarding.tutorial.example.entry_detail"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -354,7 +354,7 @@ struct OnboardingView: View {
                     .cornerRadius(12)
                 }
 
-                Text("いつでも設定画面からオンボーディングを見直せます。")
+                Text(L10n.tr("onboarding.tutorial.footer"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

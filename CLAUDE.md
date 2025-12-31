@@ -38,6 +38,12 @@ swiftlint --config .swiftlint.yml
 ```
 Note: Some rules (e.g. force cast/unwrap) are configured as warnings for gradual rollout.
 
+### CI (GitHub Actions)
+GitHub Actions で lint / test / build / coverage を自動実行します。
+
+- PR: SwiftLint、ユニットテスト、UIテスト、カバレッジ計測、PRコメント
+- main: フルテスト、Debug/Release ビルド、dSYM/xcresult アーカイブ、カバレッジバッジ更新
+
 ### Development
 The project uses Xcode's standard iOS development workflow. Open `CaleNote.xcodeproj` in Xcode to run the app in the simulator or on a device.
 
@@ -104,6 +110,7 @@ Current structure highlights:
 * **Features Layer**: Timeline, Editor, Settings (TrashView), Search, Tags, Onboarding
 * **Domain Layer**: `ScheduleEntry`, `CalendarInfo`
 * **Infrastructure Layer**: Sync, Search/Related indexes, Settings (`CalendarSettings`, `TrashSettings`)
+* **CI/CD**: GitHub Actions (`.github/workflows/ci.yml`) for lint/test/build/coverage
 
 ## Implementation Guidelines
 

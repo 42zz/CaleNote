@@ -40,10 +40,10 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Google Account") {
+            Section {
                 if auth.isAuthenticated {
-                    Text("Logged in as: \(auth.userEmail ?? "Unknown")")
-                    Button("Reauthenticate") {
+                    Text(L10n.tr("settings.google.logged_in", auth.userEmail ?? L10n.tr("common.unknown")))
+                    Button(L10n.tr("settings.google.reauthenticate")) {
                         Task {
                             do {
                                 try await auth.signIn()
@@ -52,16 +52,16 @@ struct SettingsView: View {
                             }
                         }
                     }
-                    .accessibilityLabel("再認証")
-                    .accessibilityHint("Googleアカウントの再認証を行います")
-                    Button("Sign Out") {
+                    .accessibilityLabel(L10n.tr("settings.google.reauthenticate"))
+                    .accessibilityHint(L10n.tr("settings.google.reauthenticate.hint"))
+                    Button(L10n.tr("settings.google.sign_out")) {
                         auth.signOut()
                     }
                     .foregroundColor(.red)
-                    .accessibilityLabel("サインアウト")
-                    .accessibilityHint("Googleアカウントからサインアウトします")
+                    .accessibilityLabel(L10n.tr("settings.google.sign_out"))
+                    .accessibilityHint(L10n.tr("settings.google.sign_out.hint"))
                 } else {
-                    Button("Sign In with Google") {
+                    Button(L10n.tr("settings.google.sign_in")) {
                         Task {
                             do {
                                 try await auth.signIn()
@@ -70,33 +70,39 @@ struct SettingsView: View {
                             }
                         }
                     }
-                    .accessibilityLabel("Googleでサインイン")
-                    .accessibilityHint("Googleアカウントでサインインします")
+                    .accessibilityLabel(L10n.tr("auth.google.sign_in"))
+                    .accessibilityHint(L10n.tr("auth.google.sign_in.hint"))
                 }
+            } header: {
+                Text(L10n.tr("settings.google_account"))
             }
             
-            Section("Calendar Settings") {
-                TextField("Target Calendar ID", text: $targetCalendarId)
+            Section {
+                TextField(L10n.tr("settings.calendar.target_id.placeholder"), text: $targetCalendarId)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
-                    .accessibilityLabel("書き込み先カレンダーID")
+                    .accessibilityLabel(L10n.tr("settings.calendar.target_id.accessibility"))
                 
-                Text("Current target for writes: \(targetCalendarId)")
+                Text(L10n.tr("settings.calendar.target_id.current", targetCalendarId))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            } header: {
+                Text(L10n.tr("settings.calendar"))
             }
             
-            Section("Sync Window") {
-                Stepper("Past: \(pastDays) days", value: $pastDays, in: 1...365)
-                Stepper("Future: \(futureDays) days", value: $futureDays, in: 1...365)
+            Section {
+                Stepper(L10n.tr("settings.sync_window.past", pastDays), value: $pastDays, in: 1...365)
+                Stepper(L10n.tr("settings.sync_window.future", futureDays), value: $futureDays, in: 1...365)
+            } header: {
+                Text(L10n.tr("settings.sync_window"))
             }
 
-            Section("Sync Failures") {
+            Section {
                 if failedEntries.isEmpty {
-                    Text("同期失敗はありません")
+                    Text(L10n.tr("settings.sync_failures.empty"))
                         .foregroundStyle(.secondary)
                 } else {
-                    Button("失敗エントリーを再送") {
+                    Button(L10n.tr("settings.sync_failures.retry")) {
                         Task {
                             do {
                                 try await syncService.retryFailedSyncs()
@@ -116,58 +122,66 @@ struct SettingsView: View {
                         }
                     }
                 }
+            } header: {
+                Text(L10n.tr("settings.sync_failures"))
             }
 
-            Section("Display Settings") {
-                Picker("週の開始曜日", selection: $weekStartDay) {
-                    Text("日曜日").tag(0)
-                    Text("月曜日").tag(1)
+            Section {
+                Picker(L10n.tr("settings.display.week_start"), selection: $weekStartDay) {
+                    Text(L10n.tr("weekday.sunday")).tag(0)
+                    Text(L10n.tr("weekday.monday")).tag(1)
                 }
-                Toggle("タイムラインにタグを表示", isOn: $timelineShowTags)
-                Toggle("削除前に確認する", isOn: $confirmDeleteEntry)
+                Toggle(L10n.tr("settings.display.show_tags"), isOn: $timelineShowTags)
+                Toggle(L10n.tr("settings.display.confirm_delete"), isOn: $confirmDeleteEntry)
+            } header: {
+                Text(L10n.tr("settings.display"))
             }
 
-            Section("Trash") {
-                Toggle("ゴミ箱を有効にする", isOn: $trashEnabled)
-                Picker("保持期間", selection: $trashRetentionDays) {
+            Section {
+                Toggle(L10n.tr("settings.trash.enable"), isOn: $trashEnabled)
+                Picker(L10n.tr("settings.trash.retention"), selection: $trashRetentionDays) {
                     ForEach(TrashSettings.shared.retentionOptions) { option in
                         Text(option.label).tag(option.rawValue)
                     }
                 }
                 .disabled(!trashEnabled)
-                Toggle("期限切れを自動削除", isOn: $trashAutoPurgeEnabled)
+                Toggle(L10n.tr("settings.trash.auto_purge"), isOn: $trashAutoPurgeEnabled)
                     .disabled(!trashEnabled)
-                NavigationLink("ゴミ箱を開く") {
+                NavigationLink(L10n.tr("settings.trash.open")) {
                     TrashView()
                 }
+            } header: {
+                Text(L10n.tr("settings.trash"))
             }
 
-            Section("Tags") {
-                NavigationLink("タグ管理") {
+            Section {
+                NavigationLink(L10n.tr("settings.tags.manage")) {
                     TagsView()
                 }
+            } header: {
+                Text(L10n.tr("settings.tags"))
             }
 
-            Section("Data Management") {
+            Section {
                 HStack {
-                    Text("データ整合性")
+                    Text(L10n.tr("settings.data.integrity"))
                     Spacer()
                     if let integrityStatus {
-                        Text(integrityStatus ? "OK" : "破損の可能性")
+                        Text(integrityStatus ? L10n.tr("settings.data.integrity.ok") : L10n.tr("settings.data.integrity.warning"))
                             .foregroundStyle(integrityStatus ? .green : .red)
                     } else {
-                        Text("未チェック")
+                        Text(L10n.tr("settings.data.integrity.unchecked"))
                             .foregroundStyle(.secondary)
                     }
                 }
-                Button("整合性チェック") {
+                Button(L10n.tr("settings.data.integrity.check")) {
                     integrityStatus = recoveryService.checkIntegrity(modelContext: modelContext)
                 }
-                Button("ローカルデータを再構築") {
+                Button(L10n.tr("settings.data.rebuild")) {
                     showRecoveryConfirm = true
                 }
                 .disabled(recoveryService.isRecovering)
-                Button("ローカルキャッシュを削除") {
+                Button(L10n.tr("settings.data.clear_cache")) {
                     showClearCacheConfirm = true
                 }
                 .disabled(recoveryService.isRecovering)
@@ -180,9 +194,11 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+            } header: {
+                Text(L10n.tr("settings.data_management"))
             }
             
-            Section("Actions") {
+            Section {
                 Button {
                     Task {
                         do {
@@ -197,31 +213,35 @@ struct SettingsView: View {
                             ProgressView()
                                 .padding(.trailing, 8)
                         }
-                        Text("Force Full Sync")
+                        Text(L10n.tr("settings.actions.force_full_sync"))
                     }
                 }
                 .disabled(syncService.isSyncing)
-                .accessibilityLabel("フル同期を実行")
-                .accessibilityHint("Googleカレンダーとすべてのデータを再同期します")
+                .accessibilityLabel(L10n.tr("settings.actions.force_full_sync"))
+                .accessibilityHint(L10n.tr("settings.actions.force_full_sync.hint"))
                 
-                Button("Reset Tokens") {
+                Button(L10n.tr("settings.actions.reset_tokens")) {
                     syncService.resetSyncTokens()
                 }
-                .accessibilityLabel("同期トークンをリセット")
-                .accessibilityHint("次回の同期で全件取得します")
+                .accessibilityLabel(L10n.tr("settings.actions.reset_tokens"))
+                .accessibilityHint(L10n.tr("settings.actions.reset_tokens.hint"))
 
-                Button("オンボーディングを再表示") {
+                Button(L10n.tr("settings.actions.show_onboarding")) {
                     showOnboarding = true
                 }
-                .accessibilityLabel("オンボーディングを再表示")
-                .accessibilityHint("初回ガイドを再度確認します")
+                .accessibilityLabel(L10n.tr("settings.actions.show_onboarding"))
+                .accessibilityHint(L10n.tr("settings.actions.show_onboarding.hint"))
+            } header: {
+                Text(L10n.tr("settings.actions"))
             }
 
-            Section("App Info") {
-                Text("Version: \(appVersion)")
-                Text("Build: \(buildNumber)")
-                Text("Privacy Policy: 未設定")
-                Text("Terms of Service: 未設定")
+            Section {
+                Text(L10n.tr("settings.app_info.version", appVersion))
+                Text(L10n.tr("settings.app_info.build", buildNumber))
+                Text(L10n.tr("settings.app_info.privacy_policy"))
+                Text(L10n.tr("settings.app_info.terms"))
+            } header: {
+                Text(L10n.tr("settings.app_info"))
             }
             
             if let error = errorMessage {
@@ -231,7 +251,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .navigationTitle("Settings")
+        .navigationTitle(L10n.tr("settings.title"))
         .onChange(of: targetCalendarId) { _, newValue in
             CalendarSettings.shared.targetCalendarId = newValue
         }
@@ -251,10 +271,10 @@ struct SettingsView: View {
             TrashSettings.shared.autoPurgeEnabled = newValue
         }
         .confirmationDialog(
-            "ローカルデータを再構築しますか？",
+            L10n.tr("settings.data.rebuild.confirm"),
             isPresented: $showRecoveryConfirm
         ) {
-            Button("再構築", role: .destructive) {
+            Button(L10n.tr("settings.data.rebuild.confirm.action"), role: .destructive) {
                 Task {
                     await recoveryService.recoverFromGoogle(
                         modelContext: modelContext,
@@ -272,13 +292,13 @@ struct SettingsView: View {
                 }
             }
         } message: {
-            Text("ローカルデータを削除して Google Calendar から再取得します。")
+            Text(L10n.tr("settings.data.rebuild.confirm.message"))
         }
         .confirmationDialog(
-            "ローカルキャッシュを削除しますか？",
+            L10n.tr("settings.data.clear_cache.confirm"),
             isPresented: $showClearCacheConfirm
         ) {
-            Button("削除", role: .destructive) {
+            Button(L10n.tr("common.delete"), role: .destructive) {
                 do {
                     try recoveryService.clearLocalData(modelContext: modelContext)
                     searchIndex.rebuildIndex(modelContext: modelContext)
@@ -288,10 +308,10 @@ struct SettingsView: View {
                 }
             }
         }
-        .alert("復旧完了", isPresented: $showRecoveryCompleteAlert) {
-            Button("OK", role: .cancel) {}
+        .alert(L10n.tr("settings.data.rebuild.complete"), isPresented: $showRecoveryCompleteAlert) {
+            Button(L10n.tr("common.ok"), role: .cancel) {}
         } message: {
-            Text("ローカルデータの再構築が完了しました。")
+            Text(L10n.tr("settings.data.rebuild.complete.message"))
         }
         .fullScreenCover(isPresented: $showOnboarding) {
             OnboardingView()
@@ -303,11 +323,11 @@ struct SettingsView: View {
     // MARK: - App Info
 
     private var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? L10n.tr("common.unknown")
     }
 
     private var buildNumber: String {
-        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? L10n.tr("common.unknown")
     }
 
     // MARK: - Recovery Range
@@ -340,9 +360,9 @@ private struct TrashView: View {
         List(selection: $selection) {
             if trashedEntries.isEmpty {
                 ContentUnavailableView(
-                    "ゴミ箱は空です",
+                    L10n.tr("trash.empty.title"),
                     systemImage: "trash",
-                    description: Text("削除されたエントリーはここに表示されます。")
+                    description: Text(L10n.tr("trash.empty.description"))
                 )
             } else {
                 Section {
@@ -353,7 +373,7 @@ private struct TrashView: View {
                                 Button {
                                     restore(entry)
                                 } label: {
-                                    Label("復元", systemImage: "arrow.uturn.left")
+                                    Label(L10n.tr("trash.restore"), systemImage: "arrow.uturn.left")
                                 }
                                 .tint(.blue)
                             }
@@ -361,7 +381,7 @@ private struct TrashView: View {
                                 Button(role: .destructive) {
                                     purge(entry)
                                 } label: {
-                                    Label("完全削除", systemImage: "trash.slash")
+                                    Label(L10n.tr("trash.permanently_delete"), systemImage: "trash.slash")
                                 }
                             }
                     }
@@ -372,14 +392,14 @@ private struct TrashView: View {
                 }
             }
         }
-        .navigationTitle("ゴミ箱")
+        .navigationTitle(L10n.tr("trash.title"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 EditButton()
             }
             ToolbarItem(placement: .bottomBar) {
-                Button("選択を復元") {
+                Button(L10n.tr("trash.restore_selection")) {
                     showRestoreSelectionConfirm = true
                 }
                 .disabled(selection.isEmpty || isProcessing)
@@ -388,7 +408,7 @@ private struct TrashView: View {
                 Button(role: .destructive) {
                     showPurgeSelectionConfirm = true
                 } label: {
-                    Text("選択を完全削除")
+                    Text(L10n.tr("trash.delete_selection"))
                 }
                 .disabled(selection.isEmpty || isProcessing)
             }
@@ -396,7 +416,7 @@ private struct TrashView: View {
                 Button(role: .destructive) {
                     showPurgeAllConfirm = true
                 } label: {
-                    Text("ゴミ箱を空にする")
+                    Text(L10n.tr("trash.empty.action"))
                 }
                 .disabled(trashedEntries.isEmpty || isProcessing)
             }
@@ -408,37 +428,37 @@ private struct TrashView: View {
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
             }
         }
-        .alert("操作に失敗しました", isPresented: Binding(
+        .alert(L10n.tr("common.action_failed"), isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
-            Button("OK", role: .cancel) {}
+            Button(L10n.tr("common.ok"), role: .cancel) {}
         } message: {
             Text(errorMessage ?? "")
         }
-        .confirmationDialog("ゴミ箱を空にしますか？", isPresented: $showPurgeAllConfirm) {
-            Button("空にする", role: .destructive) {
+        .confirmationDialog(L10n.tr("trash.empty.confirm"), isPresented: $showPurgeAllConfirm) {
+            Button(L10n.tr("trash.empty.action"), role: .destructive) {
                 purgeAll()
             }
-            Button("キャンセル", role: .cancel) {}
+            Button(L10n.tr("common.cancel"), role: .cancel) {}
         } message: {
-            Text("この操作は取り消せません。")
+            Text(L10n.tr("common.irreversible"))
         }
-        .confirmationDialog("選択したエントリーを復元しますか？", isPresented: $showRestoreSelectionConfirm) {
-            Button("復元") {
+        .confirmationDialog(L10n.tr("trash.restore_selection.confirm"), isPresented: $showRestoreSelectionConfirm) {
+            Button(L10n.tr("trash.restore")) {
                 restoreSelection()
             }
-            Button("キャンセル", role: .cancel) {}
+            Button(L10n.tr("common.cancel"), role: .cancel) {}
         } message: {
-            Text("Google Calendar に再作成します。")
+            Text(L10n.tr("trash.restore_selection.message"))
         }
-        .confirmationDialog("選択したエントリーを完全削除しますか？", isPresented: $showPurgeSelectionConfirm) {
-            Button("完全削除", role: .destructive) {
+        .confirmationDialog(L10n.tr("trash.delete_selection.confirm"), isPresented: $showPurgeSelectionConfirm) {
+            Button(L10n.tr("trash.permanently_delete"), role: .destructive) {
                 purgeSelection()
             }
-            Button("キャンセル", role: .cancel) {}
+            Button(L10n.tr("common.cancel"), role: .cancel) {}
         } message: {
-            Text("この操作は取り消せません。")
+            Text(L10n.tr("common.irreversible"))
         }
         .onAppear {
             if trashAutoPurgeEnabled {
@@ -462,9 +482,9 @@ private struct TrashView: View {
     }
 
     private var trashFooterText: String {
-        let retentionText = "\(trashRetentionDays)日間保持"
-        let autoText = trashAutoPurgeEnabled ? "期限切れは自動削除" : "自動削除はオフ"
-        return "\(retentionText) ・ \(autoText)"
+        let retentionText = L10n.tr("trash.retention", L10n.number(trashRetentionDays))
+        let autoText = trashAutoPurgeEnabled ? L10n.tr("trash.auto_purge.on") : L10n.tr("trash.auto_purge.off")
+        return L10n.tr("common.bullet_separated", retentionText, autoText)
     }
 
     private func deletedDateText(for entry: ScheduleEntry) -> String {
@@ -472,14 +492,18 @@ private struct TrashView: View {
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         let date = entry.deletedAt ?? entry.updatedAt
-        return "削除日時: \(formatter.string(from: date))"
+        return L10n.tr("trash.deleted_at", formatter.string(from: date))
     }
 
     private func remainingText(for entry: ScheduleEntry) -> String {
         let deletedAt = entry.deletedAt ?? entry.updatedAt
         let settings = TrashSettings.shared
         let remaining = settings.remainingDays(from: deletedAt)
-        return remaining == 0 ? "期限切れ" : "残り \(remaining) 日"
+        if remaining == 0 {
+            return L10n.tr("trash.expired")
+        }
+        let key = remaining == 1 ? "trash.remaining_days.singular" : "trash.remaining_days.plural"
+        return L10n.tr(key, L10n.number(remaining))
     }
 
     private func restore(_ entry: ScheduleEntry) {

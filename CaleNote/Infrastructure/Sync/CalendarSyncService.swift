@@ -611,7 +611,7 @@ final class CalendarSyncService: ObservableObject {
         // startAt と endAt を取得
         let startAt = parseEventDateTime(event.start)
         let endAt = parseEventDateTime(event.end)
-        let title = event.summary ?? "(タイトルなし)"
+        let title = event.summary ?? L10n.tr("editor.untitled")
         let body = event.description
         let tags = TagParser.extract(from: [title, body])
 
@@ -637,7 +637,7 @@ final class CalendarSyncService: ObservableObject {
     ///   - event: CalendarEvent
     ///   - calendarId: カレンダー ID
     private func updateEntryFromEvent(_ entry: ScheduleEntry, event: CalendarEvent, calendarId: String) {
-        entry.title = event.summary ?? "(タイトルなし)"
+        entry.title = event.summary ?? L10n.tr("editor.untitled")
         entry.body = event.description
         entry.tags = TagParser.extract(from: [entry.title, entry.body])
         entry.startAt = parseEventDateTime(event.start)

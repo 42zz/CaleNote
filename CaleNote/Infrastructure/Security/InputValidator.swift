@@ -22,10 +22,10 @@ enum InputValidator {
 
     static func validate(title: String, body: String) -> String? {
         if title.count > maxTitleLength {
-            return "タイトルは\(maxTitleLength)文字以内で入力してください"
+            return L10n.tr("validation.title.max_length", L10n.number(maxTitleLength))
         }
         if body.count > maxBodyLength {
-            return "本文は\(maxBodyLength)文字以内で入力してください"
+            return L10n.tr("validation.body.max_length", L10n.number(maxBodyLength))
         }
         return nil
     }

@@ -1,5 +1,8 @@
 # CaleNote
 
+![CI](https://github.com/42zz/CaleNote/actions/workflows/ci.yml/badge.svg)
+![Coverage](https://raw.githubusercontent.com/42zz/CaleNote/main/.github/badges/coverage.svg)
+
 Googleカレンダーを唯一の正（Single Source of Truth）として、予定と記録を同一のスケジュール体験として扱うiOSアプリ。
 
 ## プロダクト概要
@@ -112,6 +115,14 @@ SwiftLint を導入しています。インストール済みの場合、Xcode �
 brew install swiftlint
 swiftlint --config .swiftlint.yml
 ```
+
+### CI/CD
+
+GitHub Actions で以下を自動実行しています。
+
+* PR 作成時: SwiftLint、ユニットテスト、UI テスト、カバレッジ計測
+* main マージ時: フルテスト、Debug/Release ビルド、dSYM/xcresult のアーカイブ
+* カバレッジバッジの自動更新
 
 ## テスト
 

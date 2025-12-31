@@ -41,7 +41,7 @@ struct SidebarView: View {
                 accountSection
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("CaleNote")
+            .navigationTitle(L10n.tr("app.name"))
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -50,8 +50,8 @@ struct SidebarView: View {
                     } label: {
                         Image(systemName: "xmark")
                     }
-                    .accessibilityLabel("閉じる")
-                    .accessibilityHint("サイドバーを閉じます")
+                    .accessibilityLabel(L10n.tr("common.close"))
+                    .accessibilityHint(L10n.tr("sidebar.close.hint"))
                 }
             }
         }
@@ -60,26 +60,28 @@ struct SidebarView: View {
     // MARK: - Calendar Toggle Section
 
     private var calendarToggleSection: some View {
-        Section("表示するカレンダー") {
+        Section {
             Toggle(isOn: $showGoogleCalendarEvents) {
                 HStack(spacing: 12) {
                     Circle()
                         .fill(Color.blue)
                         .frame(width: 12, height: 12)
-                    Text("Google Calendar")
+                    Text(L10n.tr("source.google_calendar"))
                 }
             }
-            .accessibilityValue(showGoogleCalendarEvents ? "表示中" : "非表示")
+            .accessibilityValue(showGoogleCalendarEvents ? L10n.tr("common.visible") : L10n.tr("common.hidden"))
 
             Toggle(isOn: $showCaleNoteEntries) {
                 HStack(spacing: 12) {
                     Circle()
                         .fill(Color.orange)
                         .frame(width: 12, height: 12)
-                    Text("CaleNote エントリー")
+                    Text(L10n.tr("sidebar.calenote_entries"))
                 }
             }
-            .accessibilityValue(showCaleNoteEntries ? "表示中" : "非表示")
+            .accessibilityValue(showCaleNoteEntries ? L10n.tr("common.visible") : L10n.tr("common.hidden"))
+        } header: {
+            Text(L10n.tr("sidebar.calendar_visibility"))
         }
     }
 
@@ -90,7 +92,7 @@ struct SidebarView: View {
             NavigationLink {
                 SettingsView()
             } label: {
-                Label("設定", systemImage: "gearshape")
+                Label(L10n.tr("common.settings"), systemImage: "gearshape")
             }
         }
     }
@@ -98,27 +100,29 @@ struct SidebarView: View {
     // MARK: - Feedback Section
 
     private var feedbackSection: some View {
-        Section("サポート") {
+        Section {
             Button {
                 openFeedbackURL()
             } label: {
-                Label("フィードバックを送信", systemImage: "envelope")
+                Label(L10n.tr("feedback.send"), systemImage: "envelope")
             }
-            .accessibilityHint("メールでフィードバックを送信します")
+            .accessibilityHint(L10n.tr("feedback.email.hint"))
 
             Button {
                 openHelpURL()
             } label: {
-                Label("ヘルプ", systemImage: "questionmark.circle")
+                Label(L10n.tr("common.help"), systemImage: "questionmark.circle")
             }
-            .accessibilityHint("ヘルプページを開きます")
+            .accessibilityHint(L10n.tr("help.open.hint"))
+        } header: {
+            Text(L10n.tr("common.support"))
         }
     }
 
     // MARK: - Account Section
 
     private var accountSection: some View {
-        Section("アカウント") {
+        Section {
             if auth.isAuthenticated {
                 HStack(spacing: 12) {
                     // プロフィール画像
@@ -143,7 +147,7 @@ struct SidebarView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(auth.userName ?? "ユーザー")
+                        Text(auth.userName ?? L10n.tr("common.user"))
                             .font(.subheadline)
                             .fontWeight(.medium)
                         Text(auth.userEmail ?? "")
@@ -157,9 +161,11 @@ struct SidebarView: View {
                         try? await auth.signIn()
                     }
                 } label: {
-                    Label("Googleでサインイン", systemImage: "person.badge.plus")
+                    Label(L10n.tr("auth.google.sign_in"), systemImage: "person.badge.plus")
                 }
             }
+        } header: {
+            Text(L10n.tr("common.account"))
         }
     }
 

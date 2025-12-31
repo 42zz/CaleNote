@@ -25,9 +25,9 @@ struct TagsView: View {
 
     var body: some View {
         List {
-            Section("最近使ったタグ") {
+            Section {
                 if recentTags.isEmpty {
-                    Text("最近使ったタグはありません")
+                    Text(L10n.tr("tags.recent.empty"))
                         .foregroundStyle(.secondary)
                 } else {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -45,11 +45,13 @@ struct TagsView: View {
                         .padding(.vertical, 4)
                     }
                 }
+            } header: {
+                Text(L10n.tr("tags.recent"))
             }
 
-            Section("タグ一覧") {
+            Section {
                 if tagSummaries.isEmpty {
-                    Text("タグはまだありません")
+                    Text(L10n.tr("tags.list.empty"))
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(tagSummaries, id: \.id) { (tag: SearchIndexService.TagSummary) in
@@ -59,7 +61,7 @@ struct TagsView: View {
                             HStack {
                                 Text("#\(tag.name)")
                                 Spacer()
-                                Text("\(tag.count)")
+                                Text(L10n.number(tag.count))
                                     .foregroundStyle(.secondary)
                                 if selectedTags.contains(tag.name) {
                                     Image(systemName: "checkmark")
@@ -70,34 +72,36 @@ struct TagsView: View {
                         .buttonStyle(.plain)
                     }
                 }
+            } header: {
+                Text(L10n.tr("tags.list"))
             }
 
-            Section("タグフィルタ") {
-                Picker("一致条件", selection: $matchMode) {
-                    Text("AND").tag(TagMatchMode.all)
-                    Text("OR").tag(TagMatchMode.any)
+            Section {
+                Picker(L10n.tr("tags.filter.match_mode"), selection: $matchMode) {
+                    Text(L10n.tr("tags.match.and")).tag(TagMatchMode.all)
+                    Text(L10n.tr("tags.match.or")).tag(TagMatchMode.any)
                 }
                 .pickerStyle(.segmented)
 
                 if selectedTags.isEmpty {
-                    Text("タグを選択してください")
+                    Text(L10n.tr("tags.filter.empty"))
                         .foregroundStyle(.secondary)
                 } else {
                     HStack {
-                        Text("選択中: \(selectedTags.sorted().map { "#\($0)" }.joined(separator: " "))")
+                        Text(L10n.tr("tags.filter.selected", selectedTags.sorted().map { "#\($0)" }.joined(separator: " ")))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer()
-                        Button("クリア") {
+                        Button(L10n.tr("common.clear")) {
                             selectedTags.removeAll()
                         }
                         .font(.caption)
                     }
 
                     if filteredEntries.isEmpty {
-                        Text("該当するエントリーはありません")
+                        Text(L10n.tr("tags.filter.no_entries"))
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(filteredEntries) { entry in
@@ -105,9 +109,11 @@ struct TagsView: View {
                         }
                     }
                 }
+            } header: {
+                Text(L10n.tr("tags.filter"))
             }
         }
-        .navigationTitle("タグ")
+        .navigationTitle(L10n.tr("tags.title"))
         .onAppear {
             if !searchIndex.isReady {
                 searchIndex.rebuildIndex(modelContext: modelContext)
@@ -137,10 +143,14 @@ private struct TagChip: View {
     @Environment(\.accessibilityContrast) private var accessibilityContrast
 
     var body: some View {
+        let statusText = isSelected ? L10n.tr("common.selected") : L10n.tr("common.not_selected")
+        let countText = L10n.number(count)
+        let accessibilityKey = count == 1 ? "tags.chip.accessibility.singular" : "tags.chip.accessibility.plural"
+
         Button(action: action) {
             HStack(spacing: 6) {
                 Text("#\(title)")
-                Text("\(count)")
+                Text(L10n.number(count))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 if isSelected {
@@ -162,7 +172,7 @@ private struct TagChip: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("#\(title)")
-        .accessibilityValue("\(count)件、\(isSelected ? "選択中" : "未選択")")
-        .accessibilityHint("タグをフィルタに追加します")
+        .accessibilityValue(L10n.tr(accessibilityKey, countText, statusText))
+        .accessibilityHint(L10n.tr("tags.chip.hint"))
     }
 }

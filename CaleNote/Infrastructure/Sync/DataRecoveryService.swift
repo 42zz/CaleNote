@@ -63,38 +63,38 @@ final class DataRecoveryService: ObservableObject {
         if isRecovering { return }
         isRecovering = true
         progress = 0.0
-        statusMessage = "復旧を開始しています…"
+        statusMessage = L10n.tr("recovery.starting")
         lastError = nil
 
         do {
-            statusMessage = "ローカルデータを削除しています…"
+            statusMessage = L10n.tr("recovery.clearing_local")
             try clearLocalData(modelContext: modelContext)
             progress = 0.3
 
             // syncToken をクリアして完全同期
             syncService.resetSyncTokens()
 
-            statusMessage = "Google Calendar から取得中…"
+            statusMessage = L10n.tr("recovery.fetching_google")
             try await syncService.syncGoogleChangesToLocal(
                 pastDays: pastDays,
                 futureDays: futureDays
             )
             progress = 0.85
 
-            statusMessage = "インデックスを再構築しています…"
+            statusMessage = L10n.tr("recovery.rebuilding_index")
             // NOTE: Index services are not implemented yet.
             progress = 1.0
 
-            statusMessage = "復旧が完了しました"
+            statusMessage = L10n.tr("recovery.completed")
             logger.info("Data recovery completed")
         } catch let error as CaleNoteError {
             lastError = error
-            statusMessage = "復旧に失敗しました"
+            statusMessage = L10n.tr("recovery.failed")
             logger.error("Data recovery failed: \(error.localizedDescription)")
         } catch {
             let wrapped = CaleNoteError.unknown(error)
             lastError = wrapped
-            statusMessage = "復旧に失敗しました"
+            statusMessage = L10n.tr("recovery.failed")
             logger.error("Data recovery failed: \(error.localizedDescription)")
         }
 

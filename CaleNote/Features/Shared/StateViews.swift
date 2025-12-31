@@ -142,7 +142,7 @@ struct TimelineSkeletonView: View {
         }
         .listStyle(.plain)
         .redacted(reason: .placeholder)
-        .accessibilityLabel("読み込み中")
+        .accessibilityLabel(L10n.tr("common.loading"))
     }
 }
 
@@ -173,7 +173,7 @@ struct EntryDetailSkeletonView: View {
                     }
                 }
             } header: {
-                Text("タグ")
+                Text(L10n.tr("tags.title"))
             }
 
             Section {
@@ -181,7 +181,7 @@ struct EntryDetailSkeletonView: View {
                     .fill(Color.secondary.opacity(0.2))
                     .frame(height: 16)
             } header: {
-                Text("同期状態")
+                Text(L10n.tr("sync.status.title"))
             }
 
             Section {
@@ -193,16 +193,18 @@ struct EntryDetailSkeletonView: View {
                     .frame(height: 20)
             }
 
-            Section("関連エントリー") {
+            Section {
                 ForEach(0..<3, id: \.self) { _ in
                     SkeletonRowView()
                         .listRowSeparator(.hidden)
                 }
+            } header: {
+                Text(L10n.tr("entry_detail.related.title"))
             }
         }
         .listStyle(.plain)
         .redacted(reason: .placeholder)
-        .accessibilityLabel("読み込み中")
+        .accessibilityLabel(L10n.tr("common.loading"))
     }
 }
 

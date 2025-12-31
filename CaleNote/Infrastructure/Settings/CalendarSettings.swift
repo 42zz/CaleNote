@@ -112,7 +112,7 @@ final class TrashSettings {
         var id: Int { rawValue }
 
         var label: String {
-            "\(rawValue)日"
+            L10n.tr("trash.retention.days", L10n.number(rawValue))
         }
     }
 

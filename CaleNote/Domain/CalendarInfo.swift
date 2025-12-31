@@ -116,7 +116,7 @@ extension CalendarInfo {
     static func from(_ entry: CalendarListEntry) -> CalendarInfo {
         CalendarInfo(
             calendarId: entry.id,
-            summary: entry.summary ?? "Untitled Calendar",
+            summary: entry.summary ?? L10n.tr("calendar.untitled"),
             calendarDescription: entry.description,
             backgroundColor: entry.backgroundColor,
             foregroundColor: entry.foregroundColor,
@@ -130,7 +130,7 @@ extension CalendarInfo {
     /// Google CalendarListEntryから情報を更新
     /// - Parameter entry: Google Calendar API のカレンダーエントリ
     func update(from entry: CalendarListEntry) {
-        summary = entry.summary ?? "Untitled Calendar"
+        summary = entry.summary ?? L10n.tr("calendar.untitled")
         calendarDescription = entry.description
         backgroundColor = entry.backgroundColor
         foregroundColor = entry.foregroundColor

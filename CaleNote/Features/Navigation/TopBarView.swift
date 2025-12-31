@@ -76,8 +76,8 @@ struct TopBarView: View {
                         .font(.title3)
                         .foregroundStyle(.primary)
                 }
-                .accessibilityLabel("サイドバーを開く")
-                .accessibilityHint("カレンダー一覧を表示します")
+                .accessibilityLabel(L10n.tr("topbar.sidebar.open"))
+                .accessibilityHint(L10n.tr("topbar.sidebar.open.hint"))
                 .accessibilityIdentifier("sidebarToggleButton")
             } else {
                 Color.clear
@@ -103,9 +103,9 @@ struct TopBarView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .accessibilityLabel("月を選択")
+        .accessibilityLabel(L10n.tr("topbar.month.select"))
         .accessibilityValue(monthYearString)
-        .accessibilityHint("月表示のカレンダーを開きます")
+        .accessibilityHint(L10n.tr("topbar.month.select.hint"))
         .accessibilityIdentifier("monthDisplayButton")
         .sheet(isPresented: $showMonthPicker) {
             MonthCalendarPickerView(
@@ -127,8 +127,8 @@ struct TopBarView: View {
                 .font(.title3)
                 .foregroundStyle(.primary)
         }
-        .accessibilityLabel("検索")
-        .accessibilityHint("エントリーを検索します")
+        .accessibilityLabel(L10n.tr("topbar.search"))
+        .accessibilityHint(L10n.tr("topbar.search.hint"))
         .accessibilityIdentifier("searchButton")
     }
 
@@ -142,9 +142,9 @@ struct TopBarView: View {
                 .font(.title3)
                 .foregroundStyle(isToday ? Color.accentColor : Color.primary)
         }
-        .accessibilityLabel("今日へ移動")
-        .accessibilityValue(isToday ? "今日を表示中" : nil)
-        .accessibilityHint("今日の日付にスクロールします")
+        .accessibilityLabel(L10n.tr("topbar.today"))
+        .accessibilityValue(isToday ? L10n.tr("topbar.today.active") : nil)
+        .accessibilityHint(L10n.tr("topbar.today.hint"))
         .accessibilityIdentifier("todayFocusButton")
     }
 
@@ -152,8 +152,8 @@ struct TopBarView: View {
 
     private var monthYearString: String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "yyyy年M月"
+        formatter.locale = Locale.autoupdatingCurrent
+        formatter.setLocalizedDateFormatFromTemplate("yMMMM")
         return formatter.string(from: focusDate)
     }
 

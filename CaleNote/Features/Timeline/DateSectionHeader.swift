@@ -20,8 +20,8 @@ struct DateSectionHeader: View {
     /// 日付テキスト
     private var dateText: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy年M月d日(E)"
-        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.locale = Locale.autoupdatingCurrent
+        formatter.setLocalizedDateFormatFromTemplate("yMMMMdE")
         return formatter.string(from: date)
     }
 
@@ -32,13 +32,13 @@ struct DateSectionHeader: View {
         let targetDate = calendar.startOfDay(for: date)
 
         if calendar.isDate(targetDate, inSameDayAs: today) {
-            return "今日"
+            return L10n.tr("date.today")
         } else if let yesterday = calendar.date(byAdding: .day, value: -1, to: today),
                   calendar.isDate(targetDate, inSameDayAs: yesterday) {
-            return "昨日"
+            return L10n.tr("date.yesterday")
         } else if let tomorrow = calendar.date(byAdding: .day, value: 1, to: today),
                   calendar.isDate(targetDate, inSameDayAs: tomorrow) {
-            return "明日"
+            return L10n.tr("date.tomorrow")
         }
 
         return nil
@@ -82,6 +82,6 @@ struct DateSectionHeader: View {
         )
         .listRowInsets(EdgeInsets())
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(relativeDateText == nil ? dateText : "\(relativeDateText ?? "")、\(dateText)")
+        .accessibilityLabel(relativeDateText == nil ? dateText : "\(relativeDateText ?? "")\(L10n.tr("common.list_separator"))\(dateText)")
     }
 }

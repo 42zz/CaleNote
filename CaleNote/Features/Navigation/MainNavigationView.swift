@@ -205,8 +205,8 @@ struct MainNavigationView: View {
         }
         .padding(.trailing, 16)
         .padding(.bottom, 16)
-        .accessibilityLabel("新規エントリーを作成")
-        .accessibilityHint("新しい予定や記録を追加します")
+        .accessibilityLabel(L10n.tr("timeline.new_entry"))
+        .accessibilityHint(L10n.tr("timeline.new_entry.hint"))
     }
 
     // MARK: - Helper Methods

@@ -33,7 +33,7 @@ struct EntryDetailView: View {
                 .listStyle(.plain)
             }
         }
-        .navigationTitle("エントリー詳細")
+        .navigationTitle(L10n.tr("entry_detail.title"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -42,8 +42,8 @@ struct EntryDetailView: View {
                 } label: {
                     Image(systemName: "pencil")
                 }
-                .accessibilityLabel("編集")
-                .accessibilityHint("エントリーを編集します")
+                .accessibilityLabel(L10n.tr("common.edit"))
+                .accessibilityHint(L10n.tr("entry_detail.edit.hint"))
                 .accessibilityIdentifier("entryDetailEditButton")
             }
         }
@@ -52,13 +52,13 @@ struct EntryDetailView: View {
                 .environmentObject(syncService)
                 .environmentObject(relatedIndex)
         }
-        .alert(trashEnabled ? "ゴミ箱に移動しますか？" : "削除しますか？", isPresented: $showDeleteAlert) {
-            Button(trashEnabled ? "ゴミ箱に移動" : "削除", role: .destructive) {
+        .alert(trashEnabled ? L10n.tr("entry_detail.delete.confirm.trash") : L10n.tr("entry_detail.delete.confirm.delete"), isPresented: $showDeleteAlert) {
+            Button(trashEnabled ? L10n.tr("trash.move_to_trash") : L10n.tr("common.delete"), role: .destructive) {
                 deleteEntry()
             }
-            Button("キャンセル", role: .cancel) {}
+            Button(L10n.tr("common.cancel"), role: .cancel) {}
         } message: {
-            Text(trashEnabled ? "ゴミ箱から復元できます。" : "この操作は取り消せません")
+            Text(trashEnabled ? L10n.tr("trash.restore_hint") : L10n.tr("common.irreversible"))
         }
         .onAppear {
             showSkeleton = !relatedIndex.isReady
@@ -69,10 +69,10 @@ struct EntryDetailView: View {
         .onChange(of: relatedIndex.isReady) { _, newValue in
             showSkeleton = !newValue
         }
-        .accessibilityAction(named: "編集") {
+        .accessibilityAction(named: L10n.tr("common.edit")) {
             showEditSheet = true
         }
-        .accessibilityAction(named: "削除") {
+        .accessibilityAction(named: L10n.tr("common.delete")) {
             showDeleteAlert = true
         }
     }
@@ -102,7 +102,7 @@ struct EntryDetailView: View {
     private var tagsSection: some View {
         Section {
             if entry.tags.isEmpty {
-                Text("タグなし")
+                Text(L10n.tr("tags.none"))
                     .foregroundStyle(.secondary)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -126,7 +126,7 @@ struct EntryDetailView: View {
                 }
             }
         } header: {
-            Text("タグ")
+            Text(L10n.tr("tags.title"))
         }
     }
 
@@ -148,7 +148,7 @@ struct EntryDetailView: View {
                     .font(.caption)
             }
         } header: {
-            Text("同期状態")
+            Text(L10n.tr("sync.status.title"))
         }
     }
 
@@ -157,13 +157,13 @@ struct EntryDetailView: View {
             Button {
                 showEditSheet = true
             } label: {
-                Label("編集", systemImage: "pencil")
+                Label(L10n.tr("common.edit"), systemImage: "pencil")
             }
 
             Button(role: .destructive) {
                 showDeleteAlert = true
             } label: {
-                Label(trashEnabled ? "ゴミ箱へ" : "削除", systemImage: "trash")
+                Label(trashEnabled ? L10n.tr("trash.move_to_trash") : L10n.tr("common.delete"), systemImage: "trash")
             }
             .disabled(isDeleting)
         }
@@ -174,13 +174,15 @@ struct EntryDetailView: View {
         let related = relatedIndex.relatedEntries(for: entry)
 
         if related.isEmpty {
-            Section("関連エントリー") {
-                Text("該当なし")
+            Section {
+                Text(L10n.tr("entry_detail.related.none"))
                     .foregroundStyle(.secondary)
+            } header: {
+                Text(L10n.tr("entry_detail.related.title"))
             }
         } else {
             if !related.sameMonthDay.isEmpty {
-                Section("同じ月日") {
+                Section {
                     ForEach(related.sameMonthDay) { item in
                         NavigationLink {
                             EntryDetailView(entry: item)
@@ -188,11 +190,13 @@ struct EntryDetailView: View {
                             TimelineRowView(entry: item)
                         }
                     }
+                } header: {
+                    Text(L10n.tr("entry_detail.related.same_month_day"))
                 }
             }
 
             if !related.sameWeekdayInWeek.isEmpty {
-                Section("同じ週の同じ曜日") {
+                Section {
                     ForEach(related.sameWeekdayInWeek) { item in
                         NavigationLink {
                             EntryDetailView(entry: item)
@@ -200,11 +204,13 @@ struct EntryDetailView: View {
                             TimelineRowView(entry: item)
                         }
                     }
+                } header: {
+                    Text(L10n.tr("entry_detail.related.same_weekday"))
                 }
             }
 
             if let holidaySection = related.sameHoliday {
-                Section("同じ祝日（\(holidaySection.holiday.name)）") {
+                Section {
                     ForEach(holidaySection.entries) { item in
                         NavigationLink {
                             EntryDetailView(entry: item)
@@ -212,6 +218,8 @@ struct EntryDetailView: View {
                             TimelineRowView(entry: item)
                         }
                     }
+                } header: {
+                    Text(L10n.tr("entry_detail.related.same_holiday", holidaySection.holiday.localizedName))
                 }
             }
         }
@@ -226,9 +234,9 @@ struct EntryDetailView: View {
             let span = entry.allDaySpan(using: calendar)
             if span.dayCount > 1,
                let lastDay = calendar.date(byAdding: .day, value: -1, to: span.endDayExclusive) {
-                return "\(formatter.string(from: span.startDay)) - \(formatter.string(from: lastDay))（終日）"
+                return L10n.tr("entry_detail.all_day_range", formatter.string(from: span.startDay), formatter.string(from: lastDay), L10n.tr("entry_detail.all_day_suffix"))
             }
-            return "\(formatter.string(from: span.startDay))（終日）"
+            return L10n.tr("entry_detail.all_day_single", formatter.string(from: span.startDay), L10n.tr("entry_detail.all_day_suffix"))
         }
         let endFormatter = DateFormatter()
         endFormatter.dateStyle = .none
@@ -239,11 +247,11 @@ struct EntryDetailView: View {
     private var syncStatusText: String {
         switch entry.syncStatus {
         case ScheduleEntry.SyncStatus.pending.rawValue:
-            return "同期待ち"
+            return L10n.tr("sync.status.pending")
         case ScheduleEntry.SyncStatus.failed.rawValue:
-            return "同期失敗"
+            return L10n.tr("sync.status.failed")
         default:
-            return "同期済み"
+            return L10n.tr("sync.status.synced")
         }
     }
 
@@ -274,7 +282,7 @@ struct EntryDetailView: View {
                 }
             } catch {
                 await MainActor.run {
-                    errorMessage = "削除に失敗しました: \(error.localizedDescription)"
+                    errorMessage = L10n.tr("entry_detail.delete.failed", error.localizedDescription)
                     isDeleting = false
                 }
             }

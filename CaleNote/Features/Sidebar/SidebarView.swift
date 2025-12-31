@@ -46,7 +46,7 @@ struct SidebarView: View {
 
     private var sidebarHeader: some View {
         HStack {
-            Text("カレンダー")
+            Text(L10n.tr("sidebar.title"))
                 .font(.headline)
                 .fontWeight(.semibold)
 
@@ -55,7 +55,7 @@ struct SidebarView: View {
             if calendarListService.isSyncing {
                 ProgressView()
                     .scaleEffect(0.7)
-                    .accessibilityLabel("同期中")
+                    .accessibilityLabel(L10n.tr("sync.in_progress"))
             } else {
                 Button {
                     Task {
@@ -65,8 +65,8 @@ struct SidebarView: View {
                     Image(systemName: "arrow.clockwise")
                         .font(.subheadline)
                 }
-                .accessibilityLabel("カレンダー一覧を同期")
-                .accessibilityHint("最新のカレンダー情報を取得します")
+                .accessibilityLabel(L10n.tr("sidebar.sync_calendars"))
+                .accessibilityHint(L10n.tr("sidebar.sync_calendars.hint"))
             }
         }
         .padding(.horizontal, 16)
@@ -103,7 +103,7 @@ struct SidebarView: View {
                     Image(systemName: "gearshape")
                         .frame(width: 24, height: 24)
 
-                    Text("設定")
+                    Text(L10n.tr("common.settings"))
 
                     Spacer()
                 }
@@ -123,7 +123,7 @@ struct SidebarView: View {
                     Image(systemName: "bubble.left.and.bubble.right")
                         .frame(width: 24, height: 24)
 
-                    Text("フィードバック")
+                    Text(L10n.tr("common.feedback"))
 
                     Spacer()
                 }
@@ -131,7 +131,7 @@ struct SidebarView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
             }
-            .accessibilityHint("メールでフィードバックを送信します")
+            .accessibilityHint(L10n.tr("feedback.email.hint"))
         }
         .padding(.vertical, 8)
     }
@@ -168,7 +168,7 @@ private struct CalendarRowView: View {
 
                         // プライマリバッジ
                         if calendar.isPrimary {
-                            Text("メイン")
+                            Text(L10n.tr("calendar.primary"))
                                 .font(.caption2)
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 4)
@@ -197,19 +197,19 @@ private struct CalendarRowView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(calendar.summary)
         .accessibilityValue(calendarAccessibilityValue)
-        .accessibilityHint("表示するカレンダーを切り替えます")
+        .accessibilityHint(L10n.tr("calendar.visibility.toggle.hint"))
         .accessibilityIdentifier("calendarRow_\(calendar.calendarId)")
     }
 
     private var calendarAccessibilityValue: String {
-        var parts = [calendar.isVisible ? "表示中" : "非表示"]
+        var parts = [calendar.isVisible ? L10n.tr("common.visible") : L10n.tr("common.hidden")]
         if calendar.isPrimary {
-            parts.append("メイン")
+            parts.append(L10n.tr("calendar.primary"))
         }
         if calendar.isReadOnly {
-            parts.append("読み取り専用")
+            parts.append(L10n.tr("calendar.read_only"))
         }
-        return parts.joined(separator: "、")
+        return parts.joined(separator: L10n.tr("common.list_separator"))
     }
 
     private var calendarColor: Color {

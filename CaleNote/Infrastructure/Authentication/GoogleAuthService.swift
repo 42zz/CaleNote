@@ -92,7 +92,7 @@ final class GoogleAuthService: ObservableObject {
         do {
             // Client ID を取得
             guard let clientID = getClientID() else {
-                throw CaleNoteError.apiError(.other(0, "Google Client ID が設定されていません"))
+                throw CaleNoteError.apiError(.other(0, L10n.tr("auth.google.client_id_missing")))
             }
 
             // GIDConfiguration を作成
@@ -102,7 +102,7 @@ final class GoogleAuthService: ObservableObject {
             // Root View Controller を取得
             guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                   let rootViewController = windowScene.windows.first?.rootViewController else {
-                throw CaleNoteError.apiError(.other(0, "Root View Controller が見つかりません"))
+                throw CaleNoteError.apiError(.other(0, L10n.tr("auth.google.root_view_missing")))
             }
 
             // サインイン実行
@@ -217,7 +217,7 @@ final class GoogleAuthService: ObservableObject {
 
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let rootViewController = windowScene.windows.first?.rootViewController else {
-            throw CaleNoteError.apiError(.other(0, "Root View Controller が見つかりません"))
+            throw CaleNoteError.apiError(.other(0, L10n.tr("auth.google.root_view_missing")))
         }
 
         logger.info("Requesting additional scopes: \(scopes)")
@@ -262,7 +262,7 @@ final class GoogleAuthService: ObservableObject {
     private func convertGIDError(_ error: GIDSignInError) -> CaleNoteError {
         switch error.code {
         case .canceled:
-            return .apiError(.other(Int(error.code.rawValue), "サインインがキャンセルされました"))
+            return .apiError(.other(Int(error.code.rawValue), L10n.tr("auth.google.sign_in_canceled")))
         case .hasNoAuthInKeychain:
             return .apiError(.unauthorized)
         case .unknown:

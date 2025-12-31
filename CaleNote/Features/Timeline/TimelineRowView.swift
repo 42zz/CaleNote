@@ -70,11 +70,11 @@ struct TimelineRowView: View {
     private var syncStatusText: String {
         switch entry.syncStatus {
         case ScheduleEntry.SyncStatus.pending.rawValue:
-            return "同期待ち"
+            return L10n.tr("sync.status.pending")
         case ScheduleEntry.SyncStatus.failed.rawValue:
-            return "同期失敗"
+            return L10n.tr("sync.status.failed")
         default:
-            return "同期済み"
+            return L10n.tr("sync.status.synced")
         }
     }
 
@@ -84,7 +84,7 @@ struct TimelineRowView: View {
     }
 
     private var sourceText: String {
-        entry.managedByCaleNote ? "CaleNote" : "Googleカレンダー"
+        entry.managedByCaleNote ? L10n.tr("source.calenote") : L10n.tr("source.google_calendar")
     }
 
     private struct AllDaySpanContext {
@@ -122,13 +122,13 @@ struct TimelineRowView: View {
     private var allDayContinuationLabel: String? {
         guard let context = allDaySpanContext else { return nil }
         if context.isMiddle {
-            return "継続中"
+            return L10n.tr("timeline.all_day.continues")
         }
         if context.isEnd {
-            return "最終日"
+            return L10n.tr("timeline.all_day.last_day")
         }
         if context.isStart {
-            return "開始"
+            return L10n.tr("timeline.all_day.start")
         }
         return nil
     }
@@ -136,21 +136,22 @@ struct TimelineRowView: View {
     private var accessibilityLabelText: String {
         var parts: [String] = [entry.title]
         if entry.isAllDay {
-            parts.append("終日")
+            parts.append(L10n.tr("timeline.all_day"))
             if let label = allDayContinuationLabel {
                 parts.append(label)
             }
         } else {
-            parts.append("開始 \(timeText)")
-            parts.append("終了 \(endTimeText)")
+            parts.append(L10n.tr("timeline.accessibility.start_time", timeText))
+            parts.append(L10n.tr("timeline.accessibility.end_time", endTimeText))
         }
         if let body = entry.body, !body.isEmpty {
-            parts.append("本文あり")
+            parts.append(L10n.tr("timeline.accessibility.has_body"))
         }
         if !entry.tags.isEmpty {
-            parts.append("タグ \(entry.tags.prefix(3).map { "#\($0)" }.joined(separator: " "))")
+            let tagText = entry.tags.prefix(3).map { "#\($0)" }.joined(separator: " ")
+            parts.append(L10n.tr("timeline.accessibility.tags", tagText))
         }
-        return parts.joined(separator: "、")
+        return parts.joined(separator: L10n.tr("common.list_separator"))
     }
 
     // MARK: - Body
@@ -166,7 +167,7 @@ struct TimelineRowView: View {
             // 時刻表示（全日イベントの場合は「終日」表示）
             VStack(alignment: .trailing, spacing: 2) {
                 if entry.isAllDay {
-                    Text("終日")
+                    Text(L10n.tr("timeline.all_day"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                     if let label = allDayContinuationLabel {
@@ -218,7 +219,7 @@ struct TimelineRowView: View {
                 }
 
                 if let spanContext = allDaySpanContext {
-                    Text("期間: \(spanContext.rangeText)")
+                    Text(L10n.tr("timeline.all_day.range", spanContext.rangeText))
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -244,7 +245,7 @@ struct TimelineRowView: View {
                             }
 
                             if entry.tags.count > 3 {
-                                Text("+\(entry.tags.count - 3)")
+                                Text(L10n.tr("timeline.tags.more", entry.tags.count - 3))
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
@@ -266,7 +267,7 @@ struct TimelineRowView: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabelText)
-        .accessibilityValue("\(syncStatusText)、ソース \(sourceText)")
+        .accessibilityValue(L10n.tr("timeline.accessibility.value", syncStatusText, sourceText))
         .accessibilityIdentifier("timelineRow_\(entry.title)")
     }
 }

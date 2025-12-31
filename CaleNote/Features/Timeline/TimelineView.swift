@@ -186,7 +186,7 @@ struct TimelineView: View {
     }
 
     private var deleteLabel: String {
-        trashEnabled ? "ゴミ箱へ" : "削除"
+        trashEnabled ? L10n.tr("trash.move_to_trash") : L10n.tr("common.delete")
     }
 
     // MARK: - Body
@@ -239,25 +239,25 @@ struct TimelineView: View {
                 SearchView()
             }
             .confirmationDialog(
-                trashEnabled ? "エントリーをゴミ箱に移動しますか？" : "エントリーを削除しますか？",
+                trashEnabled ? L10n.tr("timeline.delete.confirm.trash") : L10n.tr("timeline.delete.confirm.delete"),
                 isPresented: $showDeleteConfirm
             ) {
-                Button(trashEnabled ? "ゴミ箱に移動" : "削除", role: .destructive) {
+                Button(trashEnabled ? L10n.tr("trash.move_to_trash") : L10n.tr("common.delete"), role: .destructive) {
                     if let entry = entryPendingDelete {
                         deleteEntry(entry)
                     }
                 }
-                Button("キャンセル", role: .cancel) {
+                Button(L10n.tr("common.cancel"), role: .cancel) {
                     entryPendingDelete = nil
                 }
             } message: {
-                Text(trashEnabled ? "ゴミ箱から復元できます。" : "この操作は取り消せません。")
+                Text(trashEnabled ? L10n.tr("trash.restore_hint") : L10n.tr("common.irreversible"))
             }
-            .alert("操作に失敗しました", isPresented: Binding(
+            .alert(L10n.tr("common.action_failed"), isPresented: Binding(
                 get: { actionErrorMessage != nil },
                 set: { if !$0 { actionErrorMessage = nil } }
             )) {
-                Button("OK", role: .cancel) {}
+                Button(L10n.tr("common.ok"), role: .cancel) {}
             } message: {
                 Text(actionErrorMessage ?? "")
             }
@@ -290,7 +290,7 @@ struct TimelineView: View {
             }
             .onChange(of: syncService.lastSyncError) { _, newValue in
                 guard newValue != nil else { return }
-                UIAccessibility.post(notification: .announcement, argument: "同期に失敗しました")
+                UIAccessibility.post(notification: .announcement, argument: L10n.tr("sync.failed"))
             }
         }
     }
@@ -305,12 +305,12 @@ struct TimelineView: View {
                     VStack(spacing: 12) {
                         ProgressView()
                             .scaleEffect(1.1)
-                            .accessibilityLabel("同期中")
-                        Text("Google Calendar からデータを取得中...")
+                            .accessibilityLabel(L10n.tr("sync.in_progress"))
+                        Text(L10n.tr("timeline.syncing.message"))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .accessibilityLiveRegion(.polite)
-                        Text("初回同期には少し時間がかかる場合があります")
+                        Text(L10n.tr("timeline.syncing.detail"))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -320,24 +320,24 @@ struct TimelineView: View {
                 }
             } else if isCalendarSelectionEmpty {
                 EmptyStateView(
-                    title: "カレンダーを選択してください",
-                    message: "表示するカレンダーが選択されていません。",
+                    title: L10n.tr("timeline.empty.calendar.title"),
+                    message: L10n.tr("timeline.empty.calendar.message"),
                     systemImage: "calendar.badge.exclamationmark",
-                    detail: "サイドバーで表示するカレンダーを選択できます。",
-                    primaryActionTitle: "サイドバーを開く",
+                    detail: L10n.tr("timeline.empty.calendar.detail"),
+                    primaryActionTitle: L10n.tr("timeline.empty.calendar.primary_action"),
                     primaryAction: { onSidebarButtonTap?() },
-                    secondaryActionTitle: "設定を開く",
+                    secondaryActionTitle: L10n.tr("timeline.empty.calendar.secondary_action"),
                     secondaryAction: { NotificationCenter.default.post(name: .openSettings, object: nil) }
                 )
             } else if let errorMessage = syncErrorMessage, filteredEntries.isEmpty {
                 syncErrorState(message: errorMessage)
             } else if filteredEntries.isEmpty {
                 EmptyStateView(
-                    title: "まだエントリーがありません",
-                    message: "予定やメモを追加して、タイムラインを作成しましょう。",
+                    title: L10n.tr("timeline.empty.entries.title"),
+                    message: L10n.tr("timeline.empty.entries.message"),
                     systemImage: "note.text",
-                    detail: "右下の + からも作成できます。",
-                    primaryActionTitle: "エントリーを作成",
+                    detail: L10n.tr("timeline.empty.entries.detail"),
+                    primaryActionTitle: L10n.tr("timeline.empty.entries.primary_action"),
                     primaryAction: { showNewEntrySheet = true }
                 )
             } else {
@@ -378,7 +378,7 @@ struct TimelineView: View {
                                 Button {
                                     beginEdit(displayEntry.entry)
                                 } label: {
-                                    Label("編集", systemImage: "pencil")
+                                    Label(L10n.tr("common.edit"), systemImage: "pencil")
                                 }
                                 .tint(.blue)
                             }
@@ -386,7 +386,7 @@ struct TimelineView: View {
                                 Button {
                                     beginEdit(displayEntry.entry)
                                 } label: {
-                                    Label("編集", systemImage: "pencil")
+                                    Label(L10n.tr("common.edit"), systemImage: "pencil")
                                 }
                                 .keyboardShortcut(.return, modifiers: [])
 
@@ -398,18 +398,18 @@ struct TimelineView: View {
                                 .keyboardShortcut(.delete, modifiers: [])
 
                                 ShareLink(item: shareText(for: displayEntry.entry)) {
-                                    Label("共有", systemImage: "square.and.arrow.up")
+                                    Label(L10n.tr("common.share"), systemImage: "square.and.arrow.up")
                                 }
 
                                 Divider()
 
-                                Button("複製 (準備中)") {}
+                                Button(L10n.tr("common.duplicate_coming_soon")) {}
                                     .disabled(true)
 
-                                Button("カレンダー移動 (準備中)") {}
+                                Button(L10n.tr("timeline.move_calendar_coming_soon")) {}
                                     .disabled(true)
 
-                                Button("タグ追加 (準備中)") {}
+                                Button(L10n.tr("timeline.add_tag_coming_soon")) {}
                                     .disabled(true)
                             }
                             .simultaneousGesture(
@@ -417,10 +417,10 @@ struct TimelineView: View {
                                     triggerHaptic(.light)
                                 }
                             )
-                            .accessibilityAction(named: "編集") {
+                            .accessibilityAction(named: L10n.tr("common.edit")) {
                                 beginEdit(displayEntry.entry)
                             }
-                            .accessibilityAction(named: "削除") {
+                            .accessibilityAction(named: L10n.tr("common.delete")) {
                                 requestDelete(displayEntry.entry)
                             }
                         }
@@ -469,8 +469,8 @@ struct TimelineView: View {
         }
         .padding(.trailing, 16)
         .padding(.bottom, 16)
-        .accessibilityLabel("新規エントリーを作成")
-        .accessibilityHint("新しい予定や記録を追加します")
+        .accessibilityLabel(L10n.tr("timeline.new_entry"))
+        .accessibilityHint(L10n.tr("timeline.new_entry.hint"))
         .accessibilityIdentifier("newEntryFab")
     }
 
@@ -491,15 +491,15 @@ struct TimelineView: View {
             } label: {
                 if syncService.isSyncing {
                     ProgressView()
-                        .accessibilityLabel("同期中")
+                        .accessibilityLabel(L10n.tr("sync.in_progress"))
                 } else {
                     Image(systemName: "arrow.clockwise")
                 }
             }
             .disabled(syncService.isSyncing)
-            .accessibilityLabel("同期")
-            .accessibilityHint("Googleカレンダーと同期します")
-            .accessibilityValueText(syncService.isSyncing ? "同期中" : nil)
+            .accessibilityLabel(L10n.tr("sync.title"))
+            .accessibilityHint(L10n.tr("sync.hint"))
+            .accessibilityValueText(syncService.isSyncing ? L10n.tr("sync.in_progress") : nil)
         }
     }
 
@@ -580,7 +580,7 @@ struct TimelineView: View {
                 }
             } catch {
                 await MainActor.run {
-                    actionErrorMessage = "削除に失敗しました: \(error.localizedDescription)"
+                    actionErrorMessage = L10n.tr("timeline.delete.failed", error.localizedDescription)
                     isDeleting = false
                 }
             }
@@ -659,15 +659,15 @@ struct TimelineView: View {
 
     private func syncErrorState(message: String) -> some View {
         EmptyStateView(
-            title: "同期エラーが発生しました",
+            title: L10n.tr("sync.error.title"),
             message: message,
             systemImage: "exclamationmark.triangle",
-            detail: "通信環境を確認して再試行してください。",
-            primaryActionTitle: "再試行",
+            detail: L10n.tr("sync.error.detail"),
+            primaryActionTitle: L10n.tr("common.retry"),
             primaryAction: {
                 Task { await refreshTimeline() }
             },
-            secondaryActionTitle: "サポートに連絡",
+            secondaryActionTitle: L10n.tr("support.contact"),
             secondaryAction: {
                 guard let url = URL(string: "mailto:feedback@calenote.app") else { return }
                 openURL(url)
@@ -680,7 +680,7 @@ struct TimelineView: View {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundColor(.orange)
-                Text("同期に失敗しました")
+                Text(L10n.tr("sync.failed"))
                     .font(.subheadline)
                     .fontWeight(.semibold)
             }
@@ -690,12 +690,12 @@ struct TimelineView: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 12) {
-                Button("再試行") {
+                Button(L10n.tr("common.retry")) {
                     Task { await refreshTimeline() }
                 }
                 .buttonStyle(.bordered)
 
-                Button("サポートに連絡") {
+                Button(L10n.tr("support.contact")) {
                     guard let url = URL(string: "mailto:feedback@calenote.app") else { return }
                     openURL(url)
                 }
@@ -704,6 +704,6 @@ struct TimelineView: View {
         }
         .padding(.vertical, 8)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("同期に失敗しました")
+        .accessibilityLabel(L10n.tr("sync.failed"))
     }
 }

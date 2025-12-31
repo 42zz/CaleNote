@@ -56,8 +56,8 @@ struct ContentView: View {
                         .ignoresSafeArea()
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("サイドバーを閉じる")
-                .accessibilityHint("メイン画面に戻ります")
+                .accessibilityLabel(L10n.tr("sidebar.close"))
+                .accessibilityHint(L10n.tr("sidebar.close.hint"))
 
                 SidebarView(showSettings: $showSettings)
                     .transition(reduceMotion ? .identity : .move(edge: .leading))

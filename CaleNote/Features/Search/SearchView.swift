@@ -29,22 +29,22 @@ struct SearchView: View {
                     resultsView
                 }
             }
-            .navigationTitle("検索")
+            .navigationTitle(L10n.tr("search.title"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる") { dismiss() }
+                    Button(L10n.tr("common.close")) { dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
                     if isSearchingBody {
                         ProgressView()
-                            .accessibilityLabel("検索中")
+                            .accessibilityLabel(L10n.tr("search.in_progress"))
                     }
                 }
             }
             .searchable(
                 text: $searchText,
                 placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "タイトル、タグ、本文"
+                prompt: L10n.tr("search.prompt")
             )
             .onSubmit(of: .search) {
                 searchIndex.addHistory(searchText)
@@ -64,10 +64,10 @@ struct SearchView: View {
     private var historyView: some View {
         List {
             if searchIndex.history.isEmpty {
-                Text("検索履歴はありません")
+                Text(L10n.tr("search.history.empty"))
                     .foregroundStyle(.secondary)
             } else {
-                Section("検索履歴") {
+                Section {
                     ForEach(searchIndex.history, id: \.self) { item in
                         Button {
                             searchText = item
@@ -75,9 +75,11 @@ struct SearchView: View {
                             Text(item)
                         }
                     }
-                    Button("履歴をクリア", role: .destructive) {
+                    Button(L10n.tr("search.history.clear"), role: .destructive) {
                         searchIndex.clearHistory()
                     }
+                } header: {
+                    Text(L10n.tr("search.history.title"))
                 }
             }
         }
@@ -99,13 +101,13 @@ struct SearchView: View {
                         Section {
                             HStack(spacing: 8) {
                                 ProgressView()
-                                Text("本文を検索中...")
+                                Text(L10n.tr("search.body.in_progress"))
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                             }
                             .padding(.vertical, 4)
                             .accessibilityElement(children: .combine)
-                            .accessibilityLabel("検索中")
+                            .accessibilityLabel(L10n.tr("search.in_progress"))
                         }
                     }
 
@@ -178,11 +180,11 @@ private struct SearchEmptyStateView: View {
 
     var body: some View {
         EmptyStateView(
-            title: "検索結果が見つかりませんでした",
-            message: "「\(query)」に一致するエントリーはありません。",
+            title: L10n.tr("search.empty.title"),
+            message: L10n.tr("search.empty.message", query),
             systemImage: "magnifyingglass",
-            detail: "キーワードを変えるか、タグ (#tag) を試してみてください。",
-            footnote: "例: #仕事 休暇 2024"
+            detail: L10n.tr("search.empty.detail"),
+            footnote: L10n.tr("search.empty.footnote")
         )
     }
 }
@@ -192,9 +194,9 @@ private struct SearchLoadingStateView: View {
 
     var body: some View {
         LoadingStateView(
-            title: "検索中",
-            message: "「\(query)」を検索しています...",
-            detail: "一致するエントリーを探しています"
+            title: L10n.tr("search.in_progress"),
+            message: L10n.tr("search.loading.message", query),
+            detail: L10n.tr("search.loading.detail")
         )
     }
 }

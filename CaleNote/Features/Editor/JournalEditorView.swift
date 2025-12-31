@@ -67,23 +67,23 @@ struct JournalEditorView: View {
             Form {
                 Section {
                     DatePicker(
-                        "日時",
+                        L10n.tr("editor.datetime"),
                         selection: $startAt,
                         displayedComponents: isAllDay ? [.date] : [.date, .hourAndMinute]
                     )
                         .accessibilityIdentifier("entryDatePicker")
-                    Toggle("終日", isOn: $isAllDay)
+                    Toggle(L10n.tr("editor.all_day"), isOn: $isAllDay)
                         .accessibilityIdentifier("entryAllDayToggle")
                         .onChange(of: isAllDay) { _, newValue in
                             adjustStartAtForAllDayChange(isAllDay: newValue)
                         }
-                    TextField("タイトル", text: $title)
+                    TextField(L10n.tr("editor.title"), text: $title)
                         .accessibilityIdentifier("entryTitleField")
                     VStack(alignment: .leading, spacing: 8) {
                         TextEditor(text: $bodyText)
                             .frame(minHeight: 180)
-                            .accessibilityLabel("本文")
-                            .accessibilityHint("タグは # を入力して追加できます")
+                            .accessibilityLabel(L10n.tr("editor.body"))
+                            .accessibilityHint(L10n.tr("editor.body.hint"))
                             .accessibilityIdentifier("entryBodyEditor")
                         
                         // Tag Suggestions
@@ -112,14 +112,14 @@ struct JournalEditorView: View {
             }
             .overlay(alignment: .top) {
                 if showSaveSuccess {
-                    SuccessToastView(message: "保存しました")
+                    SuccessToastView(message: L10n.tr("editor.save.success"))
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
-            .navigationTitle(entry == nil ? "新規作成" : "編集")
+            .navigationTitle(entry == nil ? L10n.tr("editor.new") : L10n.tr("common.edit"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") { dismiss() }
+                    Button(L10n.tr("common.cancel")) { dismiss() }
                         .accessibilityIdentifier("entryCancelButton")
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -130,10 +130,10 @@ struct JournalEditorView: View {
                             HStack(spacing: 8) {
                                 ProgressView()
                                     .scaleEffect(0.8)
-                                Text("保存中")
+                                Text(L10n.tr("editor.save.in_progress"))
                             }
                         } else {
-                            Text("保存")
+                            Text(L10n.tr("common.save"))
                         }
                     }
                     .disabled(isSaving)
@@ -171,7 +171,7 @@ struct JournalEditorView: View {
                 var createdEntry: ScheduleEntry?
                 if let entry {
                     // Update existing
-                    entry.title = finalTitle.isEmpty ? "(タイトルなし)" : finalTitle
+                    entry.title = finalTitle.isEmpty ? L10n.tr("editor.untitled") : finalTitle
                     entry.body = finalBody
                     entry.startAt = normalizedStartAt
                     entry.endAt = endAt
@@ -187,7 +187,7 @@ struct JournalEditorView: View {
                         startAt: normalizedStartAt,
                         endAt: endAt,
                         isAllDay: isAllDay,
-                        title: finalTitle.isEmpty ? "(タイトルなし)" : finalTitle,
+                        title: finalTitle.isEmpty ? L10n.tr("editor.untitled") : finalTitle,
                         body: finalBody,
                         tags: extractedTags,
                         syncStatus: ScheduleEntry.SyncStatus.pending.rawValue
@@ -212,14 +212,14 @@ struct JournalEditorView: View {
                 await MainActor.run {
                     isSaving = false
                     showSaveSuccess = true
-                    UIAccessibility.post(notification: .announcement, argument: "保存しました")
+                    UIAccessibility.post(notification: .announcement, argument: L10n.tr("editor.save.success"))
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                         dismiss()
                     }
                 }
             } catch {
                 await MainActor.run {
-                    errorMessage = "保存失敗: \(error.localizedDescription)"
+                    errorMessage = L10n.tr("editor.save.failed", error.localizedDescription)
                     isSaving = false
                 }
             }

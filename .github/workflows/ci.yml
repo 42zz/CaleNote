@@ -1,0 +1,250 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install SwiftLint
+        run: brew install swiftlint
+      - name: Run SwiftLint
+        run: swiftlint --config .swiftlint.yml --reporter github-actions-logging
+
+  unit_tests:
+    if: github.event_name == 'pull_request'
+    runs-on: macos-14
+    outputs:
+      coverage: ${{ steps.coverage.outputs.percent }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Show Xcode version
+        run: xcodebuild -version
+      - name: Boot simulator
+        run: |
+          xcrun simctl boot "iPhone 15" || true
+          xcrun simctl bootstatus "iPhone 15" -b
+      - name: Run unit tests
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -scheme CaleNote \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -only-testing:CaleNoteTests \
+            -enableCodeCoverage YES \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            test | tee test.log
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: TestResults.xcresult
+      - name: Compute coverage
+        id: coverage
+        run: |
+          python - <<'PY'
+          import json, subprocess, sys
+          data = subprocess.check_output([
+              'xcrun', 'xccov', 'view', '--report', '--json', 'TestResults.xcresult'
+          ])
+          report = json.loads(data)
+          coverage = report.get('lineCoverage', 0) * 100
+          print(f"Coverage: {coverage:.2f}%")
+          with open('coverage.txt', 'w', encoding='utf-8') as f:
+              f.write(f"{coverage:.2f}")
+          with open('$GITHUB_OUTPUT', 'a', encoding='utf-8') as f:
+              f.write(f"percent={coverage:.2f}\n")
+          PY
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.txt
+
+  ui_tests:
+    if: github.event_name == 'pull_request'
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Show Xcode version
+        run: xcodebuild -version
+      - name: Boot simulator
+        run: |
+          xcrun simctl boot "iPhone 15" || true
+          xcrun simctl bootstatus "iPhone 15" -b
+      - name: Run UI tests
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -scheme CaleNote \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -only-testing:CaleNoteUITests \
+            -resultBundlePath UITestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            test | tee ui-test.log
+      - name: Upload UI test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-results
+          path: UITestResults.xcresult
+
+  pr_summary:
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: [lint, unit_tests, ui_tests]
+    steps:
+      - name: Create or update PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- calenote-ci-summary -->';
+            const coverage = '${{ needs.unit_tests.outputs.coverage }}';
+            const lint = '${{ needs.lint.result }}';
+            const unit = '${{ needs.unit_tests.result }}';
+            const ui = '${{ needs.ui_tests.result }}';
+            const body = `${marker}\n### CI Summary\n- SwiftLint: **${lint}**\n- Unit Tests: **${unit}**\n- UI Tests: **${ui}**\n- Coverage: **${coverage}%**\n`;
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+  full_tests:
+    if: github.event_name == 'push'
+    runs-on: macos-14
+    outputs:
+      coverage: ${{ steps.coverage.outputs.percent }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Show Xcode version
+        run: xcodebuild -version
+      - name: Boot simulator
+        run: |
+          xcrun simctl boot "iPhone 15" || true
+          xcrun simctl bootstatus "iPhone 15" -b
+      - name: Run full test suite
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -scheme CaleNote \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -enableCodeCoverage YES \
+            -resultBundlePath FullTestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            test | tee full-test.log
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-test-results
+          path: FullTestResults.xcresult
+      - name: Compute coverage
+        id: coverage
+        run: |
+          python - <<'PY'
+          import json, subprocess
+          data = subprocess.check_output([
+              'xcrun', 'xccov', 'view', '--report', '--json', 'FullTestResults.xcresult'
+          ])
+          report = json.loads(data)
+          coverage = report.get('lineCoverage', 0) * 100
+          print(f"Coverage: {coverage:.2f}%")
+          with open('coverage.txt', 'w', encoding='utf-8') as f:
+              f.write(f"{coverage:.2f}")
+          with open('$GITHUB_OUTPUT', 'a', encoding='utf-8') as f:
+              f.write(f"percent={coverage:.2f}\n")
+          PY
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.txt
+
+  build:
+    if: github.event_name == 'push'
+    runs-on: macos-14
+    strategy:
+      matrix:
+        destination:
+          - 'platform=iOS Simulator,name=iPhone 15'
+          - 'platform=iOS Simulator,name=iPhone 14'
+        configuration:
+          - Debug
+          - Release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Show Xcode version
+        run: xcodebuild -version
+      - name: Build (${{ matrix.configuration }})
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -scheme CaleNote \
+            -configuration ${{ matrix.configuration }} \
+            -destination '${{ matrix.destination }}' \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee build.log
+      - name: Check build warnings
+        run: |
+          warnings=$(grep -E "warning:|warning:" -c build.log || true)
+          echo "Warnings: $warnings"
+          if [ "$warnings" -gt 0 ]; then
+            echo "Build has warnings."
+            exit 1
+          fi
+      - name: Upload dSYM
+        if: matrix.configuration == 'Release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsym-${{ matrix.destination }}
+          path: DerivedData/**/dSYMs
+
+  coverage_badge:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: [full_tests]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Ensure badge directory
+        run: mkdir -p .github/badges
+      - name: Create badge
+        uses: emibcn/badge-action@v2
+        with:
+          label: coverage
+          status: ${{ needs.full_tests.outputs.coverage }}%
+          color: green
+          path: .github/badges/coverage.svg
+      - name: Commit badge
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore(ci): update coverage badge'
+          file_pattern: .github/badges/coverage.svg

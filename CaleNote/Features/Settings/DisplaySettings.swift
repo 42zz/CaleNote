@@ -20,10 +20,11 @@ enum DisplaySettings {
     }
 
     static func weekStartDayName(_ day: Int) -> String {
-        switch day {
-        case 0: return "日曜日"
-        case 1: return "月曜日"
-        default: return "月曜日"
-        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale.autoupdatingCurrent
+        let symbols = formatter.weekdaySymbols
+        guard !symbols.isEmpty else { return L10n.tr("weekday.monday") }
+        let index = min(max(day, 0), symbols.count - 1)
+        return symbols[index]
     }
 }

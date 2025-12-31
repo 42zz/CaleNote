@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added - 2025/12/31
 
+#### Issue #25 (CAL-25): GitHub Actions CI/CD パイプライン
+- **統合CI** (`.github/workflows/ci.yml`)
+  - PR 作成時に SwiftLint + ユニットテスト + UI テストを実行
+  - main へのマージ時にフルテスト + Debug/Release ビルドを実行
+  - テスト結果とカバレッジを PR にコメント
+- **カバレッジレポート/バッジ** (`.github/badges/coverage.svg`, `README.md`)
+  - xccov でカバレッジを測定しバッジを自動更新
+- **成果物の保存** (`.github/workflows/ci.yml`)
+  - xcresult と dSYM をアーティファクトとして保存
+- **ビルド警告チェック** (`.github/workflows/ci.yml`)
+  - ビルドログの warning を検出して失敗扱い
+
 #### Issue #61 (CAL-61): ゴミ箱機能と復元
 - **論理削除と復元フロー** (`Domain/ScheduleEntry.swift`, `Infrastructure/Sync/CalendarSyncService.swift`)
   - `isDeleted` / `deletedAt` を追加し、削除はゴミ箱へ移動
@@ -29,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 生成物/外部依存の除外とテスト向けルール緩和
 - **Xcodeビルド時Lint** (`CaleNote.xcodeproj/project.pbxproj`)
   - SwiftLint の Run Script Build Phase を追加
-- **CIでの自動チェック** (`.github/workflows/swiftlint.yml`)
+- **CIでの自動チェック** (`.github/workflows/ci.yml`)
   - PR/メインブランチで SwiftLint を実行し、PRにアノテーション出力
 
 #### Issue #24 (CAL-24): UIテストの実装
