@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added - 2025/12/31
 
+#### Issue #53 (CAL-53): SwiftLint導入とコーディング規約整備
+- **SwiftLint設定** (`.swiftlint.yml`)
+  - インデント4スペース、行長120、関数/ファイル/型の長さ制限
+  - force unwrap/cast、unused import、クロージャ引数の明示を警告化
+  - 生成物/外部依存の除外とテスト向けルール緩和
+- **Xcodeビルド時Lint** (`CaleNote.xcodeproj/project.pbxproj`)
+  - SwiftLint の Run Script Build Phase を追加
+- **CIでの自動チェック** (`.github/workflows/swiftlint.yml`)
+  - PR/メインブランチで SwiftLint を実行し、PRにアノテーション出力
+
+### Added - 2025/12/31
+
 #### Issue #24 (CAL-24): UIテストの実装
 - **UIテスト基盤** (`CaleNote/App/AppEnvironment.swift`, `CaleNote/App/UITestDataSeeder.swift`)
   - UIテスト用の起動引数、データリセット、シードデータ投入、ダーク/ライト切替

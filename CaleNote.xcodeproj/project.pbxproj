@@ -127,6 +127,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 713182342EF68343000B99BB /* Build configuration list for PBXNativeTarget "CaleNote" */;
 			buildPhases = (
+				71B0B36F2F00AA1100000001 /* SwiftLint */,
 				7131820D2EF68342000B99BB /* Sources */,
 				7131820E2EF68342000B99BB /* Frameworks */,
 				7131820F2EF68342000B99BB /* Resources */,
@@ -264,6 +265,23 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		71B0B36F2F00AA1100000001 /* SwiftLint */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = SwiftLint;
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if which swiftlint > /dev/null; then\n  swiftlint --config \\\"${SRCROOT}/.swiftlint.yml\\\"\nelse\n  echo \\\"warning: SwiftLint is not installed. Install via Homebrew (brew install swiftlint) or SPM.\\\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		7131820D2EF68342000B99BB /* Sources */ = {

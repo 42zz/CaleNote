@@ -31,6 +31,12 @@ xcodebuild -scheme CaleNote -only-testing:CaleNoteUITests test
 xcodebuild -scheme CaleNote -only-testing:CaleNoteTests/TestClassName/testMethodName test
 ```
 
+### Linting
+```bash
+# Run SwiftLint manually
+swiftlint --config .swiftlint.yml
+```
+
 ### Development
 The project uses Xcode's standard iOS development workflow. Open `CaleNote.xcodeproj` in Xcode to run the app in the simulator or on a device.
 

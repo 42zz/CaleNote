@@ -1,0 +1,69 @@
+# SwiftLint configuration for CaleNote
+# Start with warnings and tighten over time.
+
+included:
+  - CaleNote
+  - CaleNoteTests
+  - CaleNoteUITests
+
+excluded:
+  - CaleNote.xcodeproj
+  - .build
+  - build
+  - Carthage
+  - Pods
+  - DerivedData
+
+opt_in_rules:
+  - indentation_width
+  - force_unwrapping
+  - force_cast
+  - unused_import
+  - anonymous_argument_in_multiline_closure
+
+line_length:
+  warning: 120
+  ignores_comments: true
+  ignores_urls: true
+  ignores_interpolated_strings: true
+
+indentation_width:
+  indentation_width: 4
+
+function_body_length:
+  warning: 60
+  excluded:
+    - CaleNoteTests
+    - CaleNoteUITests
+
+file_length:
+  warning: 400
+  excluded:
+    - CaleNoteTests
+    - CaleNoteUITests
+
+type_body_length:
+  warning: 200
+  excluded:
+    - CaleNoteTests
+    - CaleNoteUITests
+
+identifier_name:
+  min_length:
+    warning: 2
+  max_length:
+    warning: 40
+  excluded:
+    - id
+    - ID
+    - url
+    - URL
+    - x
+    - y
+
+custom_rules:
+  no_todo:
+    name: "TODO Usage"
+    regex: "TODO:"
+    message: "Move TODOs to issues and resolve them in code."
+    severity: warning
