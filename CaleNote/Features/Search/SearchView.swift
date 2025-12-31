@@ -34,6 +34,12 @@ struct SearchView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("閉じる") { dismiss() }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    if isSearchingBody {
+                        ProgressView()
+                            .accessibilityLabel("検索中")
+                    }
+                }
             }
             .searchable(
                 text: $searchText,
@@ -80,28 +86,47 @@ struct SearchView: View {
     }
 
     private var resultsView: some View {
-        List {
+        Group {
             if results.isEmpty {
-                Text(isSearchingBody ? "検索中..." : "結果がありません")
-                    .foregroundStyle(.secondary)
+                if isSearchingBody {
+                    SearchLoadingStateView(query: searchText)
+                } else {
+                    SearchEmptyStateView(query: searchText)
+                }
             } else {
-                ForEach(groupedResults, id: \.date) { section in
-                    Section {
-                        ForEach(section.entries) { entry in
-                            NavigationLink {
-                                EntryDetailView(entry: entry)
-                            } label: {
-                                TimelineRowView(entry: entry, showTags: showTags)
+                List {
+                    if isSearchingBody {
+                        Section {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                Text("本文を検索中...")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
                             }
+                            .padding(.vertical, 4)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("検索中")
                         }
-                    } header: {
-                        DateSectionHeader(date: section.date, isToday: false)
+                    }
+
+                    ForEach(groupedResults, id: \.date) { section in
+                        Section {
+                            ForEach(section.entries) { entry in
+                                NavigationLink {
+                                    EntryDetailView(entry: entry)
+                                } label: {
+                                    TimelineRowView(entry: entry, showTags: showTags)
+                                }
+                            }
+                        } header: {
+                            DateSectionHeader(date: section.date, isToday: false)
+                        }
                     }
                 }
+                .listStyle(.plain)
+                .accessibilityIdentifier("searchResultsList")
             }
         }
-        .listStyle(.plain)
-        .accessibilityIdentifier("searchResultsList")
     }
 
     private var groupedResults: [(date: Date, entries: [ScheduleEntry])] {
@@ -145,5 +170,31 @@ struct SearchView: View {
                 }
             }
         }
+    }
+}
+
+private struct SearchEmptyStateView: View {
+    let query: String
+
+    var body: some View {
+        EmptyStateView(
+            title: "検索結果が見つかりませんでした",
+            message: "「\(query)」に一致するエントリーはありません。",
+            systemImage: "magnifyingglass",
+            detail: "キーワードを変えるか、タグ (#tag) を試してみてください。",
+            footnote: "例: #仕事 休暇 2024"
+        )
+    }
+}
+
+private struct SearchLoadingStateView: View {
+    let query: String
+
+    var body: some View {
+        LoadingStateView(
+            title: "検索中",
+            message: "「\(query)」を検索しています...",
+            detail: "一致するエントリーを探しています"
+        )
     }
 }
