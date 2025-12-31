@@ -29,7 +29,7 @@ final class CalendarSyncService: ObservableObject {
 
     // MARK: - Dependencies
 
-    private let apiClient: GoogleCalendarClient
+    private let apiClient: GoogleCalendarClientProtocol
     private let authService: GoogleAuthService
     private let searchIndexService: SearchIndexService
     private let relatedIndexService: RelatedEntriesIndexService
@@ -58,7 +58,7 @@ final class CalendarSyncService: ObservableObject {
     // MARK: - Initialization
 
     init(
-        apiClient: GoogleCalendarClient,
+        apiClient: GoogleCalendarClientProtocol,
         authService: GoogleAuthService,
         searchIndexService: SearchIndexService,
         relatedIndexService: RelatedEntriesIndexService,

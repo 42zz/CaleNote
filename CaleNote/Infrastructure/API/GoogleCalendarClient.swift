@@ -8,6 +8,39 @@
 import Foundation
 import OSLog
 
+@MainActor
+protocol GoogleCalendarClientProtocol {
+    func getCalendarList(
+        pageToken: String?,
+        syncToken: String?
+    ) async throws -> CalendarList
+    func createEvent(
+        calendarId: String,
+        event: CalendarEvent
+    ) async throws -> CalendarEvent
+    func updateEvent(
+        calendarId: String,
+        eventId: String,
+        event: CalendarEvent
+    ) async throws -> CalendarEvent
+    func deleteEvent(
+        calendarId: String,
+        eventId: String
+    ) async throws
+    func listEvents(
+        calendarId: String,
+        timeMin: String?,
+        timeMax: String?,
+        pageToken: String?,
+        syncToken: String?,
+        maxResults: Int
+    ) async throws -> EventListResponse
+    func listEventsSince(
+        calendarId: String,
+        syncToken: String
+    ) async throws -> EventListResponse
+}
+
 /// Google Calendar API v3 クライアント
 @MainActor
 final class GoogleCalendarClient {
@@ -370,3 +403,5 @@ extension GoogleCalendarClient {
         return formatter.string(from: date)
     }
 }
+
+extension GoogleCalendarClient: GoogleCalendarClientProtocol {}
