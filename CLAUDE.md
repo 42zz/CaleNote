@@ -85,6 +85,7 @@ Internally, each schedule entry should maintain:
 * `tags`
 * `syncStatus` (synced / pending / failed)
 * `lastSyncedAt`
+* `isDeleted` / `deletedAt` (trash management)
 
 ### Google Calendar Event Mapping
 
@@ -94,14 +95,14 @@ Local data serves as cache for fast display, but the ultimate source of truth is
 
 ## Current Project State
 
-**Status**: Reset to minimal structure (2025/12/30)
+**Status**: Active development (2025/12/31)
 
-The project has been reset and is ready for fresh development. Current structure:
+Current structure highlights:
 
-* **App Layer**: `CaleNoteApp.swift` - Minimal app entry point with `ContentView`
-* **Features Layer**: `ContentView.swift` - Basic placeholder view
-* **Domain Layer**: Empty (to be implemented)
-* **Infrastructure Layer**: Empty (to be implemented)
+* **App Layer**: `CaleNoteApp.swift` - App entry point and service wiring
+* **Features Layer**: Timeline, Editor, Settings (TrashView), Search, Tags, Onboarding
+* **Domain Layer**: `ScheduleEntry`, `CalendarInfo`
+* **Infrastructure Layer**: Sync, Search/Related indexes, Settings (`CalendarSettings`, `TrashSettings`)
 
 ## Implementation Guidelines
 
@@ -126,6 +127,7 @@ The project has been reset and is ready for fresh development. Current structure
 3. Use async/await for all API calls and DB operations
 4. Implement proper error handling and retry logic
 5. Consider rate limiting for API calls
+6. Manage trash configuration via `TrashSettings` and prefer logical deletes when enabled
 
 ### When Creating UI Views
 
@@ -262,6 +264,7 @@ When implementing Google Calendar integration:
 4. **Don't assume syncToken validity**: Always handle HTTP 410 GONE (token expired)
 5. **Don't scan raw data**: Use indexes for search operations
 6. **Don't introduce new concepts**: Follow Google Calendar app patterns
+7. **Don't index trash**: Exclude deleted entries from search/tag/related indexes
 
 ## Documentation Update Policy
 

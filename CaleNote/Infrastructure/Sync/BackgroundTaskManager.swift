@@ -149,6 +149,13 @@ final class BackgroundTaskManager {
             logger.error("Background processing skipped: services not configured")
             return false
         }
+        if let syncService {
+            do {
+                try syncService.cleanupExpiredTrashEntries()
+            } catch {
+                logger.error("Trash cleanup failed: \(error.localizedDescription)")
+            }
+        }
         searchIndexService.rebuildIndex(modelContext: modelContext)
         relatedIndexService.rebuildIndex(modelContext: modelContext)
         logger.info("Background processing completed")

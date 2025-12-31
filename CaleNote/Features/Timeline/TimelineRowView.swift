@@ -19,10 +19,12 @@ struct TimelineRowView: View {
 
     let entry: ScheduleEntry
     let showTags: Bool
+    let displayDate: Date?
 
-    init(entry: ScheduleEntry, showTags: Bool = true) {
+    init(entry: ScheduleEntry, showTags: Bool = true, displayDate: Date? = nil) {
         self.entry = entry
         self.showTags = showTags
+        self.displayDate = displayDate
     }
 
     // MARK: - Calendar Color
@@ -85,10 +87,59 @@ struct TimelineRowView: View {
         entry.managedByCaleNote ? "CaleNote" : "Googleカレンダー"
     }
 
+    private struct AllDaySpanContext {
+        let isStart: Bool
+        let isMiddle: Bool
+        let isEnd: Bool
+        let rangeText: String
+    }
+
+    private var allDaySpanContext: AllDaySpanContext? {
+        guard entry.isAllDay, entry.isMultiDayAllDay, let displayDate else { return nil }
+        let calendar = Calendar.current
+        let span = entry.allDaySpan(using: calendar)
+        guard let lastDay = calendar.date(byAdding: .day, value: span.dayCount - 1, to: span.startDay) else {
+            return nil
+        }
+        let isStart = calendar.isDate(displayDate, inSameDayAs: span.startDay)
+        let isEnd = calendar.isDate(displayDate, inSameDayAs: lastDay)
+        let isMiddle = !isStart && !isEnd
+        return AllDaySpanContext(
+            isStart: isStart,
+            isMiddle: isMiddle,
+            isEnd: isEnd,
+            rangeText: allDayRangeText(span: span, lastDay: lastDay)
+        )
+    }
+
+    private func allDayRangeText(span: (startDay: Date, endDayExclusive: Date, dayCount: Int), lastDay: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return "\(formatter.string(from: span.startDay)) - \(formatter.string(from: lastDay))"
+    }
+
+    private var allDayContinuationLabel: String? {
+        guard let context = allDaySpanContext else { return nil }
+        if context.isMiddle {
+            return "継続中"
+        }
+        if context.isEnd {
+            return "最終日"
+        }
+        if context.isStart {
+            return "開始"
+        }
+        return nil
+    }
+
     private var accessibilityLabelText: String {
         var parts: [String] = [entry.title]
         if entry.isAllDay {
             parts.append("終日")
+            if let label = allDayContinuationLabel {
+                parts.append(label)
+            }
         } else {
             parts.append("開始 \(timeText)")
             parts.append("終了 \(endTimeText)")
@@ -118,6 +169,11 @@ struct TimelineRowView: View {
                     Text("終日")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                    if let label = allDayContinuationLabel {
+                        Text(label)
+                            .font(.caption2)
+                            .foregroundColor(.secondary.opacity(0.8))
+                    }
                 } else {
                     Text(timeText)
                         .font(.caption)
@@ -161,6 +217,12 @@ struct TimelineRowView: View {
                         .foregroundColor(.secondary)
                 }
 
+                if let spanContext = allDaySpanContext {
+                    Text("期間: \(spanContext.rangeText)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
                 // タグ
                 if showTags && !entry.tags.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -192,6 +254,15 @@ struct TimelineRowView: View {
             }
         }
         .padding(.vertical, 8)
+        .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(entry.isAllDay ? Color.accentColor.opacity(accessibilityContrast == .high ? 0.2 : 0.08) : .clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(entry.isAllDay ? Color.accentColor.opacity(accessibilityContrast == .high ? 0.6 : 0.2) : .clear, lineWidth: entry.isAllDay ? 1 : 0)
+        )
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabelText)

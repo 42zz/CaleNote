@@ -37,6 +37,7 @@ final class CalendarSyncService: ObservableObject {
     private let modelContext: ModelContext
     private let calendarSettings: CalendarSettings
     private let rateLimiter: SyncRateLimiter
+    private let trashSettings: TrashSettings
 
     // MARK: - Logger
 
@@ -79,6 +80,7 @@ final class CalendarSyncService: ObservableObject {
         self.modelContext = modelContext
         self.calendarSettings = calendarSettings
         self.rateLimiter = rateLimiter
+        self.trashSettings = .shared
 
         // syncToken を復元
         loadSyncTokens()
@@ -378,7 +380,7 @@ final class CalendarSyncService: ObservableObject {
     private func fetchPendingEntries() throws -> [ScheduleEntry] {
         let descriptor = FetchDescriptor<ScheduleEntry>(
             predicate: #Predicate { entry in
-                entry.syncStatus == "pending"
+                entry.syncStatus == "pending" && entry.isDeleted == false
             }
         )
         return try modelContext.fetch(descriptor)
@@ -402,11 +404,17 @@ final class CalendarSyncService: ObservableObject {
     /// - Throws: データベースエラー
     private func deleteLocalEvent(googleEventId: String) async throws {
         if let entry = try fetchEntry(googleEventId: googleEventId) {
-            modelContext.delete(entry)
-            searchIndexService.removeEntry(entry)
-            relatedIndexService.removeEntry(entry)
-            try modelContext.save()
-            logger.info("Deleted local entry: \(googleEventId)")
+            if trashSettings.isEnabled {
+                markEntryDeleted(entry)
+                try modelContext.save()
+                logger.info("Soft deleted local entry: \(googleEventId)")
+            } else {
+                modelContext.delete(entry)
+                searchIndexService.removeEntry(entry)
+                relatedIndexService.removeEntry(entry)
+                try modelContext.save()
+                logger.info("Deleted local entry: \(googleEventId)")
+            }
         }
     }
 
@@ -422,14 +430,110 @@ final class CalendarSyncService: ObservableObject {
             try await apiClient.deleteEvent(calendarId: calendarId, eventId: eventId)
         }
 
+        if trashSettings.isEnabled {
+            markEntryDeleted(entry)
+            try modelContext.save()
+            logger.info("Moved entry to trash: \(entry.title)")
+        } else {
+            modelContext.delete(entry)
+            searchIndexService.removeEntry(entry)
+            relatedIndexService.removeEntry(entry)
+            try modelContext.save()
+            logger.info("Deleted entry locally: \(entry.googleEventId ?? entry.title)")
+        }
+    }
+
+    /// ゴミ箱から復元（Google Calendar に再作成）
+    /// - Parameter entry: 復元対象エントリー
+    func restoreEntry(_ entry: ScheduleEntry) async throws {
+        logger.info("Restoring entry: \(entry.title)")
+        let calendarId = calendarSettings.targetCalendarId
+        entry.googleEventId = nil
+        let calendarEvent = convertToCalendarEvent(entry)
+
+        let createdEvent = try await apiClient.createEvent(
+            calendarId: calendarId,
+            event: calendarEvent
+        )
+
+        entry.restoreFromTrash()
+        entry.calendarId = calendarId
+        entry.googleEventId = createdEvent.id
+        entry.syncStatus = ScheduleEntry.SyncStatus.synced.rawValue
+        entry.lastSyncedAt = Date()
+        searchIndexService.indexEntry(entry)
+        relatedIndexService.indexEntry(entry)
+        try modelContext.save()
+        logger.info("Restored entry with new event ID: \(createdEvent.id ?? "unknown")")
+    }
+
+    /// ローカルから完全削除
+    func purgeEntry(_ entry: ScheduleEntry) throws {
+        logger.info("Purging entry: \(entry.title)")
         modelContext.delete(entry)
         searchIndexService.removeEntry(entry)
         relatedIndexService.removeEntry(entry)
         try modelContext.save()
-        logger.info("Deleted entry locally: \(entry.googleEventId ?? entry.title)")
+    }
+
+    /// ゴミ箱を空にする
+    func purgeAllTrashEntries() throws {
+        let descriptor = FetchDescriptor<ScheduleEntry>(
+            predicate: #Predicate { entry in
+                entry.isDeleted == true
+            }
+        )
+        let entries = try modelContext.fetch(descriptor)
+        for entry in entries {
+            modelContext.delete(entry)
+            searchIndexService.removeEntry(entry)
+            relatedIndexService.removeEntry(entry)
+        }
+        if !entries.isEmpty {
+            try modelContext.save()
+        }
+        logger.info("Purged trash entries: \(entries.count)")
+    }
+
+    /// 期限切れゴミ箱の自動削除
+    func cleanupExpiredTrashEntries() throws {
+        guard trashSettings.isEnabled, trashSettings.autoPurgeEnabled else { return }
+        guard let cutoff = Calendar.current.date(byAdding: .day, value: -trashSettings.retentionDays, to: Date()) else {
+            return
+        }
+
+        let descriptor = FetchDescriptor<ScheduleEntry>(
+            predicate: #Predicate { entry in
+                entry.isDeleted == true && entry.deletedAt != nil && entry.deletedAt! <= cutoff
+            }
+        )
+
+        let expired = try modelContext.fetch(descriptor)
+        for entry in expired {
+            modelContext.delete(entry)
+            searchIndexService.removeEntry(entry)
+            relatedIndexService.removeEntry(entry)
+        }
+        if !expired.isEmpty {
+            try modelContext.save()
+        }
+        logger.info("Cleaned up expired trash entries: \(expired.count)")
     }
 
     // MARK: - Conversion
+
+    /// 論理削除処理（インデックスから除外）
+    /// - Parameters:
+    ///   - entry: 対象エントリー
+    ///   - deletedAt: 削除日時
+    private func markEntryDeleted(_ entry: ScheduleEntry, deletedAt: Date = Date()) {
+        entry.markDeleted(at: deletedAt)
+        entry.googleEventId = nil
+        entry.syncStatus = ScheduleEntry.SyncStatus.synced.rawValue
+        entry.lastSyncedAt = Date()
+        searchIndexService.removeEntry(entry)
+        relatedIndexService.removeEntry(entry)
+    }
 
     /// ScheduleEntry を CalendarEvent に変換
     /// - Parameter entry: ScheduleEntry
@@ -440,6 +544,33 @@ final class CalendarSyncService: ObservableObject {
         let extendedProperties = privateProperties != nil
             ? CalendarEvent.ExtendedProperties(private: privateProperties, shared: nil)
             : nil
+
+        if entry.isAllDay {
+            let (startDate, endDate) = allDayDateRange(for: entry)
+            return CalendarEvent(
+                id: entry.googleEventId,
+                status: nil,
+                summary: entry.title,
+                description: entry.body,
+                start: CalendarEvent.EventDateTime(
+                    date: startDate,
+                    dateTime: nil,
+                    timeZone: nil
+                ),
+                end: CalendarEvent.EventDateTime(
+                    date: endDate,
+                    dateTime: nil,
+                    timeZone: nil
+                ),
+                created: nil,
+                updated: nil,
+                etag: nil,
+                extendedProperties: extendedProperties,
+                recurrence: nil,
+                recurringEventId: nil,
+                originalStartTime: nil
+            )
+        }
 
         return CalendarEvent(
             id: entry.googleEventId,
@@ -513,6 +644,9 @@ final class CalendarSyncService: ObservableObject {
         entry.endAt = parseEventDateTime(event.end)
         entry.isAllDay = event.start?.date != nil
         entry.calendarId = calendarId
+        if entry.isDeleted {
+            entry.restoreFromTrash()
+        }
         entry.syncStatus = ScheduleEntry.SyncStatus.synced.rawValue
         entry.lastSyncedAt = Date()
         entry.updatedAt = Date()
@@ -544,12 +678,32 @@ final class CalendarSyncService: ObservableObject {
         if let dateString = eventDateTime.date {
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM-dd"
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone.current
             if let date = formatter.date(from: dateString) {
                 return date
             }
         }
 
         return Date()
+    }
+
+    /// 全日イベント用の日付レンジ（Google Calendar は end が排他的）
+    private func allDayDateRange(for entry: ScheduleEntry) -> (startDate: String, endDate: String) {
+        let calendar = Calendar.current
+        let span = entry.allDaySpan(using: calendar)
+        let startDate = allDayDateString(from: span.startDay, calendar: calendar)
+        let endDate = allDayDateString(from: span.endDayExclusive, calendar: calendar)
+        return (startDate, endDate)
+    }
+
+    private func allDayDateString(from date: Date, calendar: Calendar) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 
     // MARK: - Sync Token Persistence
@@ -647,7 +801,7 @@ final class CalendarSyncService: ObservableObject {
     private func fetchFailedEntries() throws -> [ScheduleEntry] {
         let descriptor = FetchDescriptor<ScheduleEntry>(
             predicate: #Predicate { entry in
-                entry.syncStatus == "failed"
+                entry.syncStatus == "failed" && entry.isDeleted == false
             }
         )
         return try modelContext.fetch(descriptor)

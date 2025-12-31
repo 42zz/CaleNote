@@ -53,6 +53,12 @@ final class ScheduleEntry {
     /// 最終同期日時
     var lastSyncedAt: Date?
 
+    /// 論理削除フラグ
+    var isDeleted: Bool = false
+
+    /// 削除日時
+    var deletedAt: Date?
+
     /// 作成日時
     var createdAt: Date
 
@@ -87,7 +93,9 @@ final class ScheduleEntry {
         body: String? = nil,
         tags: [String] = [],
         syncStatus: String = SyncStatus.pending.rawValue,
-        lastSyncedAt: Date? = nil
+        lastSyncedAt: Date? = nil,
+        isDeleted: Bool = false,
+        deletedAt: Date? = nil
     ) {
         self.source = source
         self.managedByCaleNote = managedByCaleNote
@@ -101,6 +109,8 @@ final class ScheduleEntry {
         self.tags = tags
         self.syncStatus = syncStatus
         self.lastSyncedAt = lastSyncedAt
+        self.isDeleted = isDeleted
+        self.deletedAt = deletedAt
         self.createdAt = Date()
         self.updatedAt = Date()
     }
@@ -153,6 +163,11 @@ extension ScheduleEntry {
         source == Source.calenote.rawValue
     }
 
+    /// ゴミ箱に入っているかどうか
+    var isInTrash: Bool {
+        isDeleted
+    }
+
     /// エントリーの長さ（秒）
     var duration: TimeInterval {
         endAt.timeIntervalSince(startAt)
@@ -202,6 +217,21 @@ extension ScheduleEntry {
         updatedAt = Date()
     }
 
+    /// 論理削除をマーク
+    /// - Parameter date: 削除日時
+    func markDeleted(at date: Date = Date()) {
+        isDeleted = true
+        deletedAt = date
+        updatedAt = Date()
+    }
+
+    /// 論理削除を解除
+    func restoreFromTrash() {
+        isDeleted = false
+        deletedAt = nil
+        updatedAt = Date()
+    }
+
     /// タグを追加
     /// - Parameter tag: 追加するタグ
     func addTag(_ tag: String) {
@@ -215,5 +245,27 @@ extension ScheduleEntry {
     func removeTag(_ tag: String) {
         tags.removeAll { $0 == tag }
         updatedAt = Date()
+    }
+}
+
+// MARK: - All-day Helpers
+
+extension ScheduleEntry {
+    /// 全日イベントの表示/同期用に開始日と終了日（排他的）を整形
+    func allDaySpan(using calendar: Calendar = .current) -> (startDay: Date, endDayExclusive: Date, dayCount: Int) {
+        let startDay = calendar.startOfDay(for: startAt)
+        var endDay = calendar.startOfDay(for: endAt)
+        if endDay <= startDay {
+            endDay = calendar.date(byAdding: .day, value: 1, to: startDay) ?? startDay
+        }
+        let rawDayCount = calendar.dateComponents([.day], from: startDay, to: endDay).day ?? 0
+        let dayCount = max(1, rawDayCount)
+        return (startDay, endDay, dayCount)
+    }
+
+    /// 複数日にまたがる全日イベントかどうか
+    var isMultiDayAllDay: Bool {
+        guard isAllDay else { return false }
+        return allDaySpan().dayCount > 1
     }
 }

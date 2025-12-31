@@ -99,3 +99,86 @@ final class CalendarSettings {
         calendarListSyncToken = nil
     }
 }
+
+/// ゴミ箱設定を管理するサービス
+final class TrashSettings {
+    static let shared = TrashSettings()
+
+    enum RetentionOption: Int, CaseIterable, Identifiable {
+        case days7 = 7
+        case days30 = 30
+        case days60 = 60
+
+        var id: Int { rawValue }
+
+        var label: String {
+            "\(rawValue)日"
+        }
+    }
+
+    private enum Keys {
+        static let isEnabled = "trashEnabled"
+        static let retentionDays = "trashRetentionDays"
+        static let autoPurgeEnabled = "trashAutoPurgeEnabled"
+    }
+
+    private let defaults = UserDefaults.standard
+
+    /// ゴミ箱の有効/無効（デフォルト: 有効）
+    var isEnabled: Bool {
+        get {
+            if defaults.object(forKey: Keys.isEnabled) == nil {
+                return true
+            }
+            return defaults.bool(forKey: Keys.isEnabled)
+        }
+        set {
+            defaults.set(newValue, forKey: Keys.isEnabled)
+        }
+    }
+
+    /// 保持期間（日数）
+    var retentionDays: Int {
+        get {
+            let value = defaults.integer(forKey: Keys.retentionDays)
+            let normalized = RetentionOption(rawValue: value)?.rawValue
+            return normalized ?? RetentionOption.days30.rawValue
+        }
+        set {
+            let normalized = RetentionOption(rawValue: newValue)?.rawValue ?? RetentionOption.days30.rawValue
+            defaults.set(normalized, forKey: Keys.retentionDays)
+        }
+    }
+
+    /// 自動削除の有効/無効
+    var autoPurgeEnabled: Bool {
+        get {
+            if defaults.object(forKey: Keys.autoPurgeEnabled) == nil {
+                return true
+            }
+            return defaults.bool(forKey: Keys.autoPurgeEnabled)
+        }
+        set {
+            defaults.set(newValue, forKey: Keys.autoPurgeEnabled)
+        }
+    }
+
+    /// 有効な保持期間候補
+    var retentionOptions: [RetentionOption] {
+        RetentionOption.allCases
+    }
+
+    func expirationDate(for deletedAt: Date, calendar: Calendar = .current) -> Date {
+        calendar.date(byAdding: .day, value: retentionDays, to: deletedAt) ?? deletedAt
+    }
+
+    func remainingDays(from deletedAt: Date, reference: Date = Date(), calendar: Calendar = .current) -> Int {
+        let expiration = expirationDate(for: deletedAt, calendar: calendar)
+        let components = calendar.dateComponents([.day], from: reference, to: expiration)
+        return max(0, components.day ?? 0)
+    }
+
+    func isExpired(deletedAt: Date, reference: Date = Date(), calendar: Calendar = .current) -> Bool {
+        expirationDate(for: deletedAt, calendar: calendar) <= reference
+    }
+}
