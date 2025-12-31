@@ -15,50 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added - 2025/12/31
 
-#### Development Tooling: Makefile for Build Automation
-- **Makefile** (`Makefile`)
-  - Xcodeビルド・テスト・実行を自動化するMakefileを追加
-  - `make` / `make build` / `make run` / `make test` / `make test-unit` / `make test-ui` / `make lint` / `make clean` コマンドを提供
-  - xcbeautifyによるビルド出力の整形対応
-  - AIエージェントが簡単にビルド・テストを実行できるよう最適化
-
-### Added - 2025/12/31
-
-#### Issue #61 (CAL-61): ゴミ箱機能と復元
-- **論理削除と復元フロー** (`Domain/ScheduleEntry.swift`, `Infrastructure/Sync/CalendarSyncService.swift`)
-  - `isDeleted` / `deletedAt` を追加し、削除はゴミ箱へ移動
-  - 復元時に Google Calendar へ再作成して新しい event ID を付与
-  - 期限切れエントリーの自動クリーンアップを実装
-- **ゴミ箱 UI と設定** (`Features/Settings/SettingsView.swift`, `Features/Timeline/TimelineView.swift`, `Features/EntryDetail/EntryDetailView.swift`)
-  - 設定画面からゴミ箱にアクセス、保持期間・自動削除を設定可能
-  - 個別/選択復元、スワイプ復元、完全削除、ゴミ箱を空にする操作を追加
-  - 削除確認ダイアログをゴミ箱仕様に合わせて更新
-- **検索・関連インデックスの除外** (`Infrastructure/Search/SearchIndexService.swift`, `Infrastructure/Related/RelatedEntriesIndexService.swift`)
-  - ゴミ箱内エントリーを検索・タグ・関連表示から除外
-
-#### Issue #53 (CAL-53): SwiftLint導入とコーディング規約整備
-- **SwiftLint設定** (`.swiftlint.yml`)
-  - インデント4スペース、行長120、関数/ファイル/型の長さ制限
-  - force unwrap/cast、unused import、クロージャ引数の明示を警告化
-  - force cast/unwrap の severity を warning に調整して段階導入
-  - 生成物/外部依存の除外とテスト向けルール緩和
-- **Xcodeビルド時Lint** (`CaleNote.xcodeproj/project.pbxproj`)
-  - SwiftLint の Run Script Build Phase を追加
-- **CIでの自動チェック** (`.github/workflows/swiftlint.yml`)
-  - PR/メインブランチで SwiftLint を実行し、PRにアノテーション出力
-
-#### Issue #24 (CAL-24): UIテストの実装
-- **UIテスト基盤** (`CaleNote/App/AppEnvironment.swift`, `CaleNote/App/UITestDataSeeder.swift`)
-  - UIテスト用の起動引数、データリセット、シードデータ投入、ダーク/ライト切替
-  - UIテスト用モック認証と同期無効化のフラグ
-- **XCUITest シナリオ** (`CaleNoteUITests/CaleNoteUITests.swift`, `CaleNoteUITests/CaleNoteUITestsLaunchTests.swift`)
-  - オンボーディング、エントリー作成・編集、検索、サイドバー操作の自動化
-  - スナップショット取得（ライト/ダーク・向き変更）
-- **アクセシビリティ識別子追加**
-  - オンボーディング、タイムライン、編集、検索、サイドバー主要UIに ID を付与
-
-### Added - 2025/12/31
-
 #### Issue #22 (CAL-22): BackgroundTasks-based sync
 - **BackgroundTaskManager** (`Infrastructure/Sync/BackgroundTaskManager.swift`)
   - BGAppRefreshTask での定期同期スケジューリング
@@ -69,19 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Info.plist** (`CaleNote/Info.plist`)
   - BGTaskSchedulerPermittedIdentifiers と UIBackgroundModes を追加
 
-#### Issue #23 (CAL-23): Unit test coverage for core logic
-- **Unit tests** (`CaleNoteTests/`)
-  - ScheduleEntry のバリデーション、タグ操作、同期状態更新
-  - TagParser、SearchIndexService、RelatedEntriesIndexService のテスト
-  - DisplaySettings、InputValidator の設定・バリデーションテスト
-  - CalendarSyncService のローカル同期フロー（新規作成/更新）のテスト
-
 ### Changed - 2025/12/31
 - **Foreground Sync** (`Features/Timeline/TimelineView.swift`, `Features/Navigation/MainNavigationView.swift`)
   - フォアグラウンド復帰時の即時同期とタイマー管理の最適化
-- **Domain validation & API abstraction** (`Domain/ScheduleEntry.swift`, `Infrastructure/API/GoogleCalendarClient.swift`, `Infrastructure/Sync/CalendarSyncService.swift`)
-  - ScheduleEntry の整合性チェックを追加
-  - GoogleCalendarClientProtocol を導入して同期ロジックのモック可能性を改善
 
 ### Added - 2025/12/30
 

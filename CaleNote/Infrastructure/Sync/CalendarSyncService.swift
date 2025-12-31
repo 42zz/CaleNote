@@ -561,6 +561,16 @@ final class CalendarSyncService: ObservableObject {
 
     // MARK: - Background Sync
 
+    /// フォアグラウンド復帰時の即時同期
+    func performForegroundSync() async {
+        guard !isSyncing else { return }
+        do {
+            try await performFullSync()
+        } catch {
+            logger.error("Foreground sync failed: \(error.localizedDescription)")
+        }
+    }
+
     /// バックグラウンド同期を開始
     func startBackgroundSync() {
         logger.info("Starting background sync with interval: \(self.syncConfig.syncInterval)s")
