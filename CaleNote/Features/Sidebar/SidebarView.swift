@@ -38,7 +38,7 @@ struct SidebarView: View {
             sidebarFooter
         }
         .frame(width: 280)
-        .background(Color(uiColor: .systemBackground))
+        .background(Color.cnBackground)
         .accessibilityIdentifier("sidebarView")
     }
 
@@ -143,6 +143,7 @@ struct SidebarView: View {
 private struct CalendarRowView: View {
     let calendar: CalendarInfo
     let onToggleVisibility: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button {
@@ -212,10 +213,7 @@ private struct CalendarRowView: View {
     }
 
     private var calendarColor: Color {
-        guard let hexColor = calendar.backgroundColor else {
-            return .accentColor
-        }
-        return Color(hex: hexColor) ?? .accentColor
+        CalendarColor.color(from: calendar.backgroundColor, colorScheme: colorScheme)
     }
 }
 
