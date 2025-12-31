@@ -53,6 +53,12 @@ final class ScheduleEntry {
     /// 最終同期日時
     var lastSyncedAt: Date?
 
+    /// 論理削除フラグ
+    var isDeleted: Bool = false
+
+    /// 削除日時
+    var deletedAt: Date?
+
     /// 作成日時
     var createdAt: Date
 
@@ -87,7 +93,9 @@ final class ScheduleEntry {
         body: String? = nil,
         tags: [String] = [],
         syncStatus: String = SyncStatus.pending.rawValue,
-        lastSyncedAt: Date? = nil
+        lastSyncedAt: Date? = nil,
+        isDeleted: Bool = false,
+        deletedAt: Date? = nil
     ) {
         self.source = source
         self.managedByCaleNote = managedByCaleNote
@@ -101,6 +109,8 @@ final class ScheduleEntry {
         self.tags = tags
         self.syncStatus = syncStatus
         self.lastSyncedAt = lastSyncedAt
+        self.isDeleted = isDeleted
+        self.deletedAt = deletedAt
         self.createdAt = Date()
         self.updatedAt = Date()
     }
@@ -153,6 +163,11 @@ extension ScheduleEntry {
         source == Source.calenote.rawValue
     }
 
+    /// ゴミ箱に入っているかどうか
+    var isInTrash: Bool {
+        isDeleted
+    }
+
     /// エントリーの長さ（秒）
     var duration: TimeInterval {
         endAt.timeIntervalSince(startAt)
@@ -199,6 +214,21 @@ extension ScheduleEntry {
         if status == .synced {
             lastSyncedAt = Date()
         }
+        updatedAt = Date()
+    }
+
+    /// 論理削除をマーク
+    /// - Parameter date: 削除日時
+    func markDeleted(at date: Date = Date()) {
+        isDeleted = true
+        deletedAt = date
+        updatedAt = Date()
+    }
+
+    /// 論理削除を解除
+    func restoreFromTrash() {
+        isDeleted = false
+        deletedAt = nil
         updatedAt = Date()
     }
 

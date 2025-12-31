@@ -52,7 +52,11 @@ final class SearchIndexService: ObservableObject {
 
     func rebuildIndex(modelContext: ModelContext) {
         do {
-            let descriptor = FetchDescriptor<ScheduleEntry>()
+            let descriptor = FetchDescriptor<ScheduleEntry>(
+                predicate: #Predicate { entry in
+                    entry.isDeleted == false
+                }
+            )
             let entries = try modelContext.fetch(descriptor)
             rebuildIndex(entries: entries)
         } catch {
@@ -74,6 +78,7 @@ final class SearchIndexService: ObservableObject {
     }
 
     func indexEntry(_ entry: ScheduleEntry) {
+        guard entry.isDeleted == false else { return }
         let id = ObjectIdentifier(entry)
         entryCache[id] = entry
 

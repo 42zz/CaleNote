@@ -4,40 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build and Test Commands
 
-### Using Makefile (Recommended)
-
-The project includes a `Makefile` for convenient build automation. This is especially useful for AI agents and CI/CD pipelines.
-
-```bash
-# Build and run on simulator
-make
-
-# Build only
-make build
-
-# Build and run
-make run
-
-# Run all tests
-make test
-
-# Run unit tests only
-make test-unit
-
-# Run UI tests only
-make test-ui
-
-# Run SwiftLint
-make lint
-
-# Clean build folder
-make clean
-```
-
-**Prerequisites**: `xcbeautify` must be installed (`brew install xcbeautify`)
-
-### Building the Project (Direct xcodebuild)
-
+### Building the Project
 ```bash
 # Build the project
 xcodebuild -scheme CaleNote -configuration Debug build
@@ -49,8 +16,7 @@ xcodebuild -scheme CaleNote -configuration Release build
 xcodebuild -scheme CaleNote clean
 ```
 
-### Running Tests (Direct xcodebuild)
-
+### Running Tests
 ```bash
 # Run all tests
 xcodebuild -scheme CaleNote test
@@ -64,17 +30,6 @@ xcodebuild -scheme CaleNote -only-testing:CaleNoteUITests test
 # Run a specific test
 xcodebuild -scheme CaleNote -only-testing:CaleNoteTests/TestClassName/testMethodName test
 ```
-
-### Linting
-
-```bash
-# Run SwiftLint manually
-swiftlint --config .swiftlint.yml
-
-# Or use Makefile
-make lint
-```
-Note: Some rules (e.g. force cast/unwrap) are configured as warnings for gradual rollout.
 
 ### Development
 The project uses Xcode's standard iOS development workflow. Open `CaleNote.xcodeproj` in Xcode to run the app in the simulator or on a device.

@@ -15,6 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added - 2025/12/31
 
+#### Issue #61 (CAL-61): ゴミ箱機能と復元
+- **論理削除と復元フロー** (`Domain/ScheduleEntry.swift`, `Infrastructure/Sync/CalendarSyncService.swift`)
+  - `isDeleted` / `deletedAt` を追加し、削除はゴミ箱へ移動
+  - 復元時に Google Calendar へ再作成して新しい event ID を付与
+  - 期限切れエントリーの自動クリーンアップを実装
+- **ゴミ箱 UI と設定** (`Features/Settings/SettingsView.swift`, `Features/Timeline/TimelineView.swift`, `Features/EntryDetail/EntryDetailView.swift`)
+  - 設定画面からゴミ箱にアクセス、保持期間・自動削除を設定可能
+  - 個別/選択復元、スワイプ復元、完全削除、ゴミ箱を空にする操作を追加
+  - 削除確認ダイアログをゴミ箱仕様に合わせて更新
+- **検索・関連インデックスの除外** (`Infrastructure/Search/SearchIndexService.swift`, `Infrastructure/Related/RelatedEntriesIndexService.swift`)
+  - ゴミ箱内エントリーを検索・タグ・関連表示から除外
+
 #### Issue #24 (CAL-24): UIテストの実装
 - **UIテスト基盤** (`CaleNote/App/AppEnvironment.swift`, `CaleNote/App/UITestDataSeeder.swift`)
   - UIテスト用の起動引数、データリセット、シードデータ投入、ダーク/ライト切替
