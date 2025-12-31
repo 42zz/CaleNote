@@ -39,6 +39,7 @@ struct SidebarView: View {
         }
         .frame(width: 280)
         .background(Color(uiColor: .systemBackground))
+        .accessibilityIdentifier("sidebarView")
     }
 
     // MARK: - Header
@@ -88,6 +89,7 @@ struct SidebarView: View {
             }
             .padding(.vertical, 8)
         }
+        .accessibilityIdentifier("sidebarCalendarList")
     }
 
     // MARK: - Footer
@@ -109,6 +111,7 @@ struct SidebarView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
             }
+            .accessibilityIdentifier("sidebarSettingsButton")
 
             Button {
                 // フィードバック送信
@@ -194,6 +197,7 @@ private struct CalendarRowView: View {
         .accessibilityLabel(calendar.summary)
         .accessibilityValue(calendarAccessibilityValue)
         .accessibilityHint("表示するカレンダーを切り替えます")
+        .accessibilityIdentifier("calendarRow_\(calendar.calendarId)")
     }
 
     private var calendarAccessibilityValue: String {

@@ -195,5 +195,6 @@ struct TimelineRowView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabelText)
         .accessibilityValue("\(syncStatusText)、ソース \(sourceText)")
+        .accessibilityIdentifier("timelineRow_\(entry.title)")
     }
 }

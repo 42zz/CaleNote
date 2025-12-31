@@ -52,6 +52,7 @@ struct SearchView: View {
                 handleSearchChange(newValue)
             }
         }
+        .accessibilityIdentifier("searchView")
     }
 
     private var historyView: some View {
@@ -75,6 +76,7 @@ struct SearchView: View {
             }
         }
         .listStyle(.plain)
+        .accessibilityIdentifier("searchHistoryList")
     }
 
     private var resultsView: some View {
@@ -99,6 +101,7 @@ struct SearchView: View {
             }
         }
         .listStyle(.plain)
+        .accessibilityIdentifier("searchResultsList")
     }
 
     private var groupedResults: [(date: Date, entries: [ScheduleEntry])] {

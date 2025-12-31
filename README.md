@@ -97,6 +97,27 @@ xcodebuild -scheme CaleNote -configuration Debug build
 
 プロジェクトはSwift Package Managerを使用して依存関係を管理します。初回ビルド時に自動的に解決されます。
 
+## テスト
+
+### UIテスト
+
+XCUITest を利用した UI テストが `CaleNoteUITests` にあります。起動引数で UI テスト用の状態を構成します。
+
+```bash
+# UIテスト実行例
+xcodebuild -scheme CaleNote -destination 'platform=iOS Simulator,name=iPhone 15' test
+```
+
+主な起動引数:
+
+* `UI_TESTING` - UIテストモード
+* `UI_TESTING_RESET` - UserDefaults をリセット
+* `UI_TESTING_SEED` - シードデータ投入
+* `UI_TESTING_COMPLETE_ONBOARDING` - オンボーディング完了済みに設定
+* `UI_TESTING_MOCK_AUTH` - Google認証をモック化
+* `UI_TESTING_SKIP_SYNC` - 同期処理を無効化
+* `UI_TESTING_DARK_MODE` / `UI_TESTING_LIGHT_MODE` - 画面表示モード切替
+
 ## アーキテクチャ
 
 ### レイヤー構造

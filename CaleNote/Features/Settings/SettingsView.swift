@@ -37,8 +37,8 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("Google Account") {
-                if let user = auth.currentUser {
-                    Text("Logged in as: \(user.profile?.email ?? "Unknown")")
+                if auth.isAuthenticated {
+                    Text("Logged in as: \(auth.userEmail ?? "Unknown")")
                     Button("Reauthenticate") {
                         Task {
                             do {

@@ -70,6 +70,11 @@ final class CalendarListService: ObservableObject {
 
     /// カレンダーリストをGoogle Calendar APIから同期
     func syncCalendarList() async {
+        if AppEnvironment.shouldSkipSync {
+            await loadLocalCalendars()
+            return
+        }
+
         guard !isSyncing else {
             logger.info("Calendar list sync already in progress")
             return
