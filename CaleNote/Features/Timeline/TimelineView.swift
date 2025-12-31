@@ -10,6 +10,10 @@ import SwiftData
 import SwiftUI
 import UIKit
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 /// メイン画面のタイムラインビュー
 struct TimelineView: View {
     // MARK: - Environment
@@ -54,12 +58,22 @@ struct TimelineView: View {
 
     /// 表示設定
     @AppStorage("timelineShowTags") private var showTags = true
+    @AppStorage("confirmDeleteEntry") private var confirmDeleteEntry = true
 
     /// 表示中のセクション日付
     @State private var visibleSectionDates: Set<Date> = []
 
     /// ScrollViewReader のプロキシ参照
     @State private var scrollProxy: ScrollViewProxy?
+
+    /// 編集対象のエントリー
+    @State private var entryToEdit: ScheduleEntry?
+
+    /// 削除対象のエントリー
+    @State private var entryPendingDelete: ScheduleEntry?
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
+    @State private var actionErrorMessage: String?
 
     // MARK: - Computed Properties
 
@@ -167,8 +181,40 @@ struct TimelineView: View {
                 JournalEditorView()
                     .environmentObject(syncService)
             }
+            .sheet(isPresented: Binding(
+                get: { entryToEdit != nil },
+                set: { if !$0 { entryToEdit = nil } }
+            )) {
+                if let entry = entryToEdit {
+                    JournalEditorView(entry: entry, initialDate: entry.startAt)
+                        .environmentObject(syncService)
+                }
+            }
             .sheet(isPresented: $showSearchView) {
                 SearchView()
+            }
+            .confirmationDialog(
+                "エントリーを削除しますか？",
+                isPresented: $showDeleteConfirm
+            ) {
+                Button("削除", role: .destructive) {
+                    if let entry = entryPendingDelete {
+                        deleteEntry(entry)
+                    }
+                }
+                Button("キャンセル", role: .cancel) {
+                    entryPendingDelete = nil
+                }
+            } message: {
+                Text("この操作は取り消せません。")
+            }
+            .alert("操作に失敗しました", isPresented: Binding(
+                get: { actionErrorMessage != nil },
+                set: { if !$0 { actionErrorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(actionErrorMessage ?? "")
             }
             .onAppear {
                 // 今日の日付を更新
@@ -267,6 +313,62 @@ struct TimelineView: View {
                                 EntryDetailView(entry: entry)
                             } label: {
                                 TimelineRowView(entry: entry, showTags: showTags)
+                            }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    requestDelete(entry)
+                                } label: {
+                                    Label("削除", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading) {
+                                Button {
+                                    beginEdit(entry)
+                                } label: {
+                                    Label("編集", systemImage: "pencil")
+                                }
+                                .tint(.blue)
+                            }
+                            .contextMenu {
+                                Button {
+                                    beginEdit(entry)
+                                } label: {
+                                    Label("編集", systemImage: "pencil")
+                                }
+                                .keyboardShortcut(.return, modifiers: [])
+
+                                Button(role: .destructive) {
+                                    requestDelete(entry)
+                                } label: {
+                                    Label("削除", systemImage: "trash")
+                                }
+                                .keyboardShortcut(.delete, modifiers: [])
+
+                                ShareLink(item: shareText(for: entry)) {
+                                    Label("共有", systemImage: "square.and.arrow.up")
+                                }
+
+                                Divider()
+
+                                Button("複製 (準備中)") {}
+                                    .disabled(true)
+
+                                Button("カレンダー移動 (準備中)") {}
+                                    .disabled(true)
+
+                                Button("タグ追加 (準備中)") {}
+                                    .disabled(true)
+                            }
+                            .simultaneousGesture(
+                                LongPressGesture(minimumDuration: 0.2).onEnded { _ in
+                                    triggerHaptic(.light)
+                                }
+                            )
+                            .accessibilityAction(named: "編集") {
+                                beginEdit(entry)
+                            }
+                            .accessibilityAction(named: "削除") {
+                                requestDelete(entry)
                             }
                         }
                     } header: {
@@ -394,6 +496,62 @@ struct TimelineView: View {
                 proxy.scrollTo(targetSection.date, anchor: .top)
             }
         }
+    }
+
+    private func beginEdit(_ entry: ScheduleEntry) {
+        triggerHaptic(.light)
+        entryToEdit = entry
+    }
+
+    private func requestDelete(_ entry: ScheduleEntry) {
+        triggerHaptic(.medium)
+        if confirmDeleteEntry {
+            entryPendingDelete = entry
+            showDeleteConfirm = true
+        } else {
+            deleteEntry(entry)
+        }
+    }
+
+    private func deleteEntry(_ entry: ScheduleEntry) {
+        if isDeleting { return }
+        isDeleting = true
+        actionErrorMessage = nil
+
+        Task {
+            do {
+                try await syncService.deleteEntry(entry)
+                await MainActor.run {
+                    isDeleting = false
+                    entryPendingDelete = nil
+                }
+            } catch {
+                await MainActor.run {
+                    actionErrorMessage = "削除に失敗しました: \(error.localizedDescription)"
+                    isDeleting = false
+                }
+            }
+        }
+    }
+
+    private func shareText(for entry: ScheduleEntry) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = entry.isAllDay ? .none : .short
+        let dateText = formatter.string(from: entry.startAt)
+        var parts = [entry.title, dateText]
+        if let body = entry.body, !body.isEmpty {
+            parts.append(body)
+        }
+        return parts.joined(separator: "\n")
+    }
+
+    private func triggerHaptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
+#if canImport(UIKit)
+        let generator = UIImpactFeedbackGenerator(style: style)
+        generator.prepare()
+        generator.impactOccurred()
+#endif
     }
 
     /// 日付変更時の更新処理

@@ -13,6 +13,7 @@ struct TimelineRowView: View {
 
     @EnvironmentObject private var calendarListService: CalendarListService
     @Environment(\.accessibilityContrast) private var accessibilityContrast
+    @Environment(\.colorScheme) private var colorScheme
 
     // MARK: - Properties
 
@@ -28,10 +29,10 @@ struct TimelineRowView: View {
 
     /// カレンダーの背景色
     private var calendarColor: Color {
-        guard let hexColor = calendarListService.backgroundColor(for: entry.calendarId) else {
-            return .accentColor
-        }
-        return Color(hex: hexColor) ?? .accentColor
+        CalendarColor.color(
+            from: calendarListService.backgroundColor(for: entry.calendarId),
+            colorScheme: colorScheme
+        )
     }
 
     // MARK: - Computed Properties

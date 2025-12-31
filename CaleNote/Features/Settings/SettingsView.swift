@@ -33,6 +33,7 @@ struct SettingsView: View {
     @AppStorage("syncWindowDaysFuture") private var futureDays: Int = CalendarSettings.shared.syncWindowDaysFuture
     @AppStorage("displayWeekStartDay") private var weekStartDay: Int = DisplaySettings.defaultWeekStartDay
     @AppStorage("timelineShowTags") private var timelineShowTags = true
+    @AppStorage("confirmDeleteEntry") private var confirmDeleteEntry = true
 
     var body: some View {
         Form {
@@ -120,6 +121,7 @@ struct SettingsView: View {
                     Text("月曜日").tag(1)
                 }
                 Toggle("タイムラインにタグを表示", isOn: $timelineShowTags)
+                Toggle("削除前に確認する", isOn: $confirmDeleteEntry)
             }
 
             Section("Tags") {

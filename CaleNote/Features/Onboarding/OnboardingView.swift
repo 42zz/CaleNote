@@ -24,6 +24,7 @@ struct OnboardingView: View {
     @EnvironmentObject private var auth: GoogleAuthService
     @EnvironmentObject private var calendarListService: CalendarListService
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("targetCalendarId") private var targetCalendarId: String = CalendarSettings.shared.targetCalendarId
@@ -55,7 +56,7 @@ struct OnboardingView: View {
                 footer
                     .padding(.horizontal, 20)
                     .padding(.vertical, 16)
-                    .background(Color(uiColor: .systemBackground))
+                    .background(Color.cnSurface)
             }
             .navigationTitle(step.title)
             .navigationBarTitleDisplayMode(.inline)
@@ -259,7 +260,7 @@ struct OnboardingView: View {
                     )) {
                         HStack(spacing: 8) {
                             Circle()
-                                .fill(Color(hex: calendar.backgroundColor ?? "") ?? .accentColor)
+                                .fill(CalendarColor.color(from: calendar.backgroundColor, colorScheme: colorScheme))
                                 .frame(width: 10, height: 10)
                             Text(calendar.summary)
                                 .font(.subheadline)
@@ -349,7 +350,7 @@ struct OnboardingView: View {
                     }
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(uiColor: .secondarySystemBackground))
+                    .background(Color.cnSurfaceSecondary)
                     .cornerRadius(12)
                 }
 
