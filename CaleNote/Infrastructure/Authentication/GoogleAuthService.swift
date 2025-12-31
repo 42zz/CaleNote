@@ -28,6 +28,9 @@ final class GoogleAuthService: ObservableObject {
     /// 認証中フラグ
     @Published private(set) var isAuthenticating = false
 
+    /// UIテスト用モックユーザー
+    @Published private(set) var mockUserProfile: MockUserProfile?
+
     // MARK: - Logger
 
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "CaleNote", category: "GoogleAuth")
@@ -40,6 +43,12 @@ final class GoogleAuthService: ObservableObject {
     private struct StoredAuthToken: Codable {
         let accessToken: String
         let expirationDate: Date
+    }
+
+    struct MockUserProfile: Codable {
+        let name: String
+        let email: String
+        let imageURL: URL?
     }
 
     // MARK: - Constants
@@ -67,6 +76,18 @@ final class GoogleAuthService: ObservableObject {
         logger.info("Starting Google Sign-In")
         isAuthenticating = true
         defer { isAuthenticating = false }
+
+        if AppEnvironment.useMockAuth {
+            mockUserProfile = MockUserProfile(
+                name: "UI Test User",
+                email: "ui-test@example.com",
+                imageURL: nil
+            )
+            currentUser = nil
+            isAuthenticated = true
+            logger.info("Mock Google Sign-In successful")
+            return
+        }
 
         do {
             // Client ID を取得
@@ -111,12 +132,20 @@ final class GoogleAuthService: ObservableObject {
         GIDSignIn.sharedInstance.signOut()
         currentUser = nil
         isAuthenticated = false
+        mockUserProfile = nil
         clearPersistedTokens()
     }
 
     /// 前回のサインイン状態を復元
     func restorePreviousSignIn() async {
         logger.info("Restoring previous sign-in state")
+
+        if AppEnvironment.useMockAuth {
+            if mockUserProfile != nil {
+                isAuthenticated = true
+            }
+            return
+        }
 
         do {
             let user = try await GIDSignIn.sharedInstance.restorePreviousSignIn()
@@ -133,6 +162,10 @@ final class GoogleAuthService: ObservableObject {
     /// - Returns: アクセストークン
     /// - Throws: トークン取得エラー
     func getAccessToken() async throws -> String {
+        if AppEnvironment.useMockAuth {
+            return "ui-test-access-token"
+        }
+
         guard let user = currentUser else {
             throw CaleNoteError.apiError(.unauthorized)
         }
@@ -150,6 +183,8 @@ final class GoogleAuthService: ObservableObject {
     /// トークンをリフレッシュ（必要な場合のみ）
     /// - Throws: リフレッシュエラー
     func refreshTokenIfNeeded() async throws {
+        if AppEnvironment.useMockAuth { return }
+
         guard let user = currentUser else {
             throw CaleNoteError.apiError(.unauthorized)
         }
@@ -174,6 +209,8 @@ final class GoogleAuthService: ObservableObject {
     /// - Parameter scopes: リクエストするスコープ
     /// - Throws: スコープリクエストエラー
     func requestAdditionalScopes(_ scopes: [String]) async throws {
+        if AppEnvironment.useMockAuth { return }
+
         guard let user = currentUser else {
             throw CaleNoteError.apiError(.unauthorized)
         }
@@ -241,16 +278,16 @@ final class GoogleAuthService: ObservableObject {
 extension GoogleAuthService {
     /// 現在のユーザーのメールアドレス
     var userEmail: String? {
-        currentUser?.profile?.email
+        mockUserProfile?.email ?? currentUser?.profile?.email
     }
 
     /// 現在のユーザーの名前
     var userName: String? {
-        currentUser?.profile?.name
+        mockUserProfile?.name ?? currentUser?.profile?.name
     }
 
     /// 現在のユーザーのプロフィール画像 URL
     var userImageURL: URL? {
-        currentUser?.profile?.imageURL(withDimension: 120)
+        mockUserProfile?.imageURL ?? currentUser?.profile?.imageURL(withDimension: 120)
     }
 }

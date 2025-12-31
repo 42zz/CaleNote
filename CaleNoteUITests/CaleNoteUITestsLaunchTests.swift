@@ -20,10 +20,16 @@ final class CaleNoteUITestsLaunchTests: XCTestCase {
     @MainActor
     func testLaunch() throws {
         let app = XCUIApplication()
+        app.launchArguments = [
+            "UI_TESTING",
+            "UI_TESTING_RESET",
+            "UI_TESTING_SEED",
+            "UI_TESTING_COMPLETE_ONBOARDING",
+            "UI_TESTING_MOCK_AUTH",
+            "UI_TESTING_SKIP_SYNC",
+            "UI_TESTING_LIGHT_MODE"
+        ]
         app.launch()
-
-        // Insert steps here to perform after app launch but before taking a screenshot,
-        // such as logging into a test account or navigating somewhere in the app
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "Launch Screen"

@@ -65,13 +65,17 @@ struct JournalEditorView: View {
             Form {
                 Section {
                     DatePicker("日時", selection: $startAt)
+                        .accessibilityIdentifier("entryDatePicker")
                     Toggle("終日", isOn: $isAllDay)
+                        .accessibilityIdentifier("entryAllDayToggle")
                     TextField("タイトル", text: $title)
+                        .accessibilityIdentifier("entryTitleField")
                     VStack(alignment: .leading, spacing: 8) {
                         TextEditor(text: $bodyText)
                             .frame(minHeight: 180)
                             .accessibilityLabel("本文")
                             .accessibilityHint("タグは # を入力して追加できます")
+                            .accessibilityIdentifier("entryBodyEditor")
                         
                         // Tag Suggestions
                         if !filteredTagSuggestions.isEmpty {
@@ -101,12 +105,14 @@ struct JournalEditorView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("キャンセル") { dismiss() }
+                        .accessibilityIdentifier("entryCancelButton")
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") {
                         save()
                     }
                     .disabled(isSaving)
+                    .accessibilityIdentifier("entrySaveButton")
                 }
             }
         }

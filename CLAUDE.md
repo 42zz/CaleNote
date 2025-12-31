@@ -245,6 +245,8 @@ When implementing Google Calendar integration:
 - Unit tests: Create mock providers for test data
 - Test targets: `CaleNoteTests` (unit), `CaleNoteUITests` (UI)
 - Focus on sync logic and API error handling in tests
+- UI tests should launch with UI test arguments (`UI_TESTING`, `UI_TESTING_RESET`, `UI_TESTING_SEED`, `UI_TESTING_MOCK_AUTH`, `UI_TESTING_SKIP_SYNC`)
+- Snapshot attachments are captured in UI tests for light/dark mode and orientation checks
 
 ## Common Pitfalls to Avoid
 

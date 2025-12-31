@@ -26,13 +26,19 @@ struct CaleNoteApp: App {
 
     init() {
         do {
+            AppEnvironment.applyOverrides()
+
             // スキーマ定義（CalendarInfoを追加）
             let schema = Schema([
                 ScheduleEntry.self,
                 CalendarInfo.self
             ])
             let storeURL = try DataProtection.protectedStoreURL(filename: "CaleNote.sqlite")
-            let config = ModelConfiguration(schema: schema, url: storeURL, isStoredInMemoryOnly: false)
+            let config = ModelConfiguration(
+                schema: schema,
+                url: storeURL,
+                isStoredInMemoryOnly: AppEnvironment.isUITesting
+            )
             container = try ModelContainer(for: schema, configurations: [config])
             DataProtection.applyFileProtection(to: storeURL)
 
@@ -41,9 +47,13 @@ struct CaleNoteApp: App {
             let apiClient = GoogleCalendarClient()
 
             let searchIndex = SearchIndexService()
-            searchIndex.rebuildIndex(modelContext: context)
-
             let relatedIndex = RelatedEntriesIndexService()
+
+            if AppEnvironment.isUITesting && AppEnvironment.shouldSeedData {
+                UITestDataSeeder.seed(modelContext: context)
+            }
+
+            searchIndex.rebuildIndex(modelContext: context)
             relatedIndex.rebuildIndex(modelContext: context)
 
             let calendarList = CalendarListService(
