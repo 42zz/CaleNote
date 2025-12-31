@@ -15,6 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added - 2025/12/31
 
+#### Issue #24 (CAL-24): UIテストの実装
+- **UIテスト基盤** (`CaleNote/App/AppEnvironment.swift`, `CaleNote/App/UITestDataSeeder.swift`)
+  - UIテスト用の起動引数、データリセット、シードデータ投入、ダーク/ライト切替
+  - UIテスト用モック認証と同期無効化のフラグ
+- **XCUITest シナリオ** (`CaleNoteUITests/CaleNoteUITests.swift`, `CaleNoteUITests/CaleNoteUITestsLaunchTests.swift`)
+  - オンボーディング、エントリー作成・編集、検索、サイドバー操作の自動化
+  - スナップショット取得（ライト/ダーク・向き変更）
+- **アクセシビリティ識別子追加**
+  - オンボーディング、タイムライン、編集、検索、サイドバー主要UIに ID を付与
+
+### Added - 2025/12/31
+
 #### Issue #22 (CAL-22): BackgroundTasks-based sync
 - **BackgroundTaskManager** (`Infrastructure/Sync/BackgroundTaskManager.swift`)
   - BGAppRefreshTask での定期同期スケジューリング

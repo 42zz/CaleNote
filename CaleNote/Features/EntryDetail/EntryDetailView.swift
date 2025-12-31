@@ -36,6 +36,7 @@ struct EntryDetailView: View {
                 }
                 .accessibilityLabel("編集")
                 .accessibilityHint("エントリーを編集します")
+                .accessibilityIdentifier("entryDetailEditButton")
             }
         }
         .sheet(isPresented: $showEditSheet) {
@@ -70,6 +71,7 @@ struct EntryDetailView: View {
                 Text(entry.title)
                     .font(.title2)
                     .fontWeight(.semibold)
+                    .accessibilityIdentifier("entryDetailTitle")
 
                 Text(dateText)
                     .font(.subheadline)

@@ -40,11 +40,6 @@ CaleNoteにおいて、予定と記録はユーザー体験上は区別されま
 * タイトルの前方一致およびタグ検索は200ms以内のレスポンス
 * 本文検索は段階的・遅延実行
 
-### ゴミ箱機能
-* 削除エントリーを論理削除として保持し、設定画面から復元可能
-* 保持期間（7/30/60日）と自動削除のオン・オフを設定
-* ゴミ箱内データは検索・タグ・関連表示の対象外
-
 ### 振り返り機能
 * エントリー詳細画面で関連する過去・未来のエントリーを表示
 * 関連判定：同一月日（MMDD一致）、同一週の同一曜日、同一祝日
@@ -93,38 +88,6 @@ CaleNoteにおける最小データ単位は「スケジュールエントリー
 
 ### ビルド方法
 
-#### Makefileを使用（推奨）
-
-```bash
-# ビルドしてシミュレータで実行
-make
-
-# ビルドのみ
-make build
-
-# ビルドして実行
-make run
-
-# テスト実行
-make test
-
-# ユニットテストのみ
-make test-unit
-
-# UIテストのみ
-make test-ui
-
-# SwiftLint実行
-make lint
-
-# クリーンビルド
-make clean
-```
-
-**注意**: `xcbeautify` が必要です（`brew install xcbeautify`）
-
-#### Xcodeコマンドラインツールを使用
-
 ```bash
 # プロジェクトを開く
 open CaleNote.xcodeproj
@@ -136,16 +99,6 @@ xcodebuild -scheme CaleNote -configuration Debug build
 ### 依存関係
 
 プロジェクトはSwift Package Managerを使用して依存関係を管理します。初回ビルド時に自動的に解決されます。
-
-### コード品質
-
-SwiftLint を導入しています。インストール済みの場合、Xcode のビルド時に自動で実行されます。
-段階導入のため、一部ルールは warning 設定になっています（詳細は `.swiftlint.yml`）。
-
-```bash
-brew install swiftlint
-swiftlint --config .swiftlint.yml
-```
 
 ## テスト
 

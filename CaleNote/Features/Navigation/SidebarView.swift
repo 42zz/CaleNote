@@ -119,10 +119,10 @@ struct SidebarView: View {
 
     private var accountSection: some View {
         Section("アカウント") {
-            if let user = auth.currentUser {
+            if auth.isAuthenticated {
                 HStack(spacing: 12) {
                     // プロフィール画像
-                    if let profileURL = user.profile?.imageURL(withDimension: 40) {
+                    if let profileURL = auth.userImageURL {
                         AsyncImage(url: profileURL) { image in
                             image
                                 .resizable()
@@ -143,10 +143,10 @@ struct SidebarView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(user.profile?.name ?? "ユーザー")
+                        Text(auth.userName ?? "ユーザー")
                             .font(.subheadline)
                             .fontWeight(.medium)
-                        Text(user.profile?.email ?? "")
+                        Text(auth.userEmail ?? "")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

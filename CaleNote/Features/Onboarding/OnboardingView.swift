@@ -66,6 +66,7 @@ struct OnboardingView: View {
                     }
                     .accessibilityLabel("オンボーディングをスキップ")
                     .accessibilityHint("後から設定画面で再表示できます")
+                    .accessibilityIdentifier("onboardingSkipButton")
                 }
             }
         }
@@ -92,6 +93,7 @@ struct OnboardingView: View {
                 moveStep(offset: -1)
             }
             .disabled(step == .welcome)
+            .accessibilityIdentifier("onboardingBackButton")
 
             Spacer()
 
@@ -103,6 +105,7 @@ struct OnboardingView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("onboardingPrimaryButton")
         }
     }
 
@@ -129,6 +132,7 @@ struct OnboardingView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .padding(.top, 8)
+                .accessibilityIdentifier("onboardingStepSkipButton")
             }
         }
     }
@@ -157,10 +161,11 @@ struct OnboardingView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if let user = auth.currentUser {
-                    Label("連携済み: \(user.profile?.email ?? "Unknown")", systemImage: "checkmark.seal.fill")
+                if auth.isAuthenticated {
+                    Label("連携済み: \(auth.userEmail ?? "Unknown")", systemImage: "checkmark.seal.fill")
                         .foregroundStyle(.green)
                         .font(.subheadline)
+                        .accessibilityIdentifier("onboardingSignedInLabel")
                 } else {
                     Button("Googleでサインイン") {
                         Task {
@@ -173,6 +178,7 @@ struct OnboardingView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("onboardingGoogleSignInButton")
                 }
 
                 if let errorMessage {
@@ -187,6 +193,7 @@ struct OnboardingView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .padding(.top, 8)
+                .accessibilityIdentifier("onboardingStepSkipButton")
             }
         }
     }
@@ -213,6 +220,7 @@ struct OnboardingView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .padding(.top, 8)
+                .accessibilityIdentifier("onboardingStepSkipButton")
             }
         }
     }
@@ -266,6 +274,7 @@ struct OnboardingView: View {
                             }
                         }
                     }
+                    .accessibilityIdentifier("onboardingCalendarToggle_\(calendar.calendarId)")
                 }
 
                 if let targetCalendar = writableCalendars.first(where: { $0.calendarId == targetCalendarId }) ?? writableCalendars.first {
@@ -280,6 +289,7 @@ struct OnboardingView: View {
                             targetCalendarId = targetCalendar.calendarId
                         }
                     }
+                    .accessibilityIdentifier("onboardingTargetCalendarPicker")
                 } else {
                     Text("書き込み可能なカレンダーが見つかりません。")
                         .font(.footnote)

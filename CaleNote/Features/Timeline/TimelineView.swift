@@ -206,6 +206,7 @@ struct TimelineView: View {
                 }
             }
             .listStyle(.plain)
+            .accessibilityIdentifier("timelineList")
             .onAppear {
                 // 初回表示時に今日のセクションにスクロール
                 scrollProxy = proxy
@@ -233,6 +234,7 @@ struct TimelineView: View {
         .padding(.bottom, 16)
         .accessibilityLabel("新規エントリーを作成")
         .accessibilityHint("新しい予定や記録を追加します")
+        .accessibilityIdentifier("newEntryFab")
     }
 
     // MARK: - Toolbar Content

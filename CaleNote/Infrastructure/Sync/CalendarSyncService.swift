@@ -51,6 +51,10 @@ final class CalendarSyncService: ObservableObject {
     /// 同期設定
     private let syncConfig = SyncConfiguration()
 
+    private var isSyncDisabled: Bool {
+        AppEnvironment.shouldSkipSync
+    }
+
     // MARK: - Background Task
 
     private var syncTimer: Timer?
@@ -85,6 +89,12 @@ final class CalendarSyncService: ObservableObject {
     /// 完全同期を実行
     /// - Throws: 同期エラー
     func performFullSync() async throws {
+        if isSyncDisabled {
+            lastSyncTime = Date()
+            lastSyncError = nil
+            return
+        }
+
         logger.info("Starting full sync")
         isSyncing = true
         lastSyncError = nil
@@ -111,6 +121,11 @@ final class CalendarSyncService: ObservableObject {
     /// ローカル変更を Google Calendar に同期
     /// - Throws: 同期エラー
     func syncLocalChangesToGoogle() async throws {
+        if isSyncDisabled {
+            pendingSyncCount = 0
+            return
+        }
+
         logger.info("Syncing local changes to Google")
 
         // 同期待ちエントリーを取得
@@ -180,6 +195,8 @@ final class CalendarSyncService: ObservableObject {
     /// Google Calendar の変更をローカルに同期
     /// - Throws: 同期エラー
     func syncGoogleChangesToLocal() async throws {
+        if isSyncDisabled { return }
+
         try await syncGoogleChangesToLocal(
             pastDays: syncConfig.pastDays,
             futureDays: syncConfig.futureDays
@@ -192,6 +209,8 @@ final class CalendarSyncService: ObservableObject {
     ///   - futureDays: 未来の同期範囲（日数）
     /// - Throws: 同期エラー
     func syncGoogleChangesToLocal(pastDays: Int, futureDays: Int) async throws {
+        if isSyncDisabled { return }
+
         logger.info("Syncing Google changes to local (past: \(pastDays)d, future: \(futureDays)d)")
 
         // TODO: Issue #18 - 現在は全カレンダーを同期しているが、
@@ -563,6 +582,8 @@ final class CalendarSyncService: ObservableObject {
 
     /// フォアグラウンド復帰時の即時同期
     func performForegroundSync() async {
+        if isSyncDisabled { return }
+
         guard !isSyncing else { return }
         do {
             try await performFullSync()
@@ -573,6 +594,8 @@ final class CalendarSyncService: ObservableObject {
 
     /// バックグラウンド同期を開始
     func startBackgroundSync() {
+        if isSyncDisabled { return }
+
         logger.info("Starting background sync with interval: \(self.syncConfig.syncInterval)s")
 
         syncTimer?.invalidate()
@@ -603,6 +626,8 @@ final class CalendarSyncService: ObservableObject {
     /// 失敗した同期を再試行
     /// - Throws: 同期エラー
     func retryFailedSyncs() async throws {
+        if isSyncDisabled { return }
+
         logger.info("Retrying failed syncs")
 
         // 失敗したエントリーを pending に戻す
