@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Issue #25 (CAL-25): CI 実行環境の互換性
 - **Xcode 16 対応** (`.github/workflows/ci.yml`, `README.md`, `CLAUDE.md`)
   - Xcode 16 を含む macOS 15 ランナーで CI を実行するよう調整
+- **Simulator 選択の安定化** (`.github/workflows/ci.yml`)
+  - 既存デバイスから自動選択するようにして iPhone 名称差異の失敗を回避
 
 ### Added - 2025/12/31
 

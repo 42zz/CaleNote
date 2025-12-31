@@ -35,16 +35,26 @@ jobs:
         uses: actions/checkout@v4
       - name: Show Xcode version
         run: xcodebuild -version
+      - name: Select simulator
+        run: |
+          SIM_DEVICE=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/{print $1}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -n1)
+          if [ -z "$SIM_DEVICE" ]; then
+            echo "No iPhone simulator found."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "SIM_DEVICE=$SIM_DEVICE" >> $GITHUB_ENV
+          echo "DESTINATION=platform=iOS Simulator,name=$SIM_DEVICE" >> $GITHUB_ENV
       - name: Boot simulator
         run: |
-          xcrun simctl boot "iPhone 15" || true
-          xcrun simctl bootstatus "iPhone 15" -b
+          xcrun simctl boot "$SIM_DEVICE" || true
+          xcrun simctl bootstatus "$SIM_DEVICE" -b
       - name: Run unit tests
         run: |
           set -o pipefail
           xcodebuild \
             -scheme CaleNote \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -destination "$DESTINATION" \
             -only-testing:CaleNoteTests \
             -enableCodeCoverage YES \
             -resultBundlePath TestResults.xcresult \
@@ -85,16 +95,26 @@ jobs:
         uses: actions/checkout@v4
       - name: Show Xcode version
         run: xcodebuild -version
+      - name: Select simulator
+        run: |
+          SIM_DEVICE=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/{print $1}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -n1)
+          if [ -z "$SIM_DEVICE" ]; then
+            echo "No iPhone simulator found."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "SIM_DEVICE=$SIM_DEVICE" >> $GITHUB_ENV
+          echo "DESTINATION=platform=iOS Simulator,name=$SIM_DEVICE" >> $GITHUB_ENV
       - name: Boot simulator
         run: |
-          xcrun simctl boot "iPhone 15" || true
-          xcrun simctl bootstatus "iPhone 15" -b
+          xcrun simctl boot "$SIM_DEVICE" || true
+          xcrun simctl bootstatus "$SIM_DEVICE" -b
       - name: Run UI tests
         run: |
           set -o pipefail
           xcodebuild \
             -scheme CaleNote \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -destination "$DESTINATION" \
             -only-testing:CaleNoteUITests \
             -resultBundlePath UITestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO \
@@ -145,16 +165,26 @@ jobs:
         uses: actions/checkout@v4
       - name: Show Xcode version
         run: xcodebuild -version
+      - name: Select simulator
+        run: |
+          SIM_DEVICE=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/{print $1}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -n1)
+          if [ -z "$SIM_DEVICE" ]; then
+            echo "No iPhone simulator found."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "SIM_DEVICE=$SIM_DEVICE" >> $GITHUB_ENV
+          echo "DESTINATION=platform=iOS Simulator,name=$SIM_DEVICE" >> $GITHUB_ENV
       - name: Boot simulator
         run: |
-          xcrun simctl boot "iPhone 15" || true
-          xcrun simctl bootstatus "iPhone 15" -b
+          xcrun simctl boot "$SIM_DEVICE" || true
+          xcrun simctl bootstatus "$SIM_DEVICE" -b
       - name: Run full test suite
         run: |
           set -o pipefail
           xcodebuild \
             -scheme CaleNote \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -destination "$DESTINATION" \
             -enableCodeCoverage YES \
             -resultBundlePath FullTestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO \
@@ -191,9 +221,6 @@ jobs:
     runs-on: macos-15
     strategy:
       matrix:
-        destination:
-          - 'platform=iOS Simulator,name=iPhone 15'
-          - 'platform=iOS Simulator,name=iPhone 14'
         configuration:
           - Debug
           - Release
@@ -202,16 +229,35 @@ jobs:
         uses: actions/checkout@v4
       - name: Show Xcode version
         run: xcodebuild -version
+      - name: Select simulators
+        run: |
+          DEVICES=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/{print $1}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -n 2)
+          if [ -z "$DEVICES" ]; then
+            echo "No iPhone simulators found."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          FIRST=$(echo "$DEVICES" | head -n1)
+          SECOND=$(echo "$DEVICES" | tail -n1)
+          echo "SIM_DEVICE_1=$FIRST" >> $GITHUB_ENV
+          if [ "$SECOND" != "$FIRST" ]; then
+            echo "SIM_DEVICE_2=$SECOND" >> $GITHUB_ENV
+          fi
       - name: Build (${{ matrix.configuration }})
         run: |
           set -o pipefail
-          xcodebuild \
-            -scheme CaleNote \
-            -configuration ${{ matrix.configuration }} \
-            -destination '${{ matrix.destination }}' \
-            -derivedDataPath DerivedData \
-            CODE_SIGNING_ALLOWED=NO \
-            build | tee build.log
+          for device in "$SIM_DEVICE_1" "$SIM_DEVICE_2"; do
+            if [ -z "$device" ]; then
+              continue
+            fi
+            xcodebuild \
+              -scheme CaleNote \
+              -configuration ${{ matrix.configuration }} \
+              -destination "platform=iOS Simulator,name=$device" \
+              -derivedDataPath DerivedData \
+              CODE_SIGNING_ALLOWED=NO \
+              build | tee -a build.log
+          done
       - name: Check build warnings
         run: |
           warnings=$(grep -E "warning:|warning:" -c build.log || true)
