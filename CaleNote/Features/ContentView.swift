@@ -52,7 +52,7 @@ struct ContentView: View {
                         showSidebar = false
                     }
                 } label: {
-                    Color.black.opacity(0.3)
+                    Color.cnOverlay.opacity(0.3)
                         .ignoresSafeArea()
                 }
                 .buttonStyle(.plain)

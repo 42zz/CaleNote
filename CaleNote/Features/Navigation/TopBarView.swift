@@ -59,7 +59,7 @@ struct TopBarView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .background(Color(UIColor.systemBackground))
+        .background(Color.cnSurface)
     }
 
     // MARK: - Sidebar Toggle Button
