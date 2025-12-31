@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed - 2025/12/31
+
+#### Issue #25 (CAL-25): CI 実行環境の互換性
+- **Xcode 16 対応** (`.github/workflows/ci.yml`, `README.md`, `CLAUDE.md`)
+  - Xcode 16 を含む macOS 15 ランナーで CI を実行するよう調整
+
 ### Added - 2025/12/31
 
 #### Issue #25 (CAL-25): GitHub Actions CI/CD パイプライン

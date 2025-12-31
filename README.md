@@ -123,6 +123,7 @@ GitHub Actions で以下を自動実行しています。
 * PR 作成時: SwiftLint、ユニットテスト、UI テスト、カバレッジ計測
 * main マージ時: フルテスト、Debug/Release ビルド、dSYM/xcresult のアーカイブ
 * カバレッジバッジの自動更新
+* 実行環境: macOS 15 + Xcode 16 ランナー
 
 ## テスト
 
