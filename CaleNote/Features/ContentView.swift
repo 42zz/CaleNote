@@ -18,11 +18,17 @@ struct ContentView: View {
 
     // MARK: - State
 
+    /// オンボーディング完了フラグ
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+
     /// サイドバー表示状態
     @State private var showSidebar = false
 
     /// 設定画面表示状態
     @State private var showSettings = false
+
+    /// オンボーディング表示状態
+    @State private var showOnboarding = false
 
     // MARK: - Body
 
@@ -62,6 +68,9 @@ struct ContentView: View {
                 SettingsView()
             }
         }
+        .fullScreenCover(isPresented: $showOnboarding) {
+            OnboardingView()
+        }
         .task {
             // 初回起動時にカレンダーリストを読み込み
             await calendarListService.loadLocalCalendars()
@@ -69,6 +78,16 @@ struct ContentView: View {
             // カレンダーリストが空の場合は同期
             if calendarListService.calendars.isEmpty {
                 await calendarListService.syncCalendarList()
+            }
+        }
+        .onAppear {
+            if !hasCompletedOnboarding {
+                showOnboarding = true
+            }
+        }
+        .onChange(of: hasCompletedOnboarding) { _, newValue in
+            if newValue {
+                showOnboarding = false
             }
         }
     }

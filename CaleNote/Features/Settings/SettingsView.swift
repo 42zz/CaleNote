@@ -7,6 +7,7 @@ struct SettingsView: View {
     @EnvironmentObject private var syncService: CalendarSyncService
     @EnvironmentObject private var searchIndex: SearchIndexService
     @EnvironmentObject private var relatedIndex: RelatedEntriesIndexService
+    @EnvironmentObject private var calendarListService: CalendarListService
     @Environment(\.modelContext) private var modelContext
 
     @Query(
@@ -24,6 +25,7 @@ struct SettingsView: View {
     @State private var showRecoveryConfirm = false
     @State private var showClearCacheConfirm = false
     @State private var showRecoveryCompleteAlert = false
+    @State private var showOnboarding = false
     
     // Settings
     @AppStorage("targetCalendarId") private var targetCalendarId: String = CalendarSettings.shared.targetCalendarId
@@ -187,6 +189,12 @@ struct SettingsView: View {
                 }
                 .accessibilityLabel("同期トークンをリセット")
                 .accessibilityHint("次回の同期で全件取得します")
+
+                Button("オンボーディングを再表示") {
+                    showOnboarding = true
+                }
+                .accessibilityLabel("オンボーディングを再表示")
+                .accessibilityHint("初回ガイドを再度確認します")
             }
 
             Section("App Info") {
@@ -255,6 +263,11 @@ struct SettingsView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("ローカルデータの再構築が完了しました。")
+        }
+        .fullScreenCover(isPresented: $showOnboarding) {
+            OnboardingView()
+                .environmentObject(auth)
+                .environmentObject(calendarListService)
         }
     }
 
