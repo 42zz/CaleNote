@@ -159,6 +159,36 @@ extension ScheduleEntry {
     }
 }
 
+// MARK: - Validation
+
+extension ScheduleEntry {
+    enum ValidationError: Error, Equatable {
+        case emptyTitle
+        case invalidSource(String)
+        case endBeforeStart
+    }
+
+    /// エントリーの整合性を検証
+    func validate() -> [ValidationError] {
+        var errors: [ValidationError] = []
+
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedTitle.isEmpty {
+            errors.append(.emptyTitle)
+        }
+
+        if source != Source.google.rawValue && source != Source.calenote.rawValue {
+            errors.append(.invalidSource(source))
+        }
+
+        if endAt < startAt {
+            errors.append(.endBeforeStart)
+        }
+
+        return errors
+    }
+}
+
 // MARK: - Helper Methods
 
 extension ScheduleEntry {
