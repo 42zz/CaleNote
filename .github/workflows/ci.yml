@@ -37,14 +37,55 @@ jobs:
         run: xcodebuild -version
       - name: Select simulator
         run: |
-          SIM_DEVICE=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/{print $1}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -n1)
-          if [ -z "$SIM_DEVICE" ]; then
-            echo "No iPhone simulator found."
-            xcrun simctl list devices available
-            exit 1
-          fi
-          echo "SIM_DEVICE=$SIM_DEVICE" >> $GITHUB_ENV
-          echo "DESTINATION=platform=iOS Simulator,name=$SIM_DEVICE" >> $GITHUB_ENV
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+
+          data = subprocess.check_output(
+              ["xcrun", "simctl", "list", "-j", "devices", "runtimes"]
+          )
+          info = json.loads(data)
+          runtimes = [
+              r for r in info.get("runtimes", [])
+              if r.get("isAvailable") and r.get("name", "").startswith("iOS")
+          ]
+          if not runtimes:
+              print("No iOS runtimes available.", file=sys.stderr)
+              sys.exit(1)
+
+          def version_tuple(runtime):
+              version = runtime.get("version") or runtime.get("name", "").split(" ", 1)[-1]
+              return [int(part) for part in re.findall(r"\d+", version)]
+
+          runtimes.sort(key=version_tuple)
+          runtime = runtimes[-1]
+          runtime_id = runtime["identifier"]
+          devices = [
+              d for d in info.get("devices", {}).get(runtime_id, [])
+              if d.get("isAvailable")
+          ]
+          iphones = [d for d in devices if d.get("name", "").startswith("iPhone")]
+          if not iphones:
+              print(f"No iPhone simulators for runtime {runtime_id}.", file=sys.stderr)
+              print("Available devices:", devices, file=sys.stderr)
+              sys.exit(1)
+
+          device = iphones[0]["name"]
+          os_version = runtime.get("version") or runtime.get("name", "").split(" ", 1)[-1]
+          print(f"Selected iOS runtime: {runtime.get('name')} ({os_version})", file=sys.stderr)
+          print(f"Selected simulator: {device}", file=sys.stderr)
+
+          env_path = os.environ["GITHUB_ENV"]
+          with open(env_path, "a", encoding="utf-8") as env_file:
+              env_file.write(f"SIM_DEVICE={device}\n")
+              env_file.write(f"SIM_OS={os_version}\n")
+              env_file.write(
+                  f"DESTINATION=platform=iOS Simulator,OS={os_version},name={device}\n"
+              )
+          PY
       - name: Boot simulator
         run: |
           xcrun simctl boot "$SIM_DEVICE" || true
@@ -97,14 +138,55 @@ jobs:
         run: xcodebuild -version
       - name: Select simulator
         run: |
-          SIM_DEVICE=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/{print $1}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -n1)
-          if [ -z "$SIM_DEVICE" ]; then
-            echo "No iPhone simulator found."
-            xcrun simctl list devices available
-            exit 1
-          fi
-          echo "SIM_DEVICE=$SIM_DEVICE" >> $GITHUB_ENV
-          echo "DESTINATION=platform=iOS Simulator,name=$SIM_DEVICE" >> $GITHUB_ENV
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+
+          data = subprocess.check_output(
+              ["xcrun", "simctl", "list", "-j", "devices", "runtimes"]
+          )
+          info = json.loads(data)
+          runtimes = [
+              r for r in info.get("runtimes", [])
+              if r.get("isAvailable") and r.get("name", "").startswith("iOS")
+          ]
+          if not runtimes:
+              print("No iOS runtimes available.", file=sys.stderr)
+              sys.exit(1)
+
+          def version_tuple(runtime):
+              version = runtime.get("version") or runtime.get("name", "").split(" ", 1)[-1]
+              return [int(part) for part in re.findall(r"\d+", version)]
+
+          runtimes.sort(key=version_tuple)
+          runtime = runtimes[-1]
+          runtime_id = runtime["identifier"]
+          devices = [
+              d for d in info.get("devices", {}).get(runtime_id, [])
+              if d.get("isAvailable")
+          ]
+          iphones = [d for d in devices if d.get("name", "").startswith("iPhone")]
+          if not iphones:
+              print(f"No iPhone simulators for runtime {runtime_id}.", file=sys.stderr)
+              print("Available devices:", devices, file=sys.stderr)
+              sys.exit(1)
+
+          device = iphones[0]["name"]
+          os_version = runtime.get("version") or runtime.get("name", "").split(" ", 1)[-1]
+          print(f"Selected iOS runtime: {runtime.get('name')} ({os_version})", file=sys.stderr)
+          print(f"Selected simulator: {device}", file=sys.stderr)
+
+          env_path = os.environ["GITHUB_ENV"]
+          with open(env_path, "a", encoding="utf-8") as env_file:
+              env_file.write(f"SIM_DEVICE={device}\n")
+              env_file.write(f"SIM_OS={os_version}\n")
+              env_file.write(
+                  f"DESTINATION=platform=iOS Simulator,OS={os_version},name={device}\n"
+              )
+          PY
       - name: Boot simulator
         run: |
           xcrun simctl boot "$SIM_DEVICE" || true
@@ -167,14 +249,55 @@ jobs:
         run: xcodebuild -version
       - name: Select simulator
         run: |
-          SIM_DEVICE=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/{print $1}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -n1)
-          if [ -z "$SIM_DEVICE" ]; then
-            echo "No iPhone simulator found."
-            xcrun simctl list devices available
-            exit 1
-          fi
-          echo "SIM_DEVICE=$SIM_DEVICE" >> $GITHUB_ENV
-          echo "DESTINATION=platform=iOS Simulator,name=$SIM_DEVICE" >> $GITHUB_ENV
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+
+          data = subprocess.check_output(
+              ["xcrun", "simctl", "list", "-j", "devices", "runtimes"]
+          )
+          info = json.loads(data)
+          runtimes = [
+              r for r in info.get("runtimes", [])
+              if r.get("isAvailable") and r.get("name", "").startswith("iOS")
+          ]
+          if not runtimes:
+              print("No iOS runtimes available.", file=sys.stderr)
+              sys.exit(1)
+
+          def version_tuple(runtime):
+              version = runtime.get("version") or runtime.get("name", "").split(" ", 1)[-1]
+              return [int(part) for part in re.findall(r"\d+", version)]
+
+          runtimes.sort(key=version_tuple)
+          runtime = runtimes[-1]
+          runtime_id = runtime["identifier"]
+          devices = [
+              d for d in info.get("devices", {}).get(runtime_id, [])
+              if d.get("isAvailable")
+          ]
+          iphones = [d for d in devices if d.get("name", "").startswith("iPhone")]
+          if not iphones:
+              print(f"No iPhone simulators for runtime {runtime_id}.", file=sys.stderr)
+              print("Available devices:", devices, file=sys.stderr)
+              sys.exit(1)
+
+          device = iphones[0]["name"]
+          os_version = runtime.get("version") or runtime.get("name", "").split(" ", 1)[-1]
+          print(f"Selected iOS runtime: {runtime.get('name')} ({os_version})", file=sys.stderr)
+          print(f"Selected simulator: {device}", file=sys.stderr)
+
+          env_path = os.environ["GITHUB_ENV"]
+          with open(env_path, "a", encoding="utf-8") as env_file:
+              env_file.write(f"SIM_DEVICE={device}\n")
+              env_file.write(f"SIM_OS={os_version}\n")
+              env_file.write(
+                  f"DESTINATION=platform=iOS Simulator,OS={os_version},name={device}\n"
+              )
+          PY
       - name: Boot simulator
         run: |
           xcrun simctl boot "$SIM_DEVICE" || true
@@ -231,18 +354,54 @@ jobs:
         run: xcodebuild -version
       - name: Select simulators
         run: |
-          DEVICES=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/{print $1}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -n 2)
-          if [ -z "$DEVICES" ]; then
-            echo "No iPhone simulators found."
-            xcrun simctl list devices available
-            exit 1
-          fi
-          FIRST=$(echo "$DEVICES" | head -n1)
-          SECOND=$(echo "$DEVICES" | tail -n1)
-          echo "SIM_DEVICE_1=$FIRST" >> $GITHUB_ENV
-          if [ "$SECOND" != "$FIRST" ]; then
-            echo "SIM_DEVICE_2=$SECOND" >> $GITHUB_ENV
-          fi
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+
+          data = subprocess.check_output(
+              ["xcrun", "simctl", "list", "-j", "devices", "runtimes"]
+          )
+          info = json.loads(data)
+          runtimes = [
+              r for r in info.get("runtimes", [])
+              if r.get("isAvailable") and r.get("name", "").startswith("iOS")
+          ]
+          if not runtimes:
+              print("No iOS runtimes available.", file=sys.stderr)
+              sys.exit(1)
+
+          def version_tuple(runtime):
+              version = runtime.get("version") or runtime.get("name", "").split(" ", 1)[-1]
+              return [int(part) for part in re.findall(r"\d+", version)]
+
+          runtimes.sort(key=version_tuple)
+          runtime = runtimes[-1]
+          runtime_id = runtime["identifier"]
+          devices = [
+              d for d in info.get("devices", {}).get(runtime_id, [])
+              if d.get("isAvailable")
+          ]
+          iphones = [d for d in devices if d.get("name", "").startswith("iPhone")]
+          if not iphones:
+              print(f"No iPhone simulators for runtime {runtime_id}.", file=sys.stderr)
+              print("Available devices:", devices, file=sys.stderr)
+              sys.exit(1)
+
+          os_version = runtime.get("version") or runtime.get("name", "").split(" ", 1)[-1]
+          selected = iphones[:2]
+          print(f"Selected iOS runtime: {runtime.get('name')} ({os_version})", file=sys.stderr)
+          print(f"Selected simulators: {[d['name'] for d in selected]}", file=sys.stderr)
+
+          env_path = os.environ["GITHUB_ENV"]
+          with open(env_path, "a", encoding="utf-8") as env_file:
+              env_file.write(f"SIM_OS={os_version}\n")
+              env_file.write(f"SIM_DEVICE_1={selected[0]['name']}\n")
+              if len(selected) > 1 and selected[1]["name"] != selected[0]["name"]:
+                  env_file.write(f"SIM_DEVICE_2={selected[1]['name']}\n")
+          PY
       - name: Build (${{ matrix.configuration }})
         run: |
           set -o pipefail
@@ -253,7 +412,7 @@ jobs:
             xcodebuild \
               -scheme CaleNote \
               -configuration ${{ matrix.configuration }} \
-              -destination "platform=iOS Simulator,name=$device" \
+              -destination "platform=iOS Simulator,OS=$SIM_OS,name=$device" \
               -derivedDataPath DerivedData \
               CODE_SIGNING_ALLOWED=NO \
               build | tee -a build.log

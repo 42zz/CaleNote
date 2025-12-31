@@ -44,6 +44,7 @@ GitHub Actions で lint / test / build / coverage を自動実行します。
 - PR: SwiftLint、ユニットテスト、UIテスト、カバレッジ計測、PRコメント
 - main: フルテスト、Debug/Release ビルド、dSYM/xcresult アーカイブ、カバレッジバッジ更新
 - 実行環境: macOS 15 ランナー（Xcode 16）
+- シミュレータ: 最新の iOS ランタイムを自動選択して OS を固定
 
 ### Development
 The project uses Xcode's standard iOS development workflow. Open `CaleNote.xcodeproj` in Xcode to run the app in the simulator or on a device.

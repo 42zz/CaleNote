@@ -124,6 +124,7 @@ GitHub Actions で以下を自動実行しています。
 * main マージ時: フルテスト、Debug/Release ビルド、dSYM/xcresult のアーカイブ
 * カバレッジバッジの自動更新
 * 実行環境: macOS 15 + Xcode 16 ランナー
+* シミュレータ: 最新の iOS ランタイムを自動選択して OS を固定
 
 ## テスト
 
