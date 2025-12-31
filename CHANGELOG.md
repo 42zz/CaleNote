@@ -25,9 +25,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Info.plist** (`CaleNote/Info.plist`)
   - BGTaskSchedulerPermittedIdentifiers と UIBackgroundModes を追加
 
+#### Issue #23 (CAL-23): Unit test coverage for core logic
+- **Unit tests** (`CaleNoteTests/`)
+  - ScheduleEntry のバリデーション、タグ操作、同期状態更新
+  - TagParser、SearchIndexService、RelatedEntriesIndexService のテスト
+  - DisplaySettings、InputValidator の設定・バリデーションテスト
+  - CalendarSyncService のローカル同期フロー（新規作成/更新）のテスト
+
 ### Changed - 2025/12/31
 - **Foreground Sync** (`Features/Timeline/TimelineView.swift`, `Features/Navigation/MainNavigationView.swift`)
   - フォアグラウンド復帰時の即時同期とタイマー管理の最適化
+- **Domain validation & API abstraction** (`Domain/ScheduleEntry.swift`, `Infrastructure/API/GoogleCalendarClient.swift`, `Infrastructure/Sync/CalendarSyncService.swift`)
+  - ScheduleEntry の整合性チェックを追加
+  - GoogleCalendarClientProtocol を導入して同期ロジックのモック可能性を改善
 
 ### Added - 2025/12/30
 
