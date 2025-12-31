@@ -15,16 +15,23 @@ struct EntryDetailView: View {
     @State private var showDeleteAlert = false
     @State private var isDeleting = false
     @State private var errorMessage: String?
+    @State private var showSkeleton = false
 
     var body: some View {
-        List {
-            detailsSection
-            tagsSection
-            syncStatusSection
-            actionsSection
-            relatedSections
+        Group {
+            if showSkeleton {
+                EntryDetailSkeletonView()
+            } else {
+                List {
+                    detailsSection
+                    tagsSection
+                    syncStatusSection
+                    actionsSection
+                    relatedSections
+                }
+                .listStyle(.plain)
+            }
         }
-        .listStyle(.plain)
         .navigationTitle("エントリー詳細")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -53,9 +60,13 @@ struct EntryDetailView: View {
             Text("この操作は取り消せません")
         }
         .onAppear {
+            showSkeleton = !relatedIndex.isReady
             if !relatedIndex.isReady {
                 relatedIndex.rebuildIndex(modelContext: modelContext)
             }
+        }
+        .onChange(of: relatedIndex.isReady) { _, newValue in
+            showSkeleton = !newValue
         }
         .accessibilityAction(named: "編集") {
             showEditSheet = true

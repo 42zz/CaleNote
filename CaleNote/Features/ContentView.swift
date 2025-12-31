@@ -80,6 +80,9 @@ struct ContentView: View {
                 await calendarListService.syncCalendarList()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .openSettings)) { _ in
+            showSettings = true
+        }
         .onAppear {
             if !hasCompletedOnboarding {
                 showOnboarding = true
