@@ -103,6 +103,16 @@ xcodebuild -scheme CaleNote -configuration Debug build
 
 プロジェクトはSwift Package Managerを使用して依存関係を管理します。初回ビルド時に自動的に解決されます。
 
+### コード品質
+
+SwiftLint を導入しています。インストール済みの場合、Xcode のビルド時に自動で実行されます。
+段階導入のため、一部ルールは warning 設定になっています（詳細は `.swiftlint.yml`）。
+
+```bash
+brew install swiftlint
+swiftlint --config .swiftlint.yml
+```
+
 ## テスト
 
 ### UIテスト
