@@ -140,6 +140,7 @@ Based on APP_SPECIFICATION.md:
 * **Bidirectional Sync**: Changes from Google Calendar should be reflected in app
 * **Sync State Management**: Each entry should track sync status (synced/pending/failed)
 * **Recovery**: Failed syncs should be retryable from timeline and settings
+* **BackgroundTasks**: Use BGAppRefreshTask for periodic sync and BGProcessingTask for index rebuilds (see `Infrastructure/Sync/BackgroundTaskManager.swift`)
 
 ### Search Requirements
 
