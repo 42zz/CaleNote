@@ -221,7 +221,13 @@ struct EntryDetailView: View {
         formatter.dateStyle = .full
         formatter.timeStyle = entry.isAllDay ? .none : .short
         if entry.isAllDay {
-            return "\(formatter.string(from: entry.startAt))（終日）"
+            let calendar = Calendar.current
+            let span = entry.allDaySpan(using: calendar)
+            if span.dayCount > 1,
+               let lastDay = calendar.date(byAdding: .day, value: -1, to: span.endDayExclusive) {
+                return "\(formatter.string(from: span.startDay)) - \(formatter.string(from: lastDay))（終日）"
+            }
+            return "\(formatter.string(from: span.startDay))（終日）"
         }
         let endFormatter = DateFormatter()
         endFormatter.dateStyle = .none

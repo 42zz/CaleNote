@@ -16,6 +16,12 @@ import UIKit
 
 /// メイン画面のタイムラインビュー
 struct TimelineView: View {
+    private struct TimelineDisplayEntry: Identifiable {
+        let id: String
+        let entry: ScheduleEntry
+        let displayDate: Date
+    }
+
     // MARK: - Environment
 
     @Environment(\.modelContext) private var modelContext
@@ -100,8 +106,7 @@ struct TimelineView: View {
 
     /// エントリー存在日の集合（startOfDay）
     private var entryDates: Set<Date> {
-        let calendar = Calendar.current
-        return Set(filteredEntries.map { calendar.startOfDay(for: $0.startAt) })
+        Set(timelineDisplayEntries.map { $0.displayDate })
     }
 
     /// 初回同期中かどうか
@@ -122,15 +127,46 @@ struct TimelineView: View {
         return nil
     }
 
-    /// 日付でグループ化されたエントリー（新しい日付が上）
-    private var groupedEntries: [(date: Date, entries: [ScheduleEntry])] {
+    /// 表示用に展開したエントリー
+    private var timelineDisplayEntries: [TimelineDisplayEntry] {
         let calendar = Calendar.current
-        let grouped = Dictionary(grouping: filteredEntries) { entry in
-            calendar.startOfDay(for: entry.startAt)
+        var result: [TimelineDisplayEntry] = []
+        result.reserveCapacity(filteredEntries.count)
+
+        for entry in filteredEntries {
+            if entry.isAllDay {
+                let span = entry.allDaySpan(using: calendar)
+                for offset in 0..<span.dayCount {
+                    guard let day = calendar.date(byAdding: .day, value: offset, to: span.startDay) else { continue }
+                    result.append(
+                        TimelineDisplayEntry(
+                            id: displayEntryId(for: entry, date: day),
+                            entry: entry,
+                            displayDate: day
+                        )
+                    )
+                }
+            } else {
+                let day = calendar.startOfDay(for: entry.startAt)
+                result.append(
+                    TimelineDisplayEntry(
+                        id: displayEntryId(for: entry, date: day),
+                        entry: entry,
+                        displayDate: day
+                    )
+                )
+            }
         }
 
+        return result
+    }
+
+    /// 日付でグループ化されたエントリー（新しい日付が上）
+    private var groupedEntries: [(date: Date, entries: [TimelineDisplayEntry])] {
+        let grouped = Dictionary(grouping: timelineDisplayEntries) { $0.displayDate }
+
         return grouped
-            .map { (date: $0.key, entries: $0.value) }
+            .map { (date: $0.key, entries: sortDisplayEntries($0.value)) }
             .sorted { $0.date > $1.date } // 新しい日付が先
     }
 
@@ -308,22 +344,26 @@ struct TimelineView: View {
 
                 ForEach(Array(groupedEntries.enumerated()), id: \.offset) { _, section in
                     Section {
-                        ForEach(section.entries) { entry in
+                        ForEach(section.entries) { displayEntry in
                             NavigationLink {
-                                EntryDetailView(entry: entry)
+                                EntryDetailView(entry: displayEntry.entry)
                             } label: {
-                                TimelineRowView(entry: entry, showTags: showTags)
+                                TimelineRowView(
+                                    entry: displayEntry.entry,
+                                    showTags: showTags,
+                                    displayDate: displayEntry.displayDate
+                                )
                             }
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button(role: .destructive) {
-                                    requestDelete(entry)
+                                    requestDelete(displayEntry.entry)
                                 } label: {
                                     Label("削除", systemImage: "trash")
                                 }
                             }
                             .swipeActions(edge: .leading) {
                                 Button {
-                                    beginEdit(entry)
+                                    beginEdit(displayEntry.entry)
                                 } label: {
                                     Label("編集", systemImage: "pencil")
                                 }
@@ -331,20 +371,20 @@ struct TimelineView: View {
                             }
                             .contextMenu {
                                 Button {
-                                    beginEdit(entry)
+                                    beginEdit(displayEntry.entry)
                                 } label: {
                                     Label("編集", systemImage: "pencil")
                                 }
                                 .keyboardShortcut(.return, modifiers: [])
 
                                 Button(role: .destructive) {
-                                    requestDelete(entry)
+                                    requestDelete(displayEntry.entry)
                                 } label: {
                                     Label("削除", systemImage: "trash")
                                 }
                                 .keyboardShortcut(.delete, modifiers: [])
 
-                                ShareLink(item: shareText(for: entry)) {
+                                ShareLink(item: shareText(for: displayEntry.entry)) {
                                     Label("共有", systemImage: "square.and.arrow.up")
                                 }
 
@@ -365,10 +405,10 @@ struct TimelineView: View {
                                 }
                             )
                             .accessibilityAction(named: "編集") {
-                                beginEdit(entry)
+                                beginEdit(displayEntry.entry)
                             }
                             .accessibilityAction(named: "削除") {
-                                requestDelete(entry)
+                                requestDelete(displayEntry.entry)
                             }
                         }
                     } header: {
@@ -544,6 +584,38 @@ struct TimelineView: View {
             parts.append(body)
         }
         return parts.joined(separator: "\n")
+    }
+
+    private func displayEntryId(for entry: ScheduleEntry, date: Date) -> String {
+        let baseId = entry.googleEventId
+            ?? "\(entry.createdAt.timeIntervalSince1970)-\(entry.startAt.timeIntervalSince1970)-\(entry.title.hashValue)"
+        return "\(baseId)-\(Int(date.timeIntervalSince1970))"
+    }
+
+    private func sortDisplayEntries(_ entries: [TimelineDisplayEntry]) -> [TimelineDisplayEntry] {
+        let calendar = Calendar.current
+        return entries.sorted { lhs, rhs in
+            if lhs.entry.isAllDay != rhs.entry.isAllDay {
+                return lhs.entry.isAllDay && !rhs.entry.isAllDay
+            }
+
+            if lhs.entry.isAllDay && rhs.entry.isAllDay {
+                if lhs.entry.title != rhs.entry.title {
+                    return lhs.entry.title.localizedStandardCompare(rhs.entry.title) == .orderedAscending
+                }
+                return lhs.entry.createdAt < rhs.entry.createdAt
+            }
+
+            if lhs.entry.startAt != rhs.entry.startAt {
+                return lhs.entry.startAt < rhs.entry.startAt
+            }
+
+            if lhs.entry.title != rhs.entry.title {
+                return lhs.entry.title.localizedStandardCompare(rhs.entry.title) == .orderedAscending
+            }
+
+            return calendar.compare(lhs.displayDate, to: rhs.displayDate, toGranularity: .day) == .orderedAscending
+        }
     }
 
     private func triggerHaptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {

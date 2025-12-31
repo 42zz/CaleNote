@@ -217,3 +217,25 @@ extension ScheduleEntry {
         updatedAt = Date()
     }
 }
+
+// MARK: - All-day Helpers
+
+extension ScheduleEntry {
+    /// 全日イベントの表示/同期用に開始日と終了日（排他的）を整形
+    func allDaySpan(using calendar: Calendar = .current) -> (startDay: Date, endDayExclusive: Date, dayCount: Int) {
+        let startDay = calendar.startOfDay(for: startAt)
+        var endDay = calendar.startOfDay(for: endAt)
+        if endDay <= startDay {
+            endDay = calendar.date(byAdding: .day, value: 1, to: startDay) ?? startDay
+        }
+        let rawDayCount = calendar.dateComponents([.day], from: startDay, to: endDay).day ?? 0
+        let dayCount = max(1, rawDayCount)
+        return (startDay, endDay, dayCount)
+    }
+
+    /// 複数日にまたがる全日イベントかどうか
+    var isMultiDayAllDay: Bool {
+        guard isAllDay else { return false }
+        return allDaySpan().dayCount > 1
+    }
+}

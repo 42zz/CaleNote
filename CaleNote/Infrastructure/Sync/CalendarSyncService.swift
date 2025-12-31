@@ -441,6 +441,33 @@ final class CalendarSyncService: ObservableObject {
             ? CalendarEvent.ExtendedProperties(private: privateProperties, shared: nil)
             : nil
 
+        if entry.isAllDay {
+            let (startDate, endDate) = allDayDateRange(for: entry)
+            return CalendarEvent(
+                id: entry.googleEventId,
+                status: nil,
+                summary: entry.title,
+                description: entry.body,
+                start: CalendarEvent.EventDateTime(
+                    date: startDate,
+                    dateTime: nil,
+                    timeZone: nil
+                ),
+                end: CalendarEvent.EventDateTime(
+                    date: endDate,
+                    dateTime: nil,
+                    timeZone: nil
+                ),
+                created: nil,
+                updated: nil,
+                etag: nil,
+                extendedProperties: extendedProperties,
+                recurrence: nil,
+                recurringEventId: nil,
+                originalStartTime: nil
+            )
+        }
+
         return CalendarEvent(
             id: entry.googleEventId,
             status: nil,
@@ -544,12 +571,32 @@ final class CalendarSyncService: ObservableObject {
         if let dateString = eventDateTime.date {
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM-dd"
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone.current
             if let date = formatter.date(from: dateString) {
                 return date
             }
         }
 
         return Date()
+    }
+
+    /// 全日イベント用の日付レンジ（Google Calendar は end が排他的）
+    private func allDayDateRange(for entry: ScheduleEntry) -> (startDate: String, endDate: String) {
+        let calendar = Calendar.current
+        let span = entry.allDaySpan(using: calendar)
+        let startDate = allDayDateString(from: span.startDay, calendar: calendar)
+        let endDate = allDayDateString(from: span.endDayExclusive, calendar: calendar)
+        return (startDate, endDate)
+    }
+
+    private func allDayDateString(from date: Date, calendar: Calendar) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 
     // MARK: - Sync Token Persistence

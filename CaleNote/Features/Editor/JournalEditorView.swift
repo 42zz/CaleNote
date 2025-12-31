@@ -66,10 +66,17 @@ struct JournalEditorView: View {
         NavigationStack {
             Form {
                 Section {
-                    DatePicker("日時", selection: $startAt)
+                    DatePicker(
+                        "日時",
+                        selection: $startAt,
+                        displayedComponents: isAllDay ? [.date] : [.date, .hourAndMinute]
+                    )
                         .accessibilityIdentifier("entryDatePicker")
                     Toggle("終日", isOn: $isAllDay)
                         .accessibilityIdentifier("entryAllDayToggle")
+                        .onChange(of: isAllDay) { _, newValue in
+                            adjustStartAtForAllDayChange(isAllDay: newValue)
+                        }
                     TextField("タイトル", text: $title)
                         .accessibilityIdentifier("entryTitleField")
                     VStack(alignment: .leading, spacing: 8) {
@@ -142,6 +149,8 @@ struct JournalEditorView: View {
         errorMessage = nil
         showSaveSuccess = false
 
+        let calendar = Calendar.current
+        let normalizedStartAt = isAllDay ? calendar.startOfDay(for: startAt) : startAt
         let finalTitle = InputValidator.sanitizeTitle(title)
         let finalBody = InputValidator.sanitizeBody(bodyText)
         if let validationError = InputValidator.validate(title: finalTitle, body: finalBody) {
@@ -149,7 +158,12 @@ struct JournalEditorView: View {
             isSaving = false
             return
         }
-        let endAt = isAllDay ? startAt : startAt.addingTimeInterval(3600) // Default 1 hour
+        let endAt: Date
+        if isAllDay {
+            endAt = calendar.date(byAdding: .day, value: 1, to: normalizedStartAt) ?? normalizedStartAt
+        } else {
+            endAt = normalizedStartAt.addingTimeInterval(3600) // Default 1 hour
+        }
         let extractedTags = TagParser.extract(from: [finalTitle, finalBody])
 
         Task {
@@ -159,7 +173,7 @@ struct JournalEditorView: View {
                     // Update existing
                     entry.title = finalTitle.isEmpty ? "(タイトルなし)" : finalTitle
                     entry.body = finalBody
-                    entry.startAt = startAt
+                    entry.startAt = normalizedStartAt
                     entry.endAt = endAt
                     entry.isAllDay = isAllDay
                     entry.tags = extractedTags
@@ -170,7 +184,7 @@ struct JournalEditorView: View {
                     let newEntry = ScheduleEntry(
                         source: ScheduleEntry.Source.calenote.rawValue,
                         managedByCaleNote: true,
-                        startAt: startAt,
+                        startAt: normalizedStartAt,
                         endAt: endAt,
                         isAllDay: isAllDay,
                         title: finalTitle.isEmpty ? "(タイトルなし)" : finalTitle,
@@ -216,6 +230,23 @@ struct JournalEditorView: View {
         guard let hashIndex = bodyText.lastIndex(of: "#") else { return }
         let beforeHash = String(bodyText[..<hashIndex])
         bodyText = beforeHash + "#" + tag + " "
+    }
+
+    private func adjustStartAtForAllDayChange(isAllDay: Bool) {
+        let calendar = Calendar.current
+        if isAllDay {
+            startAt = calendar.startOfDay(for: startAt)
+            return
+        }
+
+        let components = calendar.dateComponents([.year, .month, .day], from: startAt)
+        var normalized = DateComponents()
+        normalized.year = components.year
+        normalized.month = components.month
+        normalized.day = components.day
+        normalized.hour = 9
+        normalized.minute = 0
+        startAt = calendar.date(from: normalized) ?? startAt
     }
 }
 
