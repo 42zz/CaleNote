@@ -6,8 +6,9 @@
 //
 
 import Combine
-import SwiftUI
 import SwiftData
+import SwiftUI
+import UIKit
 
 /// メイン画面のタイムラインビュー
 struct TimelineView: View {
@@ -19,6 +20,7 @@ struct TimelineView: View {
     @EnvironmentObject private var syncService: CalendarSyncService
     @EnvironmentObject private var calendarListService: CalendarListService
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openURL) private var openURL
 
     // MARK: - Query
 
@@ -86,6 +88,24 @@ struct TimelineView: View {
     private var entryDates: Set<Date> {
         let calendar = Calendar.current
         return Set(filteredEntries.map { calendar.startOfDay(for: $0.startAt) })
+    }
+
+    /// 初回同期中かどうか
+    private var isInitialSyncing: Bool {
+        allEntries.isEmpty && (syncService.isSyncing || calendarListService.isSyncing)
+    }
+
+    /// カレンダー未選択状態かどうか
+    private var isCalendarSelectionEmpty: Bool {
+        !calendarListService.calendars.isEmpty && visibleCalendarIds.isEmpty
+    }
+
+    /// 同期エラーメッセージ
+    private var syncErrorMessage: String? {
+        if let error = syncService.lastSyncError ?? calendarListService.lastError {
+            return error.localizedDescription
+        }
+        return nil
     }
 
     /// 日付でグループ化されたエントリー（新しい日付が上）
@@ -173,14 +193,73 @@ struct TimelineView: View {
             .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
                 refreshForDayChange(shouldScroll: true)
             }
+            .onChange(of: syncService.lastSyncError) { _, newValue in
+                guard newValue != nil else { return }
+                UIAccessibility.post(notification: .announcement, argument: "同期に失敗しました")
+            }
         }
     }
 
     // MARK: - Timeline List
 
     private var timelineList: some View {
+        Group {
+            if isInitialSyncing {
+                ZStack {
+                    TimelineSkeletonView()
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .scaleEffect(1.1)
+                            .accessibilityLabel("同期中")
+                        Text("Google Calendar からデータを取得中...")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .accessibilityLiveRegion(.polite)
+                        Text("初回同期には少し時間がかかる場合があります")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(24)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                    .padding()
+                }
+            } else if isCalendarSelectionEmpty {
+                EmptyStateView(
+                    title: "カレンダーを選択してください",
+                    message: "表示するカレンダーが選択されていません。",
+                    systemImage: "calendar.badge.exclamationmark",
+                    detail: "サイドバーで表示するカレンダーを選択できます。",
+                    primaryActionTitle: "サイドバーを開く",
+                    primaryAction: { onSidebarButtonTap?() },
+                    secondaryActionTitle: "設定を開く",
+                    secondaryAction: { NotificationCenter.default.post(name: .openSettings, object: nil) }
+                )
+            } else if let errorMessage = syncErrorMessage, filteredEntries.isEmpty {
+                syncErrorState(message: errorMessage)
+            } else if filteredEntries.isEmpty {
+                EmptyStateView(
+                    title: "まだエントリーがありません",
+                    message: "予定やメモを追加して、タイムラインを作成しましょう。",
+                    systemImage: "note.text",
+                    detail: "右下の + からも作成できます。",
+                    primaryActionTitle: "エントリーを作成",
+                    primaryAction: { showNewEntrySheet = true }
+                )
+            } else {
+                timelineListContent
+            }
+        }
+    }
+
+    private var timelineListContent: some View {
         ScrollViewReader { proxy in
             List {
+                if let errorMessage = syncErrorMessage {
+                    Section {
+                        syncErrorBanner(message: errorMessage)
+                    }
+                }
+
                 ForEach(Array(groupedEntries.enumerated()), id: \.offset) { _, section in
                     Section {
                         ForEach(section.entries) { entry in
@@ -207,6 +286,9 @@ struct TimelineView: View {
             }
             .listStyle(.plain)
             .accessibilityIdentifier("timelineList")
+            .refreshable {
+                await refreshTimeline()
+            }
             .onAppear {
                 // 初回表示時に今日のセクションにスクロール
                 scrollProxy = proxy
@@ -325,5 +407,60 @@ struct TimelineView: View {
         if didChange, shouldScroll {
             scrollToToday(forceToday: true)
         }
+    }
+
+    private func refreshTimeline() async {
+        await calendarListService.syncCalendarList()
+        try? await syncService.performFullSync()
+    }
+
+    private func syncErrorState(message: String) -> some View {
+        EmptyStateView(
+            title: "同期エラーが発生しました",
+            message: message,
+            systemImage: "exclamationmark.triangle",
+            detail: "通信環境を確認して再試行してください。",
+            primaryActionTitle: "再試行",
+            primaryAction: {
+                Task { await refreshTimeline() }
+            },
+            secondaryActionTitle: "サポートに連絡",
+            secondaryAction: {
+                guard let url = URL(string: "mailto:feedback@calenote.app") else { return }
+                openURL(url)
+            }
+        )
+    }
+
+    private func syncErrorBanner(message: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.orange)
+                Text("同期に失敗しました")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+            }
+
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 12) {
+                Button("再試行") {
+                    Task { await refreshTimeline() }
+                }
+                .buttonStyle(.bordered)
+
+                Button("サポートに連絡") {
+                    guard let url = URL(string: "mailto:feedback@calenote.app") else { return }
+                    openURL(url)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("同期に失敗しました")
     }
 }

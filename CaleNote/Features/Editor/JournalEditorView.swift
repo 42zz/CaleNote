@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct JournalEditorView: View {
     @Environment(\.dismiss) private var dismiss
@@ -27,6 +28,7 @@ struct JournalEditorView: View {
 
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @State private var showSaveSuccess = false
     
     // Tag suggestions
     private var suggestedTags: [String] {
@@ -101,6 +103,12 @@ struct JournalEditorView: View {
                     }
                 }
             }
+            .overlay(alignment: .top) {
+                if showSaveSuccess {
+                    SuccessToastView(message: "保存しました")
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
             .navigationTitle(entry == nil ? "新規作成" : "編集")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -108,8 +116,18 @@ struct JournalEditorView: View {
                         .accessibilityIdentifier("entryCancelButton")
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
+                    Button {
                         save()
+                    } label: {
+                        if isSaving {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("保存中")
+                            }
+                        } else {
+                            Text("保存")
+                        }
                     }
                     .disabled(isSaving)
                     .accessibilityIdentifier("entrySaveButton")
@@ -122,6 +140,7 @@ struct JournalEditorView: View {
         if isSaving { return }
         isSaving = true
         errorMessage = nil
+        showSaveSuccess = false
 
         let finalTitle = InputValidator.sanitizeTitle(title)
         let finalBody = InputValidator.sanitizeBody(bodyText)
@@ -178,7 +197,11 @@ struct JournalEditorView: View {
                 
                 await MainActor.run {
                     isSaving = false
-                    dismiss()
+                    showSaveSuccess = true
+                    UIAccessibility.post(notification: .announcement, argument: "保存しました")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                        dismiss()
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -193,5 +216,23 @@ struct JournalEditorView: View {
         guard let hashIndex = bodyText.lastIndex(of: "#") else { return }
         let beforeHash = String(bodyText[..<hashIndex])
         bodyText = beforeHash + "#" + tag + " "
+    }
+}
+
+private struct SuccessToastView: View {
+    let message: String
+
+    var body: some View {
+        Text(message)
+            .font(.subheadline)
+            .fontWeight(.semibold)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial)
+            .clipShape(Capsule())
+            .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 2)
+            .accessibilityLabel(message)
+            .accessibilityAddTraits(.isStaticText)
+            .padding(.top, 8)
     }
 }
