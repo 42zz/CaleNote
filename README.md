@@ -106,6 +106,7 @@ xcodebuild -scheme CaleNote -configuration Debug build
 ### コード品質
 
 SwiftLint を導入しています。インストール済みの場合、Xcode のビルド時に自動で実行されます。
+段階導入のため、一部ルールは warning 設定になっています（詳細は `.swiftlint.yml`）。
 
 ```bash
 brew install swiftlint

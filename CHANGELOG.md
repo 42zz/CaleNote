@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SwiftLint設定** (`.swiftlint.yml`)
   - インデント4スペース、行長120、関数/ファイル/型の長さ制限
   - force unwrap/cast、unused import、クロージャ引数の明示を警告化
+  - force cast/unwrap の severity を warning に調整して段階導入
   - 生成物/外部依存の除外とテスト向けルール緩和
 - **Xcodeビルド時Lint** (`CaleNote.xcodeproj/project.pbxproj`)
   - SwiftLint の Run Script Build Phase を追加

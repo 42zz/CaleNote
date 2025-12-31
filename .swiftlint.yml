@@ -32,21 +32,18 @@ indentation_width:
 
 function_body_length:
   warning: 60
-  excluded:
-    - CaleNoteTests
-    - CaleNoteUITests
 
 file_length:
   warning: 400
-  excluded:
-    - CaleNoteTests
-    - CaleNoteUITests
 
 type_body_length:
   warning: 200
-  excluded:
-    - CaleNoteTests
-    - CaleNoteUITests
+
+force_cast:
+  severity: warning
+
+force_unwrapping:
+  severity: warning
 
 identifier_name:
   min_length:

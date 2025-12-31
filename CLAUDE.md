@@ -36,6 +36,7 @@ xcodebuild -scheme CaleNote -only-testing:CaleNoteTests/TestClassName/testMethod
 # Run SwiftLint manually
 swiftlint --config .swiftlint.yml
 ```
+Note: Some rules (e.g. force cast/unwrap) are configured as warnings for gradual rollout.
 
 ### Development
 The project uses Xcode's standard iOS development workflow. Open `CaleNote.xcodeproj` in Xcode to run the app in the simulator or on a device.
