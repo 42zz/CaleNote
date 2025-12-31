@@ -16,6 +16,7 @@ struct EntryDetailView: View {
     @State private var isDeleting = false
     @State private var errorMessage: String?
     @State private var showSkeleton = false
+    @AppStorage("trashEnabled") private var trashEnabled = TrashSettings.shared.isEnabled
 
     var body: some View {
         Group {
@@ -51,13 +52,13 @@ struct EntryDetailView: View {
                 .environmentObject(syncService)
                 .environmentObject(relatedIndex)
         }
-        .alert("削除しますか？", isPresented: $showDeleteAlert) {
-            Button("削除", role: .destructive) {
+        .alert(trashEnabled ? "ゴミ箱に移動しますか？" : "削除しますか？", isPresented: $showDeleteAlert) {
+            Button(trashEnabled ? "ゴミ箱に移動" : "削除", role: .destructive) {
                 deleteEntry()
             }
             Button("キャンセル", role: .cancel) {}
         } message: {
-            Text("この操作は取り消せません")
+            Text(trashEnabled ? "ゴミ箱から復元できます。" : "この操作は取り消せません")
         }
         .onAppear {
             showSkeleton = !relatedIndex.isReady
@@ -162,7 +163,7 @@ struct EntryDetailView: View {
             Button(role: .destructive) {
                 showDeleteAlert = true
             } label: {
-                Label("削除", systemImage: "trash")
+                Label(trashEnabled ? "ゴミ箱へ" : "削除", systemImage: "trash")
             }
             .disabled(isDeleting)
         }
