@@ -33,6 +33,7 @@ CaleNoteにおいて、予定と記録はユーザー体験上は区別されま
 * Googleカレンダーを唯一の正とする双方向同期
 * アプリ操作時はローカルへ即時反映、Googleカレンダーへの反映は非同期で実行
 * 同期状態の可視化と再送機能
+* BackgroundTasks によるバックグラウンド同期（App Refresh / Processing）
 
 ### 検索機能
 * 専用のSearch Indexを用いた高速検索
@@ -118,6 +119,7 @@ xcodebuild -scheme CaleNote -configuration Debug build
 * **非同期同期**: Googleカレンダーへの反映は非同期で実行
 * **双方向同期**: Googleカレンダー側での変更もアプリ側へ反映
 * **同期状態管理**: 各エントリーは同期状態を持ち、同期待ち・失敗状態は再送可能
+* **バックグラウンド実行**: BGAppRefreshTask で定期同期、BGProcessingTask でインデックス再構築
 
 ## UI・ナビゲーション構造
 

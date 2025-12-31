@@ -1,8 +1,11 @@
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 @main
 struct CaleNoteApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
+
     // 認証サービス
     @StateObject private var authService = GoogleAuthService.shared
 
@@ -63,6 +66,14 @@ struct CaleNoteApp: App {
             _searchIndexService = StateObject(wrappedValue: searchIndex)
             _relatedIndexService = StateObject(wrappedValue: relatedIndex)
             _calendarListService = StateObject(wrappedValue: calendarList)
+
+            BackgroundTaskManager.shared.configure(
+                syncService: sync,
+                calendarListService: calendarList,
+                searchIndexService: searchIndex,
+                relatedIndexService: relatedIndex,
+                modelContext: context
+            )
         } catch {
             fatalError("Could not initialize ModelContainer: \(error)")
         }
@@ -78,5 +89,18 @@ struct CaleNoteApp: App {
                 .environmentObject(calendarListService)
         }
         .modelContainer(container)
+        .onChange(of: scenePhase) { phase in
+            switch phase {
+            case .background:
+                BackgroundTaskManager.shared.scheduleAppRefresh(reason: "scenePhase.background")
+                BackgroundTaskManager.shared.scheduleProcessing(reason: "scenePhase.background")
+            case .active:
+                BackgroundTaskManager.shared.scheduleAppRefresh(reason: "scenePhase.active")
+            case .inactive:
+                break
+            @unknown default:
+                break
+            }
+        }
     }
 }

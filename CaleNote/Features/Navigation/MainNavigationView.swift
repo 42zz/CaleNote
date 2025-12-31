@@ -135,8 +135,15 @@ struct MainNavigationView: View {
             syncService.startBackgroundSync()
         }
         .onChange(of: scenePhase) { phase in
-            if phase == .active {
+            switch phase {
+            case .active:
                 refreshForDayChange(shouldScroll: true)
+                Task { await syncService.performForegroundSync() }
+                syncService.startBackgroundSync()
+            case .inactive, .background:
+                syncService.stopBackgroundSync()
+            @unknown default:
+                break
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in

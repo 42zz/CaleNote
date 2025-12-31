@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - 2025/12/31
+
+#### Issue #22 (CAL-22): BackgroundTasks-based sync
+- **BackgroundTaskManager** (`Infrastructure/Sync/BackgroundTaskManager.swift`)
+  - BGAppRefreshTask での定期同期スケジューリング
+  - BGProcessingTask でのインデックス再構築スケジューリング
+  - ネットワーク状況と低電力モードに応じた同期間隔調整
+- **AppDelegate** (`App/AppDelegate.swift`)
+  - BackgroundTasks の登録とバックグラウンド遷移時の再スケジュール
+- **Info.plist** (`CaleNote/Info.plist`)
+  - BGTaskSchedulerPermittedIdentifiers と UIBackgroundModes を追加
+
+### Changed - 2025/12/31
+- **Foreground Sync** (`Features/Timeline/TimelineView.swift`, `Features/Navigation/MainNavigationView.swift`)
+  - フォアグラウンド復帰時の即時同期とタイマー管理の最適化
+
 ### Added - 2025/12/30
 
 #### Issue #18: Calendar Selection and Multi-Calendar Support (CAL-18)
