@@ -36,6 +36,9 @@ struct TimelineView: View {
 
     /// 全スケジュールエントリー
     @Query(
+        filter: #Predicate<ScheduleEntry> { entry in
+            entry.isDeleted == false
+        },
         sort: \ScheduleEntry.startAt,
         order: .forward
     ) private var allEntries: [ScheduleEntry]
@@ -65,6 +68,8 @@ struct TimelineView: View {
     /// 表示設定
     @AppStorage("timelineShowTags") private var showTags = true
     @AppStorage("confirmDeleteEntry") private var confirmDeleteEntry = true
+    @AppStorage("trashEnabled") private var trashEnabled = TrashSettings.shared.isEnabled
+    @AppStorage("trashAutoPurgeEnabled") private var trashAutoPurgeEnabled = TrashSettings.shared.autoPurgeEnabled
 
     /// 表示中のセクション日付
     @State private var visibleSectionDates: Set<Date> = []
@@ -180,6 +185,10 @@ struct TimelineView: View {
         }
     }
 
+    private var deleteLabel: String {
+        trashEnabled ? "ゴミ箱へ" : "削除"
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -230,10 +239,10 @@ struct TimelineView: View {
                 SearchView()
             }
             .confirmationDialog(
-                "エントリーを削除しますか？",
+                trashEnabled ? "エントリーをゴミ箱に移動しますか？" : "エントリーを削除しますか？",
                 isPresented: $showDeleteConfirm
             ) {
-                Button("削除", role: .destructive) {
+                Button(trashEnabled ? "ゴミ箱に移動" : "削除", role: .destructive) {
                     if let entry = entryPendingDelete {
                         deleteEntry(entry)
                     }
@@ -242,7 +251,7 @@ struct TimelineView: View {
                     entryPendingDelete = nil
                 }
             } message: {
-                Text("この操作は取り消せません。")
+                Text(trashEnabled ? "ゴミ箱から復元できます。" : "この操作は取り消せません。")
             }
             .alert("操作に失敗しました", isPresented: Binding(
                 get: { actionErrorMessage != nil },
@@ -256,6 +265,10 @@ struct TimelineView: View {
                 // 今日の日付を更新
                 today = Date()
                 focusDate = today
+
+                if trashAutoPurgeEnabled {
+                    try? syncService.cleanupExpiredTrashEntries()
+                }
 
                 // 定期的な同期を開始（必要に応じて）
                 syncService.startBackgroundSync()
@@ -358,7 +371,7 @@ struct TimelineView: View {
                                 Button(role: .destructive) {
                                     requestDelete(displayEntry.entry)
                                 } label: {
-                                    Label("削除", systemImage: "trash")
+                                    Label(deleteLabel, systemImage: "trash")
                                 }
                             }
                             .swipeActions(edge: .leading) {
@@ -380,7 +393,7 @@ struct TimelineView: View {
                                 Button(role: .destructive) {
                                     requestDelete(displayEntry.entry)
                                 } label: {
-                                    Label("削除", systemImage: "trash")
+                                    Label(deleteLabel, systemImage: "trash")
                                 }
                                 .keyboardShortcut(.delete, modifiers: [])
 
