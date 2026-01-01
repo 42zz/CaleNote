@@ -51,6 +51,7 @@ enum TestHelpers {
         )
     }
 
+    @MainActor
     static func makeModelContext() throws -> ModelContext {
         let schema = Schema([
             ScheduleEntry.self,
