@@ -269,6 +269,7 @@
 /* Begin PBXShellScriptBuildPhase section */
 		71B0B36F2F00AA1100000001 /* SwiftLint */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
@@ -279,7 +280,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if which swiftlint > /dev/null; then\n  swiftlint --config \\\"${SRCROOT}/.swiftlint.yml\\\"\nelse\n  echo \\\"warning: SwiftLint is not installed. Install via Homebrew (brew install swiftlint) or SPM.\\\"\nfi\n";
+			shellScript = "if command -v swiftlint >/dev/null 2>&1; then\n  swiftlint --config \"${SRCROOT}/.swiftlint.yml\"\nelse\n  echo \"warning: SwiftLint is not installed. Install via Homebrew (brew install swiftlint) or SPM.\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
