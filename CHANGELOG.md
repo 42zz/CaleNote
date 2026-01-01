@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed - 2026/01/01
+
+#### ScheduleEntry indexing for query performance
+- **SwiftData indexes** (`CaleNote/Domain/ScheduleEntry.swift`)
+  - Timeline/Sync/Trash queries向けに `source` / `managedByCaleNote` / `googleEventId` / `calendarId` / `startAt` / `endAt` / `syncStatus` / `isDeleted` / `deletedAt` を indexed 化
+
 ### Added - 2025/12/31
 
 #### Development Tooling: Makefile for Build Automation

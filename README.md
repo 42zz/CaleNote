@@ -67,6 +67,8 @@ CaleNoteにおける最小データ単位は「スケジュールエントリー
 * `lastSyncedAt`
 * `isDeleted` / `deletedAt`
 
+パフォーマンス確保のため、SwiftDataのインデックスを以下の項目に付与しています：`source` / `managedByCaleNote` / `googleEventId` / `calendarId` / `startAt` / `endAt` / `syncStatus` / `isDeleted` / `deletedAt`。
+
 ### Googleカレンダーイベント対応
 
 すべてのスケジュールエントリーは、Googleカレンダー上のイベントと1対1に対応します。CaleNoteで作成された記録は、Googleカレンダーイベントとして保存される際に、CaleNote管理イベントであることを示す識別メタデータを付与します。
