@@ -31,7 +31,10 @@ enum InputValidator {
     }
 
     private static func removeControlCharacters(from text: String) -> String {
-        let filteredScalars = text.unicodeScalars.filter { !$0.properties.isControl }
-        return String(String.UnicodeScalarView(filteredScalars))
+        let controlCharacters = CharacterSet.controlCharacters
+        return text.unicodeScalars
+            .filter { !controlCharacters.contains($0) }
+            .map { String($0) }
+            .joined()
     }
 }

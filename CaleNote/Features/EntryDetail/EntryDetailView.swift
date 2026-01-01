@@ -4,7 +4,7 @@ import SwiftData
 struct EntryDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.accessibilityContrast) private var accessibilityContrast
+    @Environment(\.colorSchemeContrast) private var accessibilityContrast
 
     @EnvironmentObject private var relatedIndex: RelatedEntriesIndexService
     @EnvironmentObject private var syncService: CalendarSyncService
@@ -115,11 +115,11 @@ struct EntryDetailView: View {
                                 .padding(.vertical, 4)
                                 .background(
                                     Capsule()
-                                        .fill(Color.accentColor.opacity(accessibilityContrast == .high ? 0.25 : 0.12))
+                                        .fill(Color.accentColor.opacity(accessibilityContrast == .increased ? 0.25 : 0.12))
                                 )
                                 .overlay(
                                     Capsule()
-                                        .stroke(Color.accentColor, lineWidth: accessibilityContrast == .high ? 1 : 0)
+                                        .stroke(Color.accentColor, lineWidth: accessibilityContrast == .increased ? 1 : 0)
                                 )
                         }
                     }

@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added - 2025/12/31
 
+#### Development Tooling: Makefile for Build Automation
+- **Makefile** (`Makefile`)
+  - Xcodeビルド・テスト・実行を自動化するMakefileを追加
+  - `make` / `make build` / `make run` / `make test` / `make test-unit` / `make test-ui` / `make lint` / `make clean` コマンドを提供
+  - xcbeautifyによるビルド出力の整形対応
+  - AIエージェントが簡単にビルド・テストを実行できるよう最適化
+
+### Added - 2025/12/31
+
 #### Issue #61 (CAL-61): ゴミ箱機能と復元
 - **論理削除と復元フロー** (`Domain/ScheduleEntry.swift`, `Infrastructure/Sync/CalendarSyncService.swift`)
   - `isDeleted` / `deletedAt` を追加し、削除はゴミ箱へ移動
