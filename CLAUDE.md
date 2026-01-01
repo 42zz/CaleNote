@@ -126,6 +126,18 @@ Internally, each schedule entry should maintain:
 * `lastSyncedAt`
 * `isDeleted` / `deletedAt` (trash management)
 
+SwiftDataのインデックスは以下に付与済み:
+
+* `source`
+* `managedByCaleNote`
+* `googleEventId`
+* `calendarId`
+* `startAt`
+* `endAt`
+* `syncStatus`
+* `isDeleted`
+* `deletedAt`
+
 ### Google Calendar Event Mapping
 
 All schedule entries correspond 1-to-1 with Google Calendar events. Entries created in CaleNote should include metadata identifying them as CaleNote-managed events when saved to Google Calendar.

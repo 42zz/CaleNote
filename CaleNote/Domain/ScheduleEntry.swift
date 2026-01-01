@@ -15,6 +15,18 @@ import SwiftData
 /// すべてのスケジュールエントリーは、Googleカレンダー上のイベントと1対1に対応する。
 @Model
 final class ScheduleEntry {
+    #Index(
+        [\ScheduleEntry.source],
+        [\ScheduleEntry.managedByCaleNote],
+        [\ScheduleEntry.googleEventId],
+        [\ScheduleEntry.calendarId],
+        [\ScheduleEntry.startAt],
+        [\ScheduleEntry.endAt],
+        [\ScheduleEntry.syncStatus],
+        [\ScheduleEntry.isDeleted],
+        [\ScheduleEntry.deletedAt]
+    )
+
     // MARK: - Properties
 
     /// データソース（google / calenote）

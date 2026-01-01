@@ -16,7 +16,7 @@ SCHEME := CaleNote
 # xcodebuildが認識できるデバイスを使用
 # iPhone 17はOS 26.2のみ、iPhone 16はOS 18.6で利用可能
 # OS=latestは環境によって異なるバージョンを拾う可能性があるため、固定バージョンを推奨
-DESTINATION := platform=iOS Simulator,name=iPhone 16,OS=18.6
+DESTINATION := platform=iOS Simulator,name=iPhone 17,OS=26.2
 
 # xcbeautify がインストールされている前提（brew install xcbeautify）
 # インストールされていない場合は、xcbeautify を削除して通常の出力を使用
