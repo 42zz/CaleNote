@@ -7,6 +7,146 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed - 2026/01/01
+
+#### ScheduleEntry indexing for query performance
+- **SwiftData indexes** (`CaleNote/Domain/ScheduleEntry.swift`)
+  - Timeline/Sync/Trash queries向けに `source` / `managedByCaleNote` / `googleEventId` / `calendarId` / `startAt` / `endAt` / `syncStatus` / `isDeleted` / `deletedAt` を indexed 化
+
+### Added - 2025/12/31
+
+#### Development Tooling: Makefile for Build Automation
+- **Makefile** (`Makefile`)
+  - Xcodeビルド・テスト・実行を自動化するMakefileを追加
+  - `make` / `make build` / `make run` / `make test` / `make test-unit` / `make test-ui` / `make lint` / `make clean` コマンドを提供
+  - xcbeautifyによるビルド出力の整形対応
+  - AIエージェントが簡単にビルド・テストを実行できるよう最適化
+
+### Added - 2025/12/31
+
+#### Issue #61 (CAL-61): ゴミ箱機能と復元
+- **論理削除と復元フロー** (`Domain/ScheduleEntry.swift`, `Infrastructure/Sync/CalendarSyncService.swift`)
+  - `isDeleted` / `deletedAt` を追加し、削除はゴミ箱へ移動
+  - 復元時に Google Calendar へ再作成して新しい event ID を付与
+  - 期限切れエントリーの自動クリーンアップを実装
+- **ゴミ箱 UI と設定** (`Features/Settings/SettingsView.swift`, `Features/Timeline/TimelineView.swift`, `Features/EntryDetail/EntryDetailView.swift`)
+  - 設定画面からゴミ箱にアクセス、保持期間・自動削除を設定可能
+  - 個別/選択復元、スワイプ復元、完全削除、ゴミ箱を空にする操作を追加
+  - 削除確認ダイアログをゴミ箱仕様に合わせて更新
+- **検索・関連インデックスの除外** (`Infrastructure/Search/SearchIndexService.swift`, `Infrastructure/Related/RelatedEntriesIndexService.swift`)
+  - ゴミ箱内エントリーを検索・タグ・関連表示から除外
+
+#### Issue #53 (CAL-53): SwiftLint導入とコーディング規約整備
+- **SwiftLint設定** (`.swiftlint.yml`)
+  - インデント4スペース、行長120、関数/ファイル/型の長さ制限
+  - force unwrap/cast、unused import、クロージャ引数の明示を警告化
+  - force cast/unwrap の severity を warning に調整して段階導入
+  - 生成物/外部依存の除外とテスト向けルール緩和
+- **Xcodeビルド時Lint** (`CaleNote.xcodeproj/project.pbxproj`)
+  - SwiftLint の Run Script Build Phase を追加
+- **CIでの自動チェック** (`.github/workflows/swiftlint.yml`)
+  - PR/メインブランチで SwiftLint を実行し、PRにアノテーション出力
+
+#### Issue #24 (CAL-24): UIテストの実装
+- **UIテスト基盤** (`CaleNote/App/AppEnvironment.swift`, `CaleNote/App/UITestDataSeeder.swift`)
+  - UIテスト用の起動引数、データリセット、シードデータ投入、ダーク/ライト切替
+  - UIテスト用モック認証と同期無効化のフラグ
+- **XCUITest シナリオ** (`CaleNoteUITests/CaleNoteUITests.swift`, `CaleNoteUITests/CaleNoteUITestsLaunchTests.swift`)
+  - オンボーディング、エントリー作成・編集、検索、サイドバー操作の自動化
+  - スナップショット取得（ライト/ダーク・向き変更）
+- **アクセシビリティ識別子追加**
+  - オンボーディング、タイムライン、編集、検索、サイドバー主要UIに ID を付与
+
+### Added - 2025/12/31
+
+#### Issue #22 (CAL-22): BackgroundTasks-based sync
+- **BackgroundTaskManager** (`Infrastructure/Sync/BackgroundTaskManager.swift`)
+  - BGAppRefreshTask での定期同期スケジューリング
+  - BGProcessingTask でのインデックス再構築スケジューリング
+  - ネットワーク状況と低電力モードに応じた同期間隔調整
+- **AppDelegate** (`App/AppDelegate.swift`)
+  - BackgroundTasks の登録とバックグラウンド遷移時の再スケジュール
+- **Info.plist** (`CaleNote/Info.plist`)
+  - BGTaskSchedulerPermittedIdentifiers と UIBackgroundModes を追加
+
+#### Issue #23 (CAL-23): Unit test coverage for core logic
+- **Unit tests** (`CaleNoteTests/`)
+  - ScheduleEntry のバリデーション、タグ操作、同期状態更新
+  - TagParser、SearchIndexService、RelatedEntriesIndexService のテスト
+  - DisplaySettings、InputValidator の設定・バリデーションテスト
+  - CalendarSyncService のローカル同期フロー（新規作成/更新）のテスト
+
+### Changed - 2025/12/31
+- **Foreground Sync** (`Features/Timeline/TimelineView.swift`, `Features/Navigation/MainNavigationView.swift`)
+  - フォアグラウンド復帰時の即時同期とタイマー管理の最適化
+- **Domain validation & API abstraction** (`Domain/ScheduleEntry.swift`, `Infrastructure/API/GoogleCalendarClient.swift`, `Infrastructure/Sync/CalendarSyncService.swift`)
+  - ScheduleEntry の整合性チェックを追加
+  - GoogleCalendarClientProtocol を導入して同期ロジックのモック可能性を改善
+
+### Added - 2025/12/30
+
+#### Issue #18: Calendar Selection and Multi-Calendar Support (CAL-18)
+- **CalendarInfo SwiftData Model** (`Domain/CalendarInfo.swift`)
+  - Google Calendar のカレンダー情報をローカルにキャッシュ
+  - カレンダーID、名前、色、アクセス権限を保存
+  - 表示/非表示設定、同期設定のユーザー設定を管理
+  - プライマリカレンダー識別
+
+- **CalendarListService** (`Infrastructure/Settings/CalendarListService.swift`)
+  - Google Calendar API からカレンダーリストを取得・キャッシュ
+  - 差分同期対応（syncToken使用）
+  - カレンダー表示/非表示の切り替え
+  - 同期設定の管理
+  - カレンダーカラー情報の提供
+
+- **SidebarView** (`Features/Sidebar/SidebarView.swift`)
+  - サイドバーUI実装
+  - カレンダーリスト表示（カラー、名前、プライマリバッジ）
+  - チェックボックスによる表示/非表示切り替え
+  - 設定・フィードバックへのアクセス
+
+- **ScheduleEntry.calendarId プロパティ追加**
+  - 各エントリーがどのカレンダーに属するかを追跡
+  - Google Calendar 同期時に自動設定
+
+- **TimelineView カレンダーフィルタリング**
+  - 表示中のカレンダーのみをタイムラインに表示
+  - CalendarListService との連携
+
+- **TimelineRowView カレンダーカラー表示**
+  - 各エントリーの左側にカレンダーカラーインジケーターを表示
+  - Color拡張で16進数カラーコードからSwiftUI Colorへの変換をサポート
+
+- **ContentView サイドバー統合**
+  - ハンバーガーメニューでサイドバーを開閉
+  - オーバーレイ表示によるモバイルフレンドリーな実装
+
+- **CalendarSettings 拡張**
+  - カレンダーリストの同期トークン管理
+  - 最終同期日時の記録
+
+- **CalendarSyncService 更新**
+  - 新規・既存エントリーにcalendarIdを設定
+  - 全日イベントの正確な判定
+
+#### Issue #10 (CAL-10): Sidebar and Navigation Structure
+- `/CaleNote/Features/Navigation/` に新規ナビゲーション構造を実装
+- **SidebarView.swift**: サイドバービュー
+  - カレンダー表示切替（Google Calendar / CaleNote エントリー）
+  - 設定画面へのナビゲーション
+  - フィードバック・ヘルプ導線
+  - Googleアカウント情報表示
+- **TopBarView.swift**: トップバービュー
+  - サイドバートグルボタン
+  - 月表示と月選択ポップオーバー
+  - 検索ボタン
+  - 今日フォーカスボタン
+- **MainNavigationView.swift**: メインナビゲーションビュー
+  - サイドバーとタイムラインを統合
+  - カレンダー表示フィルタリング機能
+  - FAB（新規エントリー作成）ボタン
+- ContentView を MainNavigationView を使用するように更新
+
 ### Added (from feature/cal-11)
 - Restored and integrated JournalEditorView, SettingsView, CalendarSyncState.
 

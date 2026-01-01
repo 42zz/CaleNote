@@ -4,7 +4,40 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build and Test Commands
 
-### Building the Project
+### Using Makefile (Recommended)
+
+The project includes a `Makefile` for convenient build automation. This is especially useful for AI agents and CI/CD pipelines.
+
+```bash
+# Build and run on simulator
+make
+
+# Build only
+make build
+
+# Build and run
+make run
+
+# Run all tests
+make test
+
+# Run unit tests only
+make test-unit
+
+# Run UI tests only
+make test-ui
+
+# Run SwiftLint
+make lint
+
+# Clean build folder
+make clean
+```
+
+**Prerequisites**: `xcbeautify` must be installed (`brew install xcbeautify`)
+
+### Building the Project (Direct xcodebuild)
+
 ```bash
 # Build the project
 xcodebuild -scheme CaleNote -configuration Debug build
@@ -16,7 +49,8 @@ xcodebuild -scheme CaleNote -configuration Release build
 xcodebuild -scheme CaleNote clean
 ```
 
-### Running Tests
+### Running Tests (Direct xcodebuild)
+
 ```bash
 # Run all tests
 xcodebuild -scheme CaleNote test
@@ -30,6 +64,17 @@ xcodebuild -scheme CaleNote -only-testing:CaleNoteUITests test
 # Run a specific test
 xcodebuild -scheme CaleNote -only-testing:CaleNoteTests/TestClassName/testMethodName test
 ```
+
+### Linting
+
+```bash
+# Run SwiftLint manually
+swiftlint --config .swiftlint.yml
+
+# Or use Makefile
+make lint
+```
+Note: Some rules (e.g. force cast/unwrap) are configured as warnings for gradual rollout.
 
 ### Development
 The project uses Xcode's standard iOS development workflow. Open `CaleNote.xcodeproj` in Xcode to run the app in the simulator or on a device.
@@ -79,6 +124,19 @@ Internally, each schedule entry should maintain:
 * `tags`
 * `syncStatus` (synced / pending / failed)
 * `lastSyncedAt`
+* `isDeleted` / `deletedAt` (trash management)
+
+SwiftDataのインデックスは以下に付与済み:
+
+* `source`
+* `managedByCaleNote`
+* `googleEventId`
+* `calendarId`
+* `startAt`
+* `endAt`
+* `syncStatus`
+* `isDeleted`
+* `deletedAt`
 
 ### Google Calendar Event Mapping
 
@@ -88,14 +146,14 @@ Local data serves as cache for fast display, but the ultimate source of truth is
 
 ## Current Project State
 
-**Status**: Reset to minimal structure (2025/12/30)
+**Status**: Active development (2025/12/31)
 
-The project has been reset and is ready for fresh development. Current structure:
+Current structure highlights:
 
-* **App Layer**: `CaleNoteApp.swift` - Minimal app entry point with `ContentView`
-* **Features Layer**: `ContentView.swift` - Basic placeholder view
-* **Domain Layer**: Empty (to be implemented)
-* **Infrastructure Layer**: Empty (to be implemented)
+* **App Layer**: `CaleNoteApp.swift` - App entry point and service wiring
+* **Features Layer**: Timeline, Editor, Settings (TrashView), Search, Tags, Onboarding
+* **Domain Layer**: `ScheduleEntry`, `CalendarInfo`
+* **Infrastructure Layer**: Sync, Search/Related indexes, Settings (`CalendarSettings`, `TrashSettings`)
 
 ## Implementation Guidelines
 
@@ -120,6 +178,7 @@ The project has been reset and is ready for fresh development. Current structure
 3. Use async/await for all API calls and DB operations
 4. Implement proper error handling and retry logic
 5. Consider rate limiting for API calls
+6. Manage trash configuration via `TrashSettings` and prefer logical deletes when enabled
 
 ### When Creating UI Views
 
@@ -140,6 +199,7 @@ Based on APP_SPECIFICATION.md:
 * **Bidirectional Sync**: Changes from Google Calendar should be reflected in app
 * **Sync State Management**: Each entry should track sync status (synced/pending/failed)
 * **Recovery**: Failed syncs should be retryable from timeline and settings
+* **BackgroundTasks**: Use BGAppRefreshTask for periodic sync and BGProcessingTask for index rebuilds (see `Infrastructure/Sync/BackgroundTaskManager.swift`)
 
 ### Search Requirements
 
@@ -244,6 +304,8 @@ When implementing Google Calendar integration:
 - Unit tests: Create mock providers for test data
 - Test targets: `CaleNoteTests` (unit), `CaleNoteUITests` (UI)
 - Focus on sync logic and API error handling in tests
+- UI tests should launch with UI test arguments (`UI_TESTING`, `UI_TESTING_RESET`, `UI_TESTING_SEED`, `UI_TESTING_MOCK_AUTH`, `UI_TESTING_SKIP_SYNC`)
+- Snapshot attachments are captured in UI tests for light/dark mode and orientation checks
 
 ## Common Pitfalls to Avoid
 
@@ -253,6 +315,7 @@ When implementing Google Calendar integration:
 4. **Don't assume syncToken validity**: Always handle HTTP 410 GONE (token expired)
 5. **Don't scan raw data**: Use indexes for search operations
 6. **Don't introduce new concepts**: Follow Google Calendar app patterns
+7. **Don't index trash**: Exclude deleted entries from search/tag/related indexes
 
 ## Documentation Update Policy
 
