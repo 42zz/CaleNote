@@ -143,7 +143,7 @@ struct TopBarView: View {
                 .foregroundStyle(isToday ? Color.accentColor : Color.primary)
         }
         .accessibilityLabel("今日へ移動")
-        .accessibilityValue(isToday ? "今日を表示中" : nil)
+        .accessibilityValue(isToday ? "今日を表示中" : "")
         .accessibilityHint("今日の日付にスクロールします")
         .accessibilityIdentifier("todayFocusButton")
     }

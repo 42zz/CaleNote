@@ -220,7 +220,7 @@ final class CalendarSyncService: ObservableObject {
         // 暫定的には全カレンダーを同期する実装とする
 
         // カレンダーリストを取得
-        let calendarList = try await apiClient.getCalendarList()
+        let calendarList = try await apiClient.getCalendarList(pageToken: nil, syncToken: nil)
 
         guard let calendars = calendarList.items else {
             logger.warning("No calendars found")
@@ -314,7 +314,9 @@ final class CalendarSyncService: ObservableObject {
                     calendarId: calendarId,
                     timeMin: timeMin,
                     timeMax: timeMax,
-                    pageToken: nextPageToken
+                    pageToken: nextPageToken,
+                    syncToken: nil,
+                    maxResults: 250
                 )
 
                 if let items = response.items {

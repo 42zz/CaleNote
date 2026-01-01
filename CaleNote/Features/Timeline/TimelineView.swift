@@ -201,7 +201,9 @@ struct TimelineView: View {
                     },
                     showSearch: $showSearchView,
                     focusDate: $focusDate,
-                    scrollToToday: scrollToToday,
+                    scrollToToday: {
+                        scrollToToday(forceToday: true)
+                    },
                     entryDates: entryDates,
                     onSelectDate: { date in
                         focusDate = date
@@ -288,10 +290,6 @@ struct TimelineView: View {
             .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
                 refreshForDayChange(shouldScroll: true)
             }
-            .onChange(of: syncService.lastSyncError) { _, newValue in
-                guard newValue != nil else { return }
-                UIAccessibility.post(notification: .announcement, argument: "同期に失敗しました")
-            }
         }
     }
 
@@ -309,7 +307,6 @@ struct TimelineView: View {
                         Text("Google Calendar からデータを取得中...")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
-                            .accessibilityLiveRegion(.polite)
                         Text("初回同期には少し時間がかかる場合があります")
                             .font(.footnote)
                             .foregroundStyle(.secondary)

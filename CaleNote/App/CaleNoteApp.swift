@@ -33,14 +33,15 @@ struct CaleNoteApp: App {
                 ScheduleEntry.self,
                 CalendarInfo.self
             ])
-            let storeURL = try DataProtection.protectedStoreURL(filename: "CaleNote.sqlite")
-            let config = ModelConfiguration(
-                schema: schema,
-                url: storeURL,
-                isStoredInMemoryOnly: AppEnvironment.isUITesting
-            )
+            let config: ModelConfiguration
+            if AppEnvironment.isUITesting {
+                config = ModelConfiguration(isStoredInMemoryOnly: true)
+            } else {
+                let storeURL = try DataProtection.protectedStoreURL(filename: "CaleNote.sqlite")
+                config = ModelConfiguration(url: storeURL)
+                DataProtection.applyFileProtection(to: storeURL)
+            }
             container = try ModelContainer(for: schema, configurations: [config])
-            DataProtection.applyFileProtection(to: storeURL)
 
             // サービスの初期化
             let context = container.mainContext
@@ -99,8 +100,8 @@ struct CaleNoteApp: App {
                 .environmentObject(calendarListService)
         }
         .modelContainer(container)
-        .onChange(of: scenePhase) { phase in
-            switch phase {
+        .onChange(of: scenePhase) { _, newValue in
+            switch newValue {
             case .background:
                 BackgroundTaskManager.shared.scheduleAppRefresh(reason: "scenePhase.background")
                 BackgroundTaskManager.shared.scheduleProcessing(reason: "scenePhase.background")

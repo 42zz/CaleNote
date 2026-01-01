@@ -39,11 +39,11 @@ final class CalendarListService: ObservableObject {
     init(
         apiClient: GoogleCalendarClient,
         modelContext: ModelContext,
-        settings: CalendarSettings = .shared
+        settings: CalendarSettings? = nil
     ) {
         self.apiClient = apiClient
         self.modelContext = modelContext
-        self.settings = settings
+        self.settings = settings ?? .shared
     }
 
     // MARK: - Public Methods

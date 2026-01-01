@@ -56,7 +56,9 @@ enum TagParser {
 
     private static func sanitize(_ tag: String) -> String {
         let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
-        let filteredScalars = trimmed.unicodeScalars.filter { !$0.properties.isControl }
+        let filteredScalars = trimmed.unicodeScalars.filter {
+            !CharacterSet.controlCharacters.contains($0)
+        }
         return String(String.UnicodeScalarView(filteredScalars))
     }
 }

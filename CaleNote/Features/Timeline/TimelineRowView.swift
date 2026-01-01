@@ -12,7 +12,7 @@ struct TimelineRowView: View {
     // MARK: - Environment
 
     @EnvironmentObject private var calendarListService: CalendarListService
-    @Environment(\.accessibilityContrast) private var accessibilityContrast
+    @Environment(\.colorSchemeContrast) private var accessibilityContrast
     @Environment(\.colorScheme) private var colorScheme
 
     // MARK: - Properties
@@ -235,11 +235,11 @@ struct TimelineRowView: View {
                                     .padding(.vertical, 2)
                                     .background(
                                         Capsule()
-                                            .fill(Color.accentColor.opacity(accessibilityContrast == .high ? 0.25 : 0.1))
+                                            .fill(Color.accentColor.opacity(accessibilityContrast == .increased ? 0.25 : 0.1))
                                     )
                                     .overlay(
                                         Capsule()
-                                            .stroke(Color.accentColor, lineWidth: accessibilityContrast == .high ? 1 : 0)
+                                            .stroke(Color.accentColor, lineWidth: accessibilityContrast == .increased ? 1 : 0)
                                     )
                             }
 
@@ -257,11 +257,11 @@ struct TimelineRowView: View {
         .padding(.horizontal, 6)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(entry.isAllDay ? Color.accentColor.opacity(accessibilityContrast == .high ? 0.2 : 0.08) : .clear)
+                .fill(entry.isAllDay ? Color.accentColor.opacity(accessibilityContrast == .increased ? 0.2 : 0.08) : .clear)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(entry.isAllDay ? Color.accentColor.opacity(accessibilityContrast == .high ? 0.6 : 0.2) : .clear, lineWidth: entry.isAllDay ? 1 : 0)
+                .stroke(entry.isAllDay ? Color.accentColor.opacity(accessibilityContrast == .increased ? 0.6 : 0.2) : .clear, lineWidth: entry.isAllDay ? 1 : 0)
         )
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)

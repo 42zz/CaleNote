@@ -91,6 +91,38 @@ CaleNoteにおける最小データ単位は「スケジュールエントリー
 
 ### ビルド方法
 
+#### Makefileを使用（推奨）
+
+```bash
+# ビルドしてシミュレータで実行
+make
+
+# ビルドのみ
+make build
+
+# ビルドして実行
+make run
+
+# テスト実行
+make test
+
+# ユニットテストのみ
+make test-unit
+
+# UIテストのみ
+make test-ui
+
+# SwiftLint実行
+make lint
+
+# クリーンビルド
+make clean
+```
+
+**注意**: `xcbeautify` が必要です（`brew install xcbeautify`）
+
+#### Xcodeコマンドラインツールを使用
+
 ```bash
 # プロジェクトを開く
 open CaleNote.xcodeproj

@@ -280,7 +280,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "echo \"warning: SwiftLint is temporarily disabled due to sandbox permissions.\"\n";
+			shellScript = "if command -v swiftlint >/dev/null 2>&1; then\n  swiftlint --config \"${SRCROOT}/.swiftlint.yml\"\nelse\n  echo \"warning: SwiftLint is not installed. Install via Homebrew (brew install swiftlint) or SPM.\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

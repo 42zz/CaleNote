@@ -29,7 +29,7 @@ struct MonthCalendarPickerView: View {
     // MARK: - Environment
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityContrast) private var accessibilityContrast
+    @Environment(\.colorSchemeContrast) private var accessibilityContrast
 
     // MARK: - Init
 
@@ -177,14 +177,14 @@ struct MonthCalendarPickerView: View {
                         Circle()
                             .stroke(
                                 isToday ? Color.accentColor : Color.clear,
-                                lineWidth: accessibilityContrast == .high ? 2 : 1
+                                lineWidth: accessibilityContrast == .increased ? 2 : 1
                             )
                     )
                     .foregroundStyle(isSelected ? Color.white : Color.primary)
 
                 if hasEntry {
                     Circle()
-                        .fill(isSelected ? Color.white : (accessibilityContrast == .high ? Color.primary : Color.accentColor))
+                        .fill(isSelected ? Color.white : (accessibilityContrast == .increased ? Color.primary : Color.accentColor))
                         .frame(width: 4, height: 4)
                 } else {
                     Color.clear.frame(width: 4, height: 4)
@@ -214,7 +214,7 @@ struct MonthCalendarPickerView: View {
                     .fontWeight(.semibold)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(Color.accentColor.opacity(accessibilityContrast == .high ? 0.2 : 0.1))
+                    .background(Color.accentColor.opacity(accessibilityContrast == .increased ? 0.2 : 0.1))
                     .clipShape(Capsule())
             }
 
@@ -231,10 +231,12 @@ struct MonthCalendarPickerView: View {
     private var weekdaySymbols: [String] {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ja_JP")
-        let symbols = formatter.shortWeekdaySymbols
+        guard let symbols = formatter.shortWeekdaySymbols, !symbols.isEmpty else {
+            return []
+        }
         let calendar = Calendar.current
         let startIndex = max(calendar.firstWeekday - 1, 0)
-        if symbols.isEmpty || startIndex >= symbols.count {
+        if startIndex >= symbols.count {
             return symbols
         }
         return Array(symbols[startIndex...]) + Array(symbols[..<startIndex])

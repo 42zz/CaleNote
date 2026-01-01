@@ -134,7 +134,7 @@ private struct TagChip: View {
     let isSelected: Bool
     let count: Int
     let action: () -> Void
-    @Environment(\.accessibilityContrast) private var accessibilityContrast
+    @Environment(\.colorSchemeContrast) private var accessibilityContrast
 
     var body: some View {
         Button(action: action) {
@@ -153,11 +153,11 @@ private struct TagChip: View {
             .padding(.vertical, 6)
             .background(
                 Capsule()
-                    .fill(isSelected ? Color.accentColor.opacity(accessibilityContrast == .high ? 0.3 : 0.2) : Color.secondary.opacity(accessibilityContrast == .high ? 0.25 : 0.15))
+                    .fill(isSelected ? Color.accentColor.opacity(accessibilityContrast == .increased ? 0.3 : 0.2) : Color.secondary.opacity(accessibilityContrast == .increased ? 0.25 : 0.15))
             )
             .overlay(
                 Capsule()
-                    .stroke(Color.accentColor, lineWidth: isSelected && accessibilityContrast == .high ? 1 : 0)
+                    .stroke(Color.accentColor, lineWidth: isSelected && accessibilityContrast == .increased ? 1 : 0)
             )
         }
         .buttonStyle(.plain)

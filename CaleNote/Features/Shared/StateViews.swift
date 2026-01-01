@@ -54,7 +54,6 @@ struct EmptyStateView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .accessibilityLiveRegion(.polite)
 
                 if let detail, !detail.isEmpty {
                     Text(detail)
@@ -116,7 +115,6 @@ struct LoadingStateView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .accessibilityLiveRegion(.polite)
 
                 if let detail, !detail.isEmpty {
                     Text(detail)

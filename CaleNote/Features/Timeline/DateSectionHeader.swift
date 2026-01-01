@@ -13,7 +13,7 @@ struct DateSectionHeader: View {
 
     let date: Date
     let isToday: Bool
-    @Environment(\.accessibilityContrast) private var accessibilityContrast
+    @Environment(\.colorSchemeContrast) private var accessibilityContrast
 
     // MARK: - Computed Properties
 
@@ -67,7 +67,7 @@ struct DateSectionHeader: View {
                 // 日付
                 Text(dateText)
                     .font(isToday ? .subheadline : .caption)
-                    .foregroundColor(isToday ? .accentColor.opacity(accessibilityContrast == .high ? 1.0 : 0.8) : .secondary)
+                    .foregroundColor(isToday ? .accentColor.opacity(accessibilityContrast == .increased ? 1.0 : 0.8) : .secondary)
             }
 
             Spacer()
@@ -77,7 +77,7 @@ struct DateSectionHeader: View {
         .background(
             isToday
                 ? Capsule()
-                    .fill(Color.accentColor.opacity(accessibilityContrast == .high ? 0.2 : 0.1))
+                    .fill(Color.accentColor.opacity(accessibilityContrast == .increased ? 0.2 : 0.1))
                 : nil
         )
         .listRowInsets(EdgeInsets())

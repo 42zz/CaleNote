@@ -168,15 +168,15 @@ final class BackgroundTaskManager {
         let lastFailed = defaults.bool(forKey: "background.refresh.failed")
 
         if network.isExpensive || network.isConstrained {
-            let interval = lowPower ? 90 * 60 : 60 * 60
+            let interval: TimeInterval = lowPower ? 90 * 60 : 60 * 60
             return lastFailed ? max(interval, 90 * 60) : interval
         }
 
         if !network.isSatisfied {
-            return lastFailed ? 90 * 60 : 60 * 60
+            return lastFailed ? TimeInterval(90 * 60) : TimeInterval(60 * 60)
         }
 
-        let interval = lowPower ? 60 * 60 : 15 * 60
+        let interval: TimeInterval = lowPower ? 60 * 60 : 15 * 60
         return lastFailed ? max(interval, 60 * 60) : interval
     }
 

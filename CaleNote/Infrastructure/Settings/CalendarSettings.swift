@@ -11,7 +11,7 @@ import Foundation
 final class CalendarSettings {
     // MARK: - Singleton
 
-    static let shared = CalendarSettings()
+    @MainActor static let shared = CalendarSettings()
 
     // MARK: - UserDefaults Keys
 
@@ -102,7 +102,7 @@ final class CalendarSettings {
 
 /// ゴミ箱設定を管理するサービス
 final class TrashSettings {
-    static let shared = TrashSettings()
+    @MainActor static let shared = TrashSettings()
 
     enum RetentionOption: Int, CaseIterable, Identifiable {
         case days7 = 7

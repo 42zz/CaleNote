@@ -62,10 +62,10 @@ final class GoogleCalendarClient {
     // MARK: - Initialization
 
     init(
-        authService: GoogleAuthService = .shared,
+        authService: GoogleAuthService? = nil,
         urlSession: URLSession = .shared
     ) {
-        self.authService = authService
+        self.authService = authService ?? .shared
         self.urlSession = urlSession
     }
 
