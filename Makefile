@@ -12,7 +12,11 @@
 # プロジェクト/スキーム名をここで設定
 PROJECT := CaleNote.xcodeproj
 SCHEME := CaleNote
-DESTINATION := platform=iOS Simulator,name=iPhone 16
+# 利用可能なシミュレータを確認: xcrun simctl list devices available
+# xcodebuildが認識できるデバイスを使用
+# iPhone 17はOS 26.2のみ、iPhone 16はOS 18.6で利用可能
+# OS=latestは環境によって異なるバージョンを拾う可能性があるため、固定バージョンを推奨
+DESTINATION := platform=iOS Simulator,name=iPhone 17,OS=26.2
 
 # xcbeautify がインストールされている前提（brew install xcbeautify）
 # インストールされていない場合は、xcbeautify を削除して通常の出力を使用
@@ -34,15 +38,28 @@ build: check-xcbeautify
 
 run: check-xcbeautify
 	@echo "🚀 Running $(SCHEME) on simulator..."
-	@set -o pipefail && xcodebuild \
+	@set -euo pipefail; \
+	DEST_NAME=$$(echo "$(DESTINATION)" | sed -n "s/.*name=\([^,]*\).*/\1/p"); \
+	if [ -z "$$DEST_NAME" ]; then echo "DESTINATION から name を取れません: $(DESTINATION)"; exit 1; fi; \
+	echo "📱 Booting simulator: $$DEST_NAME"; \
+	open -a Simulator >/dev/null 2>&1 || true; \
+	xcrun simctl boot "$$DEST_NAME" >/dev/null 2>&1 || true; \
+	echo "🔨 Building (for simulator)..."; \
+	xcodebuild \
 		-project $(PROJECT) \
 		-scheme $(SCHEME) \
 		-destination '$(DESTINATION)' \
-		build -quiet | xcbeautify || true
-	@echo "📱 Launching app..."
-	@xcrun simctl boot "iPhone 16" 2>/dev/null || true
-	@xcrun simctl install booted $$(xcodebuild -project $(PROJECT) -scheme $(SCHEME) -destination '$(DESTINATION)' -showBuildSettings 2>/dev/null | grep -m 1 "BUILT_PRODUCTS_DIR" | sed 's/.*= *//')/$(SCHEME).app 2>/dev/null || true
-	@xcrun simctl launch booted com.yourcompany.$(SCHEME) 2>/dev/null || echo "⚠️  アプリの起動に失敗しました。Xcodeから直接実行してください。"
+		-configuration Debug \
+		build | xcbeautify; \
+	APP_PATH=$$(xcodebuild -project $(PROJECT) -scheme $(SCHEME) -destination '$(DESTINATION)' -showBuildSettings \
+		| awk -F' = ' '/TARGET_BUILD_DIR/{t=$$2} /FULL_PRODUCT_NAME/{p=$$2} END{print t "/" p}'); \
+	if [ ! -d "$$APP_PATH" ]; then echo "App not found: $$APP_PATH"; exit 1; fi; \
+	BUNDLE_ID=$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$$APP_PATH/Info.plist"); \
+	if [ -z "$$BUNDLE_ID" ]; then echo "Bundle id not found"; exit 1; fi; \
+	echo "📦 Installing: $$APP_PATH"; \
+	xcrun simctl install booted "$$APP_PATH"; \
+	echo "🚀 Launching: $$BUNDLE_ID"; \
+	xcrun simctl launch booted "$$BUNDLE_ID"
 
 test: check-xcbeautify
 	@echo "🧪 Running all tests..."
@@ -69,8 +86,16 @@ test-ui: check-xcbeautify
 
 lint:
 	@echo "🔍 Running SwiftLint..."
-	@swiftlint --config .swiftlint.yml || (echo "⚠️  SwiftLint がインストールされていません。brew install swiftlint でインストールしてください。" && exit 1)
+	@if ! command -v swiftlint > /dev/null 2>&1; then \
+		echo "⚠️  SwiftLint がインストールされていません。brew install swiftlint でインストールしてください。"; \
+		exit 1; \
+	fi
+	@if [ ! -f .swiftlint.yml ]; then \
+		echo "⚠️  .swiftlint.yml が見つかりません。スキップします。"; \
+	else \
+		swiftlint --config .swiftlint.yml; \
+	fi
 
 clean:
 	@echo "🧹 Cleaning..."
-	@xcodebuild clean -project $(PROJECT) -scheme $(SCHEME)
+	@xcodebuild clean -project $(PROJECT) -scheme $(SCHEME) -sdk iphonesimulator -quiet 2>/dev/null || true
