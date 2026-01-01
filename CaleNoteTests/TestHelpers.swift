@@ -2,6 +2,19 @@ import Foundation
 import SwiftData
 @testable import CaleNote
 
+@MainActor
+enum TestModelContainer {
+    static let shared: ModelContainer = {
+        let schema = Schema([
+            ScheduleEntry.self,
+            CalendarInfo.self
+        ])
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        // swiftlint:disable:next force_try
+        return try! ModelContainer(for: schema, configurations: config)
+    }()
+}
+
 enum TestHelpers {
     static func makeDate(
         year: Int,
@@ -52,13 +65,7 @@ enum TestHelpers {
     }
 
     @MainActor
-    static func makeModelContext() throws -> ModelContext {
-        let schema = Schema([
-            ScheduleEntry.self,
-            CalendarInfo.self
-        ])
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: schema, configurations: config)
-        return container.mainContext
+    static func makeModelContext() -> ModelContext {
+        ModelContext(TestModelContainer.shared)
     }
 }

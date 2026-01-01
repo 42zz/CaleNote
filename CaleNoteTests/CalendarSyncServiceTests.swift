@@ -114,7 +114,7 @@ struct CalendarSyncServiceTests {
     }
 
     @Test func syncLocalChangesCreatesNewEvent() async throws {
-        let context = try TestHelpers.makeModelContext()
+        let context = TestHelpers.makeModelContext()
         let entry = TestHelpers.makeEntry(
             title: "New Entry",
             startAt: TestHelpers.makeDate(year: 2025, month: 1, day: 10),
@@ -165,7 +165,7 @@ struct CalendarSyncServiceTests {
     }
 
     @Test func syncLocalChangesUpdatesExistingEvent() async throws {
-        let context = try TestHelpers.makeModelContext()
+        let context = TestHelpers.makeModelContext()
         let entry = TestHelpers.makeEntry(
             title: "Existing Entry",
             startAt: TestHelpers.makeDate(year: 2025, month: 1, day: 12),

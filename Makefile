@@ -3,9 +3,11 @@
 #   make              → ビルド & シミュレータ起動
 #   make build        → ビルドのみ
 #   make run          → ビルドして実行（最新ビルド使用）
-#   make test         → テスト実行
-#   make test-unit   → ユニットテストのみ実行
-#   make test-ui      → UIテストのみ実行
+#   make test         → テスト実行（並列無効化）
+#   make test-unit    → ユニットテストのみ実行（並列無効化）
+#   make test-ui      → UIテストのみ実行（並列無効化）
+#   make test-single TEST="..." → 個別テスト実行（xcbeautify使用）
+#   make test-single-raw TEST="..." → 個別テスト実行（素のログ、エラー本文確認用）
 #   make lint         → SwiftLint実行
 #   make clean        → クリーン
 
@@ -21,7 +23,7 @@ DESTINATION := platform=iOS Simulator,name=iPhone 16,OS=18.6
 # xcbeautify がインストールされている前提（brew install xcbeautify）
 # インストールされていない場合は、xcbeautify を削除して通常の出力を使用
 
-.PHONY: all build run test test-unit test-ui lint clean check-xcbeautify
+.PHONY: all build run test test-unit test-ui test-single test-single-raw lint clean check-xcbeautify
 
 all: build run
 
@@ -66,7 +68,9 @@ test: check-xcbeautify
 	@set -o pipefail && xcodebuild test \
 		-project $(PROJECT) \
 		-scheme $(SCHEME) \
-		-destination '$(DESTINATION)' | xcbeautify
+		-destination '$(DESTINATION)' \
+		-disable-concurrent-testing \
+		-parallel-testing-enabled NO | xcbeautify
 
 test-unit: check-xcbeautify
 	@echo "🧪 Running unit tests..."
@@ -74,7 +78,9 @@ test-unit: check-xcbeautify
 		-project $(PROJECT) \
 		-scheme $(SCHEME) \
 		-destination '$(DESTINATION)' \
-		-only-testing:CaleNoteTests | xcbeautify
+		-only-testing:CaleNoteTests \
+		-disable-concurrent-testing \
+		-parallel-testing-enabled NO | xcbeautify
 
 test-ui: check-xcbeautify
 	@echo "🧪 Running UI tests..."
@@ -82,7 +88,42 @@ test-ui: check-xcbeautify
 		-project $(PROJECT) \
 		-scheme $(SCHEME) \
 		-destination '$(DESTINATION)' \
-		-only-testing:CaleNoteUITests | xcbeautify
+		-only-testing:CaleNoteUITests \
+		-disable-concurrent-testing \
+		-parallel-testing-enabled NO | xcbeautify
+
+# 個別テスト実行用（エラー本文を確認するため）
+# 使い方: make test-single TEST="CaleNoteTests/DisplaySettingsTests/weekStartDayPersistsValue"
+test-single: check-xcbeautify
+	@if [ -z "$(TEST)" ]; then \
+		echo "❌ 使用方法: make test-single TEST=\"CaleNoteTests/TestClassName/testMethodName\""; \
+		echo "   例: make test-single TEST=\"CaleNoteTests/DisplaySettingsTests/weekStartDayPersistsValue\""; \
+		exit 1; \
+	fi
+	@echo "🧪 Running single test: $(TEST)"
+	@set -o pipefail && xcodebuild test \
+		-project $(PROJECT) \
+		-scheme $(SCHEME) \
+		-destination '$(DESTINATION)' \
+		-only-testing:$(TEST) \
+		-disable-concurrent-testing \
+		-parallel-testing-enabled NO | xcbeautify
+
+# 個別テスト実行（素のログ、エラー本文を確認）
+# 使い方: make test-single-raw TEST="CaleNoteTests/DisplaySettingsTests/weekStartDayPersistsValue"
+test-single-raw:
+	@if [ -z "$(TEST)" ]; then \
+		echo "❌ 使用方法: make test-single-raw TEST=\"CaleNoteTests/TestClassName/testMethodName\""; \
+		exit 1; \
+	fi
+	@echo "🧪 Running single test (raw output): $(TEST)"
+	@set -o pipefail && xcodebuild test \
+		-project $(PROJECT) \
+		-scheme $(SCHEME) \
+		-destination '$(DESTINATION)' \
+		-only-testing:$(TEST) \
+		-disable-concurrent-testing \
+		-parallel-testing-enabled NO
 
 lint:
 	@echo "🔍 Running SwiftLint..."
