@@ -17,7 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Simulator OS の整合性** (`.github/workflows/ci.yml`, `README.md`, `CLAUDE.md`)
   - 最新 iOS ランタイムの OS を指定してデプロイターゲット不一致を回避
 - **iOS デプロイターゲット調整** (`CaleNote.xcodeproj/project.pbxproj`, `README.md`, `CLAUDE.md`)
-  - CI で利用可能な iOS 26.1 ランタイムに合わせてテストターゲットを調整
+  - CI の iOS 18.5 SDK に合わせてテストターゲットを調整
+- **SidebarView 出力衝突の解消** (`CaleNote/Features/Navigation/NavigationSidebarView.swift`, `CaleNote/Features/Navigation/MainNavigationView.swift`)
+  - 同名ファイルの stringsdata 競合を避けるためナビゲーション用サイドバーをリネーム
 
 ### Added - 2025/12/31
 

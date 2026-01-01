@@ -118,7 +118,7 @@ struct MainNavigationView: View {
             fabButton
         }
         .sheet(isPresented: $showSidebar) {
-            SidebarView()
+            NavigationSidebarView()
                 .environmentObject(auth)
                 .environmentObject(syncService)
         }

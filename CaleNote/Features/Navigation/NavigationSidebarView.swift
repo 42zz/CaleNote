@@ -1,5 +1,5 @@
 //
-//  SidebarView.swift
+//  NavigationSidebarView.swift
 //  CaleNote
 //
 //  Created by Claude Code on 2025/12/30.
@@ -11,7 +11,7 @@ import SwiftUI
 
 /// サイドバービュー
 /// Google Calendar アプリの左サイドバーをベンチマークとした構成
-struct SidebarView: View {
+struct NavigationSidebarView: View {
     // MARK: - Environment
 
     @EnvironmentObject private var auth: GoogleAuthService
