@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added - 2026/01/03
 
+#### Issue #25 (CAL-25): GitHub Actions による CI/CD パイプラインの構築
+- **Build and Test ワークフロー** (`.github/workflows/build-and-test.yml`)
+  - Unit Tests / UI Tests / All Tests / Code Coverage ジョブ
+  - 複数シミュレーターでのビルド検証（iPhone 16、iPad Pro M4）
+  - テスト結果とカバレッジレポートの自動アップロード
+- **Release ワークフロー** (`.github/workflows/release.yml`)
+  - Git タグ (`v*.*.*`) での自動リリース作成
+  - CHANGELOG.md からのリリースノート自動生成
+  - Archive と IPA の自動ビルド
+  - TestFlight アップロードの準備（将来の実装）
+- **Dependency Check ワークフロー** (`.github/workflows/dependencies.yml`)
+  - 週次の依存関係チェック（毎週月曜9:00 UTC）
+  - TruffleHog によるシークレット漏洩検出
+  - SwiftLint セキュリティルールの実行
+- **設定とドキュメント**
+  - `.github/export-options.plist`: アーカイブエクスポート設定
+  - `.github/CI-CD.md`: CI/CD パイプラインの包括的ドキュメント
+  - ワークフローのセキュリティベストプラクティス（入力検証、最小権限）
+- **統合**
+  - SwiftLint ワークフローとの連携
+  - Makefile コマンドとの統合
+  - アーティファクトの自動保存と管理
+
 #### Issue #38 (CAL-38): クラッシュレポートとエラートラッキング
 - **クラッシュレポートサービス** (`Infrastructure/CrashReporting/CrashReportingService.swift`)
   - 未捕捉例外の自動検出とレポート生成
