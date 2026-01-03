@@ -172,6 +172,10 @@ struct SettingsView: View {
                 }
                 .disabled(recoveryService.isRecovering)
 
+                NavigationLink("同期履歴") {
+                    SyncHistoryView()
+                }
+
                 if recoveryService.isRecovering {
                     VStack(alignment: .leading, spacing: 8) {
                         ProgressView(value: recoveryService.progress)

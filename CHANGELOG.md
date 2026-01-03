@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added - 2026/01/03
 
+#### Issue #65 (CAL-65): 同期ログとデバッグ情報の表示
+- **SyncLog モデル** (`CaleNote/Domain/SyncLog.swift`)
+  - 同期ログレベル（info/warning/error）と同期方向（upload/download/bidirectional）
+  - 処理エントリー数（追加/更新/削除）、API リクエスト数、syncToken 使用状況
+  - 所要時間、リトライ回数、エラーメッセージの記録
+  - 最大100件のログ保持、古いログの自動削除
+- **SyncLogger サービス** (`CaleNote/Infrastructure/Sync/SyncLogger.swift`)
+  - 同期操作のライフサイクル管理（開始/完了/失敗）
+  - ログの永続化と自動クリーンアップ
+  - テキストファイルへのログエクスポート機能
+  - 同期統計の計算（最終同期時刻、平均所要時間、総 API リクエスト数）
+- **SyncHistoryView** (`CaleNote/Features/Settings/SyncHistoryView.swift`)
+  - 同期履歴一覧表示（ステータスアイコン、同期日時、処理件数サマリー）
+  - 詳細ログ表示（ステータス、詳細情報、処理エントリー数、エラー内容）
+  - ログのエクスポートとクリア機能
+  - Share Sheet でのログ共有
+- **設定画面への統合** (`CaleNote/Features/Settings/SettingsView.swift`)
+  - 「同期履歴」メニューを Data Management セクションに追加
+- **スキーマ更新** (`CaleNote/Domain/CaleNoteSchema.swift`)
+  - `SyncLog` モデルを `CaleNoteSchemaV1` に追加
+
 #### Issue #39 (CAL-39): SwiftData スキーママイグレーション戦略の実装
 - **VersionedSchema 定義** (`CaleNote/Domain/CaleNoteSchema.swift`)
   - `CaleNoteSchemaV1`: 初期リリース版スキーマ (バージョン 1.0.0)

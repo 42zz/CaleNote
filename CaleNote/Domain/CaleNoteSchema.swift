@@ -13,11 +13,12 @@ import SwiftData
 /// 初期リリース版スキーマ
 /// - ScheduleEntry: スケジュールエントリー（Google Calendar イベントとの1対1対応）
 /// - CalendarInfo: カレンダー情報
+/// - SyncLog: 同期ログ
 enum CaleNoteSchemaV1: VersionedSchema {
     static var versionIdentifier = Schema.Version(1, 0, 0)
 
     static var models: [any PersistentModel.Type] {
-        [ScheduleEntry.self, CalendarInfo.self]
+        [ScheduleEntry.self, CalendarInfo.self, SyncLog.self]
     }
 }
 

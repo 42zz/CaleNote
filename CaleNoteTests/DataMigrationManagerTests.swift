@@ -75,6 +75,7 @@ final class DataMigrationManagerTests: XCTestCase {
 
         XCTAssertTrue(models.contains(where: { $0 == ScheduleEntry.self }), "Schema should include ScheduleEntry")
         XCTAssertTrue(models.contains(where: { $0 == CalendarInfo.self }), "Schema should include CalendarInfo")
+        XCTAssertTrue(models.contains(where: { $0 == SyncLog.self }), "Schema should include SyncLog")
     }
 
     // MARK: - MigrationPlan Tests
