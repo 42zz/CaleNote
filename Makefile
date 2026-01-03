@@ -16,9 +16,9 @@ PROJECT := CaleNote.xcodeproj
 SCHEME := CaleNote
 # 利用可能なシミュレータを確認: xcrun simctl list devices available
 # xcodebuildが認識できるデバイスを使用
-# iPhone 17はOS 26.2のみ、iPhone 16はOS 18.6で利用可能
-# OS=latestは環境によって異なるバージョンを拾う可能性があるため、固定バージョンを推奨
-DESTINATION := platform=iOS Simulator,name=iPhone 17,OS=26.2
+# UDID指定で複数一致を回避（環境ブレ対策）
+# UIテストはiPad専用（testEntryCreationAndEdit, testSidebarCalendarSelection）
+DESTINATION := platform=iOS Simulator,id=2D908DF7-986E-46E9-A5B2-BD2DE9244CE1
 
 # xcbeautify がインストールされている前提（brew install xcbeautify）
 # インストールされていない場合は、xcbeautify を削除して通常の出力を使用
