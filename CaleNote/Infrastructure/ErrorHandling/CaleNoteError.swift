@@ -151,7 +151,7 @@ extension NetworkError: LocalizedError {
             return "DNS エラーが発生しました"
         case .noConnection:
             return "インターネット接続がありません"
-        case .other(let error):
+        case .other:
             return "ネットワークエラーが発生しました"
         }
     }
@@ -198,7 +198,7 @@ extension LocalDataError: LocalizedError {
             return "ストレージ容量が不足しています"
         case .notFound:
             return "データが見つかりませんでした"
-        case .other(let error):
+        case .other:
             return "ローカルデータエラーが発生しました"
         }
     }

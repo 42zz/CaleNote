@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - 2026/01/03
+
+#### Issue #38 (CAL-38): クラッシュレポートとエラートラッキング
+- **クラッシュレポートサービス** (`Infrastructure/CrashReporting/CrashReportingService.swift`)
+  - 未捕捉例外の自動検出とレポート生成
+  - クラッシュ時のスタックトレース、デバイス情報、アプリバージョンを記録
+  - クラッシュデータの永続化（Application Support ディレクトリ）
+  - エラーログ機能による重大度別の記録
+  - エラーログの Markdown エクスポート機能
+- **UI によるレポート閲覧** (`Features/Settings/CrashReportsView.swift`)
+  - クラッシュレポート一覧表示と詳細展開
+  - エラーログのフィルタリングと表示
+  - レポートのエクスポートとクリア機能
+  - クラッシュサマリー（総件数、最終クラッシュ日時）
+- **ErrorHandler との統合** (`Infrastructure/ErrorHandling/ErrorHandler.swift`)
+  - 既存エラーハンドリングとクラッシュレポートの連携
+  - エラー重大度の自動判定
+  - すべてのエラーのログ記録
+- **単体テスト** (`CaleNoteTests/CrashReportingServiceTests.swift`)
+  - CrashReport および ErrorLog モデルのテスト
+  - JSON エンコード/デコードのテスト
+  - Markdown エクスポートのテスト
+
 ### Changed - 2026/01/01
 
 #### ScheduleEntry indexing for query performance

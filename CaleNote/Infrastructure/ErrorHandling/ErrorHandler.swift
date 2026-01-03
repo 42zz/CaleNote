@@ -24,13 +24,21 @@ final class ErrorHandler: ObservableObject {
     /// エラー表示フラグ
     @Published var showError = false
 
+    // MARK: - Services
+
+    /// クラッシュレポートサービス
+    private let crashReporting = CrashReportingService.shared
+
     // MARK: - Logger
 
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "CaleNote", category: "ErrorHandler")
 
     // MARK: - Initialization
 
-    private init() {}
+    private init() {
+        // クラッシュレポートサービスが初期化されていることを確認
+        _ = crashReporting
+    }
 
     // MARK: - Error Handling
 
@@ -49,10 +57,42 @@ final class ErrorHandler: ObservableObject {
         // ログに記録
         logError(caleNoteError, context: context)
 
+        // クラッシュレポートサービスにもログ
+        crashReporting.logError(
+            error,
+            context: context,
+            severity: determineSeverity(caleNoteError)
+        )
+
         // ユーザーに表示
         if showToUser {
             currentError = caleNoteError
             showError = true
+        }
+    }
+
+    /// エラーの重大度を判定
+    /// - Parameter error: CaleNoteError
+    /// - Returns: ErrorSeverity
+    private func determineSeverity(_ error: CaleNoteError) -> ErrorSeverity {
+        switch error {
+        case .networkError:
+            return .warning
+        case .apiError(let apiError):
+            switch apiError {
+            case .serverError:
+                return .error
+            case .rateLimited:
+                return .warning
+            default:
+                return .error
+            }
+        case .localDataError:
+            return .critical
+        case .syncError:
+            return .warning
+        case .unknown:
+            return .error
         }
     }
 

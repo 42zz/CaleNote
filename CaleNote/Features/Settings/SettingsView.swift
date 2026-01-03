@@ -217,13 +217,19 @@ struct SettingsView: View {
                 .accessibilityHint("初回ガイドを再度確認します")
             }
 
+            Section("Debug & Diagnostics") {
+                NavigationLink("クラッシュレポート") {
+                    CrashReportsView()
+                }
+            }
+
             Section("App Info") {
                 Text("Version: \(appVersion)")
                 Text("Build: \(buildNumber)")
                 Text("Privacy Policy: 未設定")
                 Text("Terms of Service: 未設定")
             }
-            
+
             if let error = errorMessage {
                 Section {
                     Text(error)
