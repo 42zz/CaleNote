@@ -28,12 +28,10 @@ struct CaleNoteApp: App {
         do {
             AppEnvironment.applyOverrides()
 
-            // スキーマ定義（CalendarInfoを追加）
-            let schema = Schema([
-                ScheduleEntry.self,
-                CalendarInfo.self
-            ])
+            // スキーマ定義（VersionedSchemaをサポート）
+            let schema = Schema(CurrentSchema.models)
             let config: ModelConfiguration
+
             if AppEnvironment.isUITesting {
                 config = ModelConfiguration(isStoredInMemoryOnly: true)
             } else {
@@ -41,6 +39,7 @@ struct CaleNoteApp: App {
                 config = ModelConfiguration(url: storeURL)
                 DataProtection.applyFileProtection(to: storeURL)
             }
+
             container = try ModelContainer(for: schema, configurations: [config])
 
             // サービスの初期化

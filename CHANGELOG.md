@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added - 2026/01/03
 
+#### Issue #39 (CAL-39): SwiftData スキーママイグレーション戦略の実装
+- **VersionedSchema 定義** (`CaleNote/Domain/CaleNoteSchema.swift`)
+  - `CaleNoteSchemaV1`: 初期リリース版スキーマ (バージョン 1.0.0)
+  - `ScheduleEntry` と `CalendarInfo` モデルを含む
+  - 将来のスキーマ変更に備えたバージョニング構造
+- **DataMigrationManager** (`CaleNote/Infrastructure/DataMigration/DataMigrationManager.swift`)
+  - SwiftData コンテナ設定の生成（インメモリ/永続化）
+  - 自動バックアップ機能（マイグレーション前にバックアップ作成）
+  - バックアップ管理（直近5個を保持、古いバックアップを自動削除）
+  - `CaleNoteMigrationPlan`: スキーママイグレーションプラン
+  - 将来的な V1→V2 移行ステージの拡張ポイント
+- **CaleNoteApp.swift の更新**
+  - VersionedSchema を使用した ModelContainer の初期化
+  - スキーマバージョン管理の導入
+- **単体テスト** (`CaleNoteTests/DataMigrationManagerTests.swift`)
+  - 設定作成、ModelContainer 初期化、バックアップ機能のテスト
+  - スキーマバージョン、MigrationPlan の検証
+  - 統合テスト（ScheduleEntry の作成と取得）
+
 #### Issue #25 (CAL-25): GitHub Actions による CI/CD パイプラインの構築
 - **Build and Test ワークフロー** (`.github/workflows/build-and-test.yml`)
   - Unit Tests / UI Tests / All Tests / Code Coverage ジョブ
